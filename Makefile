@@ -51,12 +51,14 @@ testpypi:
 
 
 ############################## for development 
-deployment ?= production
+# default is to mess with our preplab and let the production
+# site do proper upgrades using pip3
+deployment ?= bemol
 
-ifneq "$(deployment)" "production"
-    DEST=bemol.pl.sophia.inria.fr
-else
+ifeq "$(deployment)" "production"
     DEST=faraday.inria.fr
+else
+    DEST=bemol.pl.sophia.inria.fr
 endif
 
 # WARNING : for a ubuntu machine only
@@ -68,7 +70,8 @@ sync:
 
 both: bemol faraday
 
-faraday: sync
+faraday:
+	$(MAKE) sync deployment=production
 
 bemol:
 	$(MAKE) sync deployment=bemol
