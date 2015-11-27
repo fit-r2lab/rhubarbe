@@ -60,10 +60,10 @@ class ImageLoader:
         valid = yield from leases.is_valid()
         if not valid:
             yield from self.feedback('authorization','access denied')
-            yield from self.feedback("Access refused : you have no lease on the testbed at this time")
+            yield from self.feedback('authorization', "Access refused : you have no lease on the testbed at this time")
         else:
             yield from self.feedback('authorization','access granted')
-            yield from (self.stage1() if reset else self.feedback({'info': "Skipping stage1"}))
+            yield from (self.stage1() if reset else self.feedback('info', "Skipping stage1"))
             yield from (self.stage2(reset))
         yield from self.monitor.stop()
 
