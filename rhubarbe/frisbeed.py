@@ -56,7 +56,7 @@ class Frisbeed:
             command_line = " ".join(command)
             if self.subprocess.returncode is None:
                 logger.info("frisbeed started: {}".format(command_line))
-                yield from self.feedback('info', "frisbee server started")
+                yield from self.feedback('info', "frisbee server started - bw = {} bps".format(bandwidth))
                 self.multicast_group = multicast_group
                 self.multicast_port = multicast_port
                 return multicast_group, multicast_port
