@@ -37,6 +37,8 @@ class MonitorCurses(Monitor):
         self.screen.addstr(self.maxl-1, 1, prompt)
         self.screen.refresh()
         self.screen.getch()
+        import pdb
+        pdb.set_trace()
         curses.endwin()
 
     def dispatch_hook(self, message, timestamp, duration):

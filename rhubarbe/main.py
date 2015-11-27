@@ -230,6 +230,11 @@ def list(argv):
                         help="display available images")
     parser.add_argument("-n", "--inventory", action='store_true', default=False,
                         help="display nodes from inventory")
+    parser.add_argument("-s", "--sort", dest='sort_by', action='store', default='size',
+                        choices=('date', 'size'),
+                        help="sort by date or by size")
+    parser.add_argument("-r", "--reverse", action='store_true', default=False,
+                        help="reverse sort")
     parser.add_argument("-a", "--all", action='store_true', default=False)
     args = parser.parse_args(argv)
 
@@ -237,7 +242,7 @@ def list(argv):
         the_config.display()
     if args.images or args.all:
         from rhubarbe.imagesrepo import the_imagesrepo
-        the_imagesrepo.display()
+        the_imagesrepo.display(args.sort_by, args.reverse)
     if args.inventory or args.all:
         from rhubarbe.inventory import the_inventory
         the_inventory.display(verbose=True)

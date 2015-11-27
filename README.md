@@ -216,8 +216,7 @@ we would have written instead in pure python-3.5 this
 
 ## cosmetic - known bugs (P4)
 
-* nicer rhubarbe list -i (sizes, symlinks, etc..)
-implement some way to store the logs from frisbee and imagezip somewhere
+* implement some way to store the logs from frisbee and imagezip somewhere
 * wait really is not talkative; even without -v we'd expect some logging...
 * is there a way to remove incomplete images under -save (both keybord interrupt and timeout..)
 * should we not log all the messages on the feedback/bus onto logger as well ?
