@@ -179,3 +179,6 @@ we would have written instead in pure python-3.5 this
 * wait really is not talkative; even without -v we'd expect some logging...
 * is there a way to remove incomplete images under -save (both keybord interrupt and timeout..)
 * should we not log all the messages on the feedback/bus onto logger as well ?
+* curses react to window resize
+  * getch() to return curses.KEY_RESIZE in such a case
+  * window.nodelay(1) allows to make getch() non-blocking
