@@ -1,6 +1,27 @@
+# Summary
+
+`rhubarbe` is an `asyncio`/`python` module for loading images on a bunch of nodes using `frisbee`. It can be installed from `pypi`: 
+
+    pip3 install rhubarbe
+
+To load your `fedora-21` image on 18 nodes simultaneously:
+    
+    rhubarbe load -i fedora-21 1-18 &
+   
+You can safely load another batch of nodes at the same time, maybe with a smaller bandwidth
+   
+    rhubarbe load -i ubuntu-1510 -b 200 19-36 &
+    
+To save the image of node 10, do this
+
+    rhubarbe save 10
+
+This is connected to an authorization system; most of the functions are rather intrusive, and require the user to have obtained a lease (reservation), at the onelab portal, applicable to the current time and day, before the tool can be used. Note that the `root` user is unconditionnally granted permission.
+
+
 # Purpose
 
-This is a tentative rewriting of the `omf6 load` and other similar commands in python3 using `asyncio`. This results in a single-thread, yet reactive, solution. The following features are currently available:
+This is a tentative rewriting of the `omf6 load` and other similar commands, in python3 using `asyncio`. This results in a single-thread, yet reactive, solution. The following features are currently available:
 
 * `rhubarbe load` : parallel loading of an image, much like `omf6 load`
   * Two modes are supported, with the `-c` option running on top of curses to show individual progress for each node
@@ -16,19 +37,38 @@ With these additional benefits:
 
 # How to use
 
-## Invoking : node scope
+## List of subcommands
 
 The python entry point is named `rhubarbe` but it should be called with an additional subcommand.
+
+    root@bemol ~ # rhubarbe
+    Need to run rhubarbe with a subcommand among {load,save,status,wait,list,version}
+
+	root@bemol ~ # rhubarbe load --help
+
+## Invoking : node scope
 
 So in short:
 
     $ rhubarbe load [-i filename] 1 4 5
     
-The arguments, known as a *node_spec*`* would be similar to what `nodes` accepts as input, i.e.
+The arguments, known as a *node_spec* can be individual nodes, ranges, or even steps, like e.g.
 
-    $ load-image 1-12 fit15-reboot18 ~4-6
-
-Would essentially work on nodes 1 to 3, 7 to 12, and 15 to 18
+* individual nodes
+  * `$ rhubarbe load 1 3 fit8 reboot12` for working on nodes, well
+  * 1, 3, 8 12
+* ranges
+  * `$ rhubarbe load 1-3 8-10` on nodes
+  *  1, 2, 3, 8, 9, 10
+* steps : in a python-like manner, from-to-step:
+  * `$ rhubarbe load 1-10-2` on nodes
+  *  1 3 5 7 9 
+* all nodes 
+  * `$ rhubarbe load -a` on nodes
+  * 1 through 37 on `faraday.inria.fr`
+* negation
+  * `$ rhubarbe load -a ~10-20` on nodes
+  * 1 to 9, and 21 to 37
 
 Run `rhubarbe load --help` as usual for a list of options.
 
@@ -150,11 +190,12 @@ we would have written instead in pure python-3.5 this
 
 # TODO
 
-## crucial (P1)
+## P1 : known bugs for production
 
 * test. test. test:
-  * load -c does not reset terminal at the end (`tset` is needed)
-
+* load -c does not reset terminal at the end (`tset` is needed)
+  * looks like endwin() **is** correctly **called** but somhow something comes back **afterwards** and breaks the terminal.
+ 
 ## for deployment (P2)
 
 * rewrite monitor.py within this framework ()
@@ -169,16 +210,19 @@ we would have written instead in pure python-3.5 this
 
 * *not even sure* should iwait have a telnet mode (-n/--telnet) as well ? 
 
-## cosmetic (P4)
+* would be really cool if the authorization system could actually **get the lease** if nobody else uses the testbed at that time. 
+  * need to do simple tests using the omf-generated certificate; will that alow to authenticate at the REST API and create the lease ?
+  * in which case we'll most likely need to configure the resource name...
 
-* check main & ill usage
-  *  i.e. `iload fedora-21` does not say that I screwed up and forgot the `-i`
-* remove the need for $ALL_NODES and use config instead 
+## cosmetic - known bugs (P4)
+
 * nicer rhubarbe list -i (sizes, symlinks, etc..)
-* implement some way to store the logs from frisbee and imagezip somewhere
+implement some way to store the logs from frisbee and imagezip somewhere
 * wait really is not talkative; even without -v we'd expect some logging...
 * is there a way to remove incomplete images under -save (both keybord interrupt and timeout..)
 * should we not log all the messages on the feedback/bus onto logger as well ?
+job but somehow something later does it again...
 * curses react to window resize
   * getch() to return curses.KEY_RESIZE in such a case
   * window.nodelay(1) allows to make getch() non-blocking
+* Istatus -1/--on : list nodes that are on - same for -0/--off
