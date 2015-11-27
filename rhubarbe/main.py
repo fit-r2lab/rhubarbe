@@ -3,28 +3,31 @@
 import asyncio
 
 from argparse import ArgumentParser
-from logger import logger
 
-from monitor import Monitor
-from monitor_curses import MonitorCurses
+from rhubarbe.selector import Selector, add_selector_arguments, selected_selector
+from rhubarbe.monitor import Monitor
+from rhubarbe.monitor_curses import MonitorCurses
+from rhubarbe.node import Node
+from rhubarbe.imageloader import ImageLoader
+from rhubarbe.imagesaver import ImageSaver
+from rhubarbe.ssh import SshProxy
+from rhubarbe.leases import Leases
+from rhubarbe.logger import logger
+import rhubarbe.util as util
 
-from node import Node
-from selector import Selector, add_selector_arguments, selected_selector
-from imageloader import ImageLoader
-from imagesaver import ImageSaver
-from imagesrepo import the_imagesrepo
-from config import the_config
-from ssh import SshProxy
-import util
-from leases import Leases
-
-# for each of these there should be a symlink to rhubarbe-main.py
-# like rhubarbe-load -> rhubarbe-main.py
-# and a function in this module with no arg
+# a supported command comes with a function in this module
+# that takes a list of args 
+# and returns 0 for success and s/t else otherwise
+# specifically, command
+# rhubarbe load -i fedora 12
+# would result in a call
+# load ( [ "-i", "fedora", "12" ])
 supported_commands = [ 'load', 'save', 'status', 'wait', 'list' ]
 
 ####################
-def load():
+def load(argv):
+    from rhubarbe.config import the_config
+    from rhubarbe.imagesrepo import the_imagesrepo
     default_image = the_imagesrepo.default()
     default_timeout = the_config.value('nodes', 'load_default_timeout')
     default_bandwidth = the_config.value('networking', 'bandwidth')
@@ -45,11 +48,14 @@ def load():
                         They won't get reset, neither before or after the frisbee session
                         """)
     add_selector_arguments(parser)
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     message_bus = asyncio.Queue()
 
     selector = selected_selector(args)
+    if not selector.how_many():
+        parser.print_help()
+        return 1
     nodes = [ Node(cmc_name, message_bus) for cmc_name in selector.cmc_names() ]
 
     # send feedback
@@ -71,7 +77,8 @@ def load():
     return loader.main(reset=args.reset, timeout=args.timeout)
  
 ####################
-def save():
+def save(argv):
+    from rhubarbe.config import the_config
     default_timeout = the_config.value('nodes', 'save_default_timeout')
 
     parser = ArgumentParser()
@@ -86,7 +93,7 @@ def save():
                         They won't get reset, neither before or after the frisbee session
                         """)
     parser.add_argument("node")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     message_bus = asyncio.Queue()
 
@@ -100,6 +107,7 @@ def save():
     node = Node(cmc_name, message_bus)
     nodename = node.control_hostname()
     
+    from rhubarbe.imagesrepo import the_imagesrepo
     actual_image = the_imagesrepo.where_to_save(nodename, args.output)
     message_bus.put_nowait({'saving_image' : actual_image})
     monitor_class = Monitor if not args.curses else MonitorCurses
@@ -109,7 +117,8 @@ def save():
     return saver.main(reset = args.reset, timeout=args.timeout)
 
 ####################
-def status():
+def status(argv):
+    from rhubarbe.config import the_config
     default_timeout = the_config.value('nodes', 'status_default_timeout')
     
     parser = ArgumentParser()
@@ -117,7 +126,7 @@ def status():
                         help="Specify global timeout for the whole process, default={}"
                               .format(default_timeout))
     add_selector_arguments(parser)
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     selector = selected_selector(args)
     message_bus = asyncio.Queue()
@@ -149,7 +158,8 @@ def status():
         loop.close()
 
 ####################
-def wait():
+def wait(argv):
+    from rhubarbe.config import the_config
     default_timeout = the_config.value('nodes', 'wait_default_timeout')
     default_backoff = the_config.value('networking', 'ssh_backoff')
     
@@ -165,7 +175,7 @@ def wait():
     parser.add_argument("-v", "--verbose", action='store_true', default=False)
 
     add_selector_arguments(parser)
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     selector = selected_selector(args)
     message_bus = asyncio.Queue()
@@ -211,7 +221,8 @@ def wait():
         loop.close()
         
 ####################
-def list():
+def list(argv):
+    from rhubarbe.config import the_config
     parser = ArgumentParser()
     parser.add_argument("-c", "--config", action='store_true', default=False,
                         help="display configuration store")
@@ -220,30 +231,15 @@ def list():
     parser.add_argument("-n", "--inventory", action='store_true', default=False,
                         help="display nodes from inventory")
     parser.add_argument("-a", "--all", action='store_true', default=False)
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     if args.config or args.all:
         the_config.display()
     if args.images or args.all:
-        from imagesrepo import the_imagesrepo
+        from rhubarbe.imagesrepo import the_imagesrepo
         the_imagesrepo.display()
     if args.inventory or args.all:
-        from inventory import the_inventory
+        from rhubarbe.inventory import the_inventory
         the_inventory.display(verbose=True)
     return 0
 
-####################
-####################
-####################
-import sys
-
-def main():
-    command=sys.argv[0]
-    for supported in supported_commands:
-        if supported in command:
-            main_function = globals()[supported]
-            exit(main_function())
-    print("Unknown command {}", command)
-
-if __name__ == '__main__':
-    main()

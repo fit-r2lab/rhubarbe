@@ -5,8 +5,8 @@ import asyncio
 import curses
 import sys
 
-from logger import logger
-from monitor import Monitor
+from rhubarbe.logger import logger
+from rhubarbe.monitor import Monitor
 
 class MonitorCurses(Monitor):
 

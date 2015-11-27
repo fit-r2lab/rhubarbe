@@ -2,13 +2,12 @@
 
 import os
 
-from config import the_config
-
 class Selector:
 
     # typically regularname='fit' and rebootname='reboot'
     # so that fit01 and reboot01 are names that resolve
     def __init__(self):
+        from rhubarbe.config import the_config
         self.regularname = the_config.value('testbed', 'regularname')
         self.rebootname = the_config.value('testbed', 'rebootname')
         self.set = set()
@@ -37,9 +36,7 @@ class Selector:
             try:
                 items = [ int(x) for x in comma.split('-')]
             except:
-                #import traceback
-                #traceback.print_exc()
-                print("Ignored arg {comma}".format(**locals()))
+                print("WARNING: arg {comma} should denote a node range - IGNORED".format(**locals()))
                 continue
             if len(items) >= 4:
                 print("Ignored arg {comma}".format(**locals()))
@@ -73,7 +70,7 @@ def add_selector_arguments(arg_parser):
     arg_parser.add_argument(
         "-a", "--all-nodes", action='store_true', default=False,
         help="""
-        add the contents of the ALL_NODES env. variable in the mix
+        add the contents of the testbed.all_scope config variable in the mix
         this can be combined with ranges, like e.g.
         -a ~4-16-2
         """)
@@ -96,11 +93,8 @@ def selected_selector(parser_args):
     selector = Selector()
     # nothing set on the command line : let's use $NODES
     if parser_args.all_nodes:
-        try:
-            selector.add_range(os.environ["ALL_NODES"])
-        except KeyError:
-            print("option -a requires you to set env. variable 'ALL_NODES'")
-            exit(1)            
+        from rhubarbe.config import the_config
+        selector.add_range(the_config.value('testbed', 'all_scope'))
     if not ranges:
         try:
             for node in os.environ["NODES"].split():

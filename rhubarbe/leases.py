@@ -5,9 +5,7 @@ import time, calendar
 from datetime import datetime
 import json
 
-from logger import logger
-from config import the_config
-from inventory import the_inventory
+from rhubarbe.logger import logger
 
 # Nov 2015
 # what we get from omf_sfa is essentially something like this
@@ -114,6 +112,7 @@ class MyLease:
 class Leases:
     # the details of the omf_sfa instance where to look for leases
     def __init__(self, message_bus, login=None):
+        from rhubarbe.config import the_config
         self.hostname = the_config.value('permissions', 'leases_server')
         self.port = the_config.value('permissions', 'leases_port')
         self.message_bus = message_bus

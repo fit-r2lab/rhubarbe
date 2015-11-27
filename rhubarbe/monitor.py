@@ -1,14 +1,12 @@
 import time
-from logger import logger
 import asyncio
 
 # (linux) pip3 install progressbar33
 # (macos) pip3 install py3-progressbar
 import progressbar
 
-from inventory import the_inventory
-import util
-from logger import logger
+import rhubarbe.util as util
+from rhubarbe.logger import logger
 
 # message_bus is just an asyncio.Queue
 
@@ -46,6 +44,7 @@ class Monitor:
             return self._monitor_node_by_ip[ip]
         
         # in case the incoming ip is a the reboot ip
+        from rhubarbe.inventory import the_inventory
         control_ip = the_inventory.control_ip_from_any_ip(ip)
         # locate this in the subject nodes list
         for rank, node in enumerate(self.nodes):

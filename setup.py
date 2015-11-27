@@ -10,15 +10,13 @@ if not (major == 3 and minor >= 4):
 
 from distutils.core import setup
 
-from version import version as version_tag
+from rhubarbe.version import version as version_tag
 
 # read licence info
 with open("COPYING") as f:
     license = f.read()
 with open("README.md") as f:
     long_description = f.read()
-
-data_files = [ ('/etc/rhubarbe', [ 'COPYING', 'README.md' ] ) ]
 
 ### requirements - used by pip install
 # *NOTE* for ubuntu: also run this beforehand
@@ -28,7 +26,7 @@ required_modules = [
     'telnetlib3',
     'aiohttp',
     'asyncssh',
-    'progressbar3',
+    'progressbar33',
 ]
 
 setup(
@@ -42,9 +40,10 @@ setup(
     download_url     = "http://github/build.onelab.eu/rhubarbe/rhubarbe-{v}.tar.gz".format(v=version_tag),
     url              = "https://github.com/parmentelat/fitsophia/tree/master/rhubarbe",
     platforms        = "Linux",
-    data_files       = data_files,
-    packages         = [ ],
-    package_data     = {},
+    packages         = [ 'rhubarbe' ],
+    data_files       =
+      [ ('/etc/rhubarbe', [ 'COPYING', 'README.md', 'rhubarbe.conf', 'inventory.json.template' ] ) ],
+    scripts          = [ 'bin/rhubarbe' ],
     install_requires = required_modules,
 )
 

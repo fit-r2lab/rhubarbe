@@ -1,8 +1,7 @@
 import asyncio
 
-from collector import Collector
-from config import the_config
-import util
+from rhubarbe.collector import Collector
+import rhubarbe.util as util
 
 class ImageSaver:
     def __init__(self, node, image, message_bus, monitor):
@@ -20,6 +19,7 @@ class ImageSaver:
     # this is exactly as imageloader
     @asyncio.coroutine
     def stage1(self):
+        from rhubarbe.config import the_config
         idle = int(the_config.value('nodes', 'idle_after_reset'))
         yield from self.node.save_stage1(idle)
 

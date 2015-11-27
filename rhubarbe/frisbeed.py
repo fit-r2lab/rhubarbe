@@ -1,6 +1,6 @@
 import asyncio
 
-from logger import logger
+from rhubarbe.logger import logger
 
 class Frisbeed:
     def __init__(self, image, bandwidth, message_bus):
@@ -22,7 +22,7 @@ class Frisbeed:
         Start a frisbeed instance
         returns a tuple multicast_address, port_number
         """
-        from config import the_config
+        from rhubarbe.config import the_config
         server = the_config.value('frisbee', 'server')
         server_options = the_config.value('frisbee', 'server_options')
         local_ip = the_config.local_control_ip()

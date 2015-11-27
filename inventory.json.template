@@ -1,0 +1,20 @@
+# you need to provide an inventory of your nodes
+# as a JSON file that looks like this
+# it is expected to be found in /etc/rhubarbe/inventory.json
+# remember JSON does not support comments though
+#
+[
+      {
+        "cmc": {
+          "hostname": "reboot01",
+          "ip": "192.168.1.1",
+          "mac": "02:00:00:00:00:01"
+        },
+        "control": {
+          "hostname": "fit01",
+          "ip": "192.168.3.1",
+          "mac": "00:03:1d:0e:03:19"
+        },
+      },
+#      ... etc
+]

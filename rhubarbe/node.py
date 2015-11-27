@@ -5,10 +5,9 @@ import os.path
 import asyncio
 import aiohttp
 
-from logger import logger
-from inventory import the_inventory
-from frisbee import Frisbee
-from imagezip import ImageZip
+from rhubarbe.logger import logger
+from rhubarbe.frisbee import Frisbee
+from rhubarbe.imagezip import ImageZip
 
 class Node:
 
@@ -31,12 +30,15 @@ class Node:
         return self.control_mac_address() is not None
 
     def control_mac_address(self):
+        from rhubarbe.inventory import the_inventory
         return the_inventory.attached_hostname_info(self.cmc_name, 'control', 'mac')
 
     def control_ip_address(self):
+        from rhubarbe.inventory import the_inventory
         return the_inventory.attached_hostname_info(self.cmc_name, 'control', 'ip')
 
     def control_hostname(self):
+        from rhubarbe.inventory import the_inventory
         return the_inventory.attached_hostname_info(self.cmc_name, 'control', 'hostname')
 
     @asyncio.coroutine
@@ -141,7 +143,7 @@ class Node:
         see rhubarbe.conf for configurable options
         """
 
-        from config import the_config
+        from rhubarbe.config import the_config
         root = the_config.value('pxelinux', 'config_dir')
         frisbee = the_config.value('pxelinux', 'frisbee_image')
         

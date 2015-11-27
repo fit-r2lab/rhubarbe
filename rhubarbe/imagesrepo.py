@@ -1,4 +1,3 @@
-from config import the_config
 import os
 import os.path
 import glob
@@ -6,6 +5,7 @@ import time
 
 class ImagesRepo:
     def __init__(self):
+        from rhubarbe.config import the_config
         self.repo = the_config.value('frisbee', 'images_dir')
         self.name = the_config.value('frisbee', 'default_image')
 

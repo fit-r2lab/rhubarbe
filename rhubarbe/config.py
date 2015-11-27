@@ -1,9 +1,8 @@
 import os
-from logger import logger
-
-import configparser
-import guessip
 import socket
+import configparser
+
+from rhubarbe.logger import logger
 
 # location, mandatory
 locations = [
@@ -61,8 +60,8 @@ class RhubarbeConfig:
         if 'networking' in self.parser and 'local_control_ip' in self.parser['networking']:
             return self.parser['networking']['local_control_ip']
         # but otherwise guess it
-        from inventory import the_inventory
-        from guessip import local_ip_on_same_network_as
+        from rhubarbe.inventory import the_inventory
+        from rhubarbe.guessip import local_ip_on_same_network_as
         ip, prefixlen = local_ip_on_same_network_as(the_inventory.one_control_interface())
         return ip
 

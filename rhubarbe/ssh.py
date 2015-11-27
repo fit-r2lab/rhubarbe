@@ -4,7 +4,7 @@ import random
 import asyncio
 import asyncssh
 
-from node import Node
+from rhubarbe.node import Node
 
 debug = False
 

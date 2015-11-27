@@ -1,9 +1,9 @@
 import time
 import random
-from logger import logger
-
 import asyncio
 import telnetlib3
+
+from rhubarbe.logger import logger
 
 
 """
@@ -42,7 +42,7 @@ class TelnetProxy:
     def __init__(self, control_ip, message_bus):
         self.control_ip = control_ip
         self.message_bus = message_bus
-        from config import the_config
+        from rhubarbe.config import the_config
         self.port = int(the_config.value('networking', 'telnet_port'))
         self.backoff = float(the_config.value('networking', 'telnet_backoff'))
         # internals

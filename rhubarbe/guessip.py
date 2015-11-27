@@ -4,7 +4,8 @@
 import subprocess
 import re
 import ipaddress
-from logger import logger
+
+from rhubarbe.logger import logger
 
 matcher = re.compile(r"inet (?P<address>([0-9]+\.){3}[0-9]+)/(?P<mask>[0-9]+)")
 

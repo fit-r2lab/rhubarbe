@@ -1,10 +1,8 @@
 import asyncio
 
-import util
-from frisbeed import Frisbeed
-
-from config import the_config
-from leases import Leases
+import rhubarbe.util as util
+from rhubarbe.frisbeed import Frisbeed
+from rhubarbe.leases import Leases
 
 class ImageLoader:
 
@@ -24,6 +22,7 @@ class ImageLoader:
 
     @asyncio.coroutine
     def stage1(self):
+        from rhubarbe.config import the_config
         idle = int(the_config.value('nodes', 'idle_after_reset'))
         yield from asyncio.gather(*[node.load_stage1(idle) for node in self.nodes])
 
@@ -57,13 +56,13 @@ class ImageLoader:
     @asyncio.coroutine
     def run(self, reset):
         leases = Leases(self.message_bus)
-        self.feedback('authentication','checking for a valid lease')
+        self.feedback('authorization','checking for a valid lease')
         valid = yield from leases.is_valid()
         if not valid:
-            yield from self.feedback('authentication','access denied')
+            yield from self.feedback('authorization','access denied')
             yield from self.feedback("Access refused : you have no lease on the testbed at this time")
         else:
-            yield from self.feedback('authentication','access granted')
+            yield from self.feedback('authorization','access granted')
             yield from (self.stage1() if reset else self.feedback({'info': "Skipping stage1"}))
             yield from (self.stage2(reset))
         yield from self.monitor.stop()

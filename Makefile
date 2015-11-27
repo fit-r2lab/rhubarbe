@@ -21,7 +21,7 @@ PYPI_TARGET=pypi
 PYPI_TARBALL_HOST=$(BUILD_ID)@build.onelab.eu
 PYPI_TARBALL_TOPDIR=/build/rhubarbe
 
-VERSION = $(shell python3 -c "import version; print(version.version)")
+VERSION = $(shell python3 -c "from rhubarbe.version import version; print(version)")
 VERSIONTAG = rhubarbe-$(VERSION)
 VERSIONTAR = rhubarbe-$(VERSION).tar.gz
 GIT-TAG-ALREADY-SET = $(shell git tag | grep '^$(VERSIONTAG)$$')
@@ -59,8 +59,12 @@ else
     DEST=faraday.inria.fr
 endif
 
+# WARNING : for a ubuntu machine only
+
 sync:
-	rsync -av $$(git ls-files) root@$(DEST):/tmp/asyncio/
+	@echo WARNING : double check these locations on the remote end
+	rsync -av $$(git ls-files rhubarbe) root@$(DEST):/usr/local/lib/python3.4/dist-packages/rhubarbe/
+	rsync -av $$(git ls-files bin) root@$(DEST):/usr/local/bin
 
 both: bemol faraday
 

@@ -1,0 +1,32 @@
+#!/usr/bin/env python3
+
+import sys
+
+import rhubarbe.main
+
+def main():
+    supported = rhubarbe.main.supported_commands
+    command = sys.argv[0]
+    if len(sys.argv) <= 1:
+        print("Need to run {} with a subcommand among {{{}}}"
+              .format(command, ",".join(supported)))
+        exit(1)
+        
+    subcommand = sys.argv[1]
+    if subcommand not in supported:
+        print("Unknown subcommand {} - use on of {{{}}}"
+              .format(subcommand, ",".join(supported)))
+        exit(1)
+    entry_point = getattr(rhubarbe.main, subcommand)
+    # remove subcommand from args
+    args = sys.argv[2:]
+    try:
+        exit(entry_point(args))
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        print("{} {} : Something went badly wrong : {}".format(command, subcommand, e))
+        exit(1)
+
+if __name__ == '__main__':
+    main()

@@ -3,7 +3,7 @@ import json
 class Inventory:
 
     def __init__(self):
-        from config import the_config
+        from rhubarbe.config import the_config
         with open(the_config.value('testbed', 'inventory_path')) as feed:
            self._nodes = json.load(feed)
 

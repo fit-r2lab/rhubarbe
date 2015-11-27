@@ -2,11 +2,11 @@
 
 This is a tentative rewriting of the `omf6 load` and other similar commands in python3 using `asyncio`. This results in a single-thread, yet reactive, solution. The following features are currently available:
 
-* `rhubarbe-load` : parallel loading of an image, much like `omf6 load`
+* `rhubarbe load` : parallel loading of an image, much like `omf6 load`
   * Two modes are supported, with the `-c` option running on top of curses to show individual progress for each node
   * 'nextboot' symlinks (that tell a node to boot onto the frisbee image) are reliably removed in all cases, even if program crashes or is interrupted
-* `rhubarbe-save` image saving, much like `omf6 save`
-* `rhubarbe-wait` : waiting for all nodes to be available (can connect to ssh)
+* `rhubarbe save` image saving, much like `omf6 save`
+* `rhubarbe wait` : waiting for all nodes to be available (can connect to ssh)
 
 With these additional benefits:
 
@@ -18,11 +18,11 @@ With these additional benefits:
 
 ## Invoking : node scope
 
-The python entry point is named `rhubarbe-main.py` but it should be called through one of the symlinks like `rhubarbe-load`.
+The python entry point is named `rhubarbe` but it should be called with an additional subcommand.
 
 So in short:
 
-    $ rhubarbe-load [-i filename] 1 4 5
+    $ rhubarbe load [-i filename] 1 4 5
     
 The arguments, known as a *node_spec*`* would be similar to what `nodes` accepts as input, i.e.
 
@@ -30,7 +30,7 @@ The arguments, known as a *node_spec*`* would be similar to what `nodes` accepts
 
 Would essentially work on nodes 1 to 3, 7 to 12, and 15 to 18
 
-Run `rhubarbe-load --help` as usual for a list of options.
+Run `rhubarbe load --help` as usual for a list of options.
 
 ## Env. variables    
 
@@ -39,13 +39,13 @@ If no node argument is provided on the command line, the value of the `NODES` en
     $ all-nodes
     $ focus-nodes-on
     $ echo this way you can check : NODES=$NODES
-    $ rhubarbe-load
+    $ rhubarbe load
 
 Would effectively address all nodes currently turned on
 
-In addition, the `-a` option allows you to use the **ALL_NODES** variables. So to deal with all nodes except node 4, one can do
+In addition, the `-a` option allows you to refer to the whole testbed (see `testbed.all_scope` in the config). It can be used and combined with other ranges, so to deal with all nodes except node 4, one can do
 
-    $ rhubarbe-load -a ~4 
+    $ rhubarbe load -a ~4 
     
 
 ## Logging
@@ -58,7 +58,7 @@ At this point all logging goes into a file named `rhubarbe.log`
 
 In short: see `/etc/rhubarbe/inventory.json`
 
-Unfortunately the tool needs a mapping between hostnames and MAC addresses - essentially for messing with pxelinux *nextboot* symlinks. This is why the tool needs to find an inventory in a file named `/etc/rhubarbe/inventory.json`. 
+Unfortunately the tool needs a mapping between hostnames and MAC addresses - essentially for messing with pxelinux *nextboot* symlinks. This is why the tool needs to find an inventory in a file named `/etc/rhubarbe/inventory.json`. See an extract below; note that the `'data'` entry is not needed by the tools, we have them in place over here at r2lab for convenience only. The CMC mac address is not needed either, strictly speaking, as of this writing.
 
 **On R2LAB**: this is taken care of by `inventory/configure.py` and its `Makefile`. Note that like for the OMF JSON inventory file, `configure.py` creates 2 different files for faraday and bemol - to account for any replacement node on faraday, like when e.g. node 41 actually sits in slot 15.
 
@@ -89,6 +89,8 @@ FYI an inventory files just looks like below; the `data` field is not needed
 
 ## Configuration
 
+In short: see `/etc/rhubarbe/rhubarbe.conf`
+
 Configuration is done through a collection of files, which are loaded in this order if they exist:
 
  * `/etc/rhubarbe/rhubarbe.conf`
@@ -98,17 +100,35 @@ Configuration is done through a collection of files, which are loaded in this or
  So in essence, there is a system-wide config (mandatory), that should contain all variable definitions, and possibly overridden values at a user level, or even more specific at a directory level; these 2 last files do not need to be complete and can just redefine one variable if needed.
  
  Format is like aim	 `.ini` file, should be straightforward. Just beware to **not mention quotes** around strings, as such quotes end up in the python string verbatim.
+ 
+## Permission system
+
+Among things to be configured is the URL for a leases server. This for now assumes the following
+
+* You run an instance of an OMF_SFA service at that hostname and port
+* And the OMF_SFA service exposes a single resource.
+
+This is an admittedly specific policy for R2Lab, as opposed to other OMF-based deployments, since we want the reservations to be made on the testbed as a whole, since this is not sharable. This rather *ad hoc*  approach can easily be revisited if there's interest.
 
 # Installation
 
 ## Core
 
-Nothing has been done yet to provide a pypi packaging. As far as the code itself, everything is in `fitsophia/rhubarbe` and one can run the command from there, provided that the inventory and config are available in `/etc`. 
+You need `python-3.4` or higher. A `pypi` packaging is in the works. 
 
+    pip3 install rhubarbe
 
-## Dependencies
+## Other libraries
 
-## The `asyncio` module
+Installed with `pip3`
+
+* `telnetlib3` for invoking `frisbee` on the nodes
+* `aiohttp` for talking to the CMC cards
+* `asyncssh` for talking to ssh (rhubarbe wait mostly for now); 
+   * **ubuntu:** there is a need to run `apt-get install libffi-dev` before `pip3 install asyncssh`
+* `progressbar33` is used in rendering progress bar in the regular monitor (i.e. without the -c option).
+
+## A word on the `asyncio` module
 
 We use python 3.4's `asyncio` library. python3.4 can be taken as granted on the ubuntus we use on both `faraday` and `bemol`. 
 
@@ -128,22 +148,12 @@ we would have written instead in pure python-3.5 this
         await bar()
 
 
-## other libraries
-
-Installed with `pip3`
-
-* `telnetlib3` for invoking `frisbee` on the nodes
-* `aiohttp` for talking to the CMC cards
-* `asyncssh` for talking to ssh (rhubarbe-wait mostly for now); 
-   * **ubuntu:** there is a need to run `apt-get install libffi-dev` before `pip3 install asyncssh`
-* `progressbar33` is used in rendering progress bar in the regular monitor (i.e. without the -c option).
-
 # TODO
 
 ## crucial (P1)
 
-* couple usage with leases system
-* packaging (pypi?)
+* test. test. test:
+  * load -c does not reset terminal at the end (`tset` is needed)
 
 ## for deployment (P2)
 
@@ -153,17 +163,18 @@ Installed with `pip3`
 ## nice to have (P3)
 
 * robustify ensure_reset ? (fit04)
-  if a node is still answering ping right after it was reset then it's wrong
+    if a node is still answering ping right after it was reset, then it is exhibiting the oblivion issue, so it needs to be turned off; maybe repeatedly so.
 
-* should iwait have a telnet mode (-n/--telnet) as well ?
+* *not even sure* refactor how mains are done; some have a monitor and some others not
 
-* refactor how mains are done; some have a monitor and some others not
+* *not even sure* should iwait have a telnet mode (-n/--telnet) as well ? 
 
 ## cosmetic (P4)
 
-* remove need for $ALL_NODES and use config instead 
-* nicer rhubarbe-list (sizes, symlinks, etc..)
-* check if selector checks for nodes validity; i.e. `iload fedora-21` does not say that I screwed up and forgot the `-i`
+* check main & ill usage
+  *  i.e. `iload fedora-21` does not say that I screwed up and forgot the `-i`
+* remove the need for $ALL_NODES and use config instead 
+* nicer rhubarbe list -i (sizes, symlinks, etc..)
 * implement some way to store the logs from frisbee and imagezip somewhere
 * wait really is not talkative; even without -v we'd expect some logging...
 * is there a way to remove incomplete images under -save (both keybord interrupt and timeout..)
