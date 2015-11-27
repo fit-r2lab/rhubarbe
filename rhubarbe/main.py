@@ -22,7 +22,7 @@ import rhubarbe.util as util
 # rhubarbe load -i fedora 12
 # would result in a call
 # load ( [ "-i", "fedora", "12" ])
-supported_commands = [ 'load', 'save', 'status', 'wait', 'list' ]
+supported_commands = [ 'load', 'save', 'status', 'wait', 'list', 'version' ]
 
 ####################
 def load(argv):
@@ -243,3 +243,8 @@ def list(argv):
         the_inventory.display(verbose=True)
     return 0
 
+####################
+def version(argv):
+    from rhubarbe.version import version
+    print("rhubarbe version {}".format(version))
+    return 0
