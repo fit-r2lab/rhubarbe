@@ -30,15 +30,15 @@ class MonitorCurses(Monitor):
                                          self.offsetl, self.offsetc)
         self.subwin.border()
 
-    def stop_hook(self):
+    # this is guaranteed to run once the event loop has returned
+    # and all the messages have been displayed
+    def epilogue(self):
         prompt = "Press any key to exit"
         if self.goodbye_message:
             prompt = self.goodbye_message + " " + prompt
         self.screen.addstr(self.maxl-1, 1, prompt)
         self.screen.refresh()
         self.screen.getch()
-        import pdb
-        pdb.set_trace()
         curses.endwin()
 
     def dispatch_hook(self, message, timestamp, duration):

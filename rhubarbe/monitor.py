@@ -69,13 +69,13 @@ class Monitor:
 
     @asyncio.coroutine
     def stop(self):
+        # soft stop
         yield from self.message_bus.put("END-MONITOR")
-        self.stop_hook()
 
-    def stop_nowait(self):
-        if self._alive:
-            self._alive = False
-            self.stop_hook()
+#    def stop_nowait(self):
+#        if self._alive:
+#            self._alive = False
+#            self.stop_hook()
 
     def dispatch(self, message):
         timestamp = time.strftime("%H:%M:%S")
@@ -141,9 +141,11 @@ class Monitor:
     #################### specifics of the basic monitor 
     def start_hook(self):
         pass
-    def stop_hook(self):
+
+    def epilogue(self):
         if self.goodbye_message:
             print(self.goodbye_message)
+        
     def dispatch_hook(self, message, timestamp, duration):
         text = self.message_to_text(message)
         print("{} - {}: {}".format(timestamp, duration, text))

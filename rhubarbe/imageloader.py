@@ -43,7 +43,7 @@ class ImageLoader:
         ip, port = yield from self.start_frisbeed()
         yield from asyncio.gather(*[node.load_stage2(ip, port, reset) for node in self.nodes])
         # we can now kill the server
-        yield from self.frisbeed.stop()
+        self.frisbeed.stop_nowait()
 
     # this is synchroneous
     def nextboot_cleanup(self):
@@ -59,8 +59,8 @@ class ImageLoader:
         self.feedback('authorization','checking for a valid lease')
         valid = yield from leases.is_valid()
         if not valid:
-            yield from self.feedback('authorization','access denied')
-            yield from self.feedback('authorization', "Access refused : you have no lease on the testbed at this time")
+            yield from self.feedback('authorization',
+                                     "Access refused : you have no lease on the testbed at this time")
         else:
             yield from self.feedback('authorization','access granted')
             yield from (self.stage1() if reset else self.feedback('info', "Skipping stage1"))
@@ -84,10 +84,10 @@ class ImageLoader:
             tasks.exception()
             return 1
         except asyncio.TimeoutError as e:
-            self.monitor.set_goodbye("rhubarbe-load : timeout expired after {}s".format(self.timeout))
+            self.monitor.set_goodbye("rhubarbe-load : timeout expired after {}s".format(timeout))
             return 1
         finally:
             self.frisbeed and self.frisbeed.stop_nowait()
             self.nextboot_cleanup()
-            self.monitor.stop_nowait()
+            self.monitor.epilogue()
             loop.close()

@@ -54,9 +54,9 @@ class Collector:
         logger.critical("Could not find a free port to start collector")
         raise Exception("Could not start collector server")
 
-    @asyncio.coroutine
-    def stop(self):
-        self.stop_nowait()
+#    @asyncio.coroutine
+#    def stop(self):
+#        self.stop_nowait()
         
     def stop_nowait(self):
         # make it idempotent

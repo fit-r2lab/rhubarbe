@@ -66,9 +66,9 @@ class Frisbeed:
         raise Exception("Could not start frisbee server")
 
 
-    @asyncio.coroutine
-    def stop(self):
-        self.stop_nowait()
+#    @asyncio.coroutine
+#    def stop(self):
+#        self.stop_nowait()
         
     def stop_nowait(self):
         # make it idempotent

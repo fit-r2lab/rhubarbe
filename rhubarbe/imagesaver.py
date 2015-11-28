@@ -41,7 +41,7 @@ class ImageSaver:
         port = yield from self.start_collector()
         yield from self.node.save_stage2(port, reset)
         # we can now kill the server
-        yield from self.collector.stop()
+        self.collector.stop_nowait()
 
     @asyncio.coroutine
     def run(self, reset):
@@ -69,6 +69,6 @@ class ImageSaver:
             return 1
         finally:
             self.collector and self.collector.stop_nowait()
-            self.monitor.stop_nowait()
+            self.monitor.epilogue()
             loop.close()
         
