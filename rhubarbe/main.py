@@ -87,7 +87,7 @@ def save(argv):
     parser.add_argument("-t", "--timeout", action='store', default=default_timeout, type=float,
                         help="Specify global timeout for the whole process, default={}"
                               .format(default_timeout))
-    parser.add_argument("-c", "--curses", action='store_true', default=False)
+#    parser.add_argument("-c", "--curses", action='store_true', default=False)
     parser.add_argument("-n", "--no-reset", dest='reset', action='store_false', default=True,
                         help = """use this with nodes that are already running a frisbee image.
                         They won't get reset, neither before or after the frisbee session
@@ -99,7 +99,6 @@ def save(argv):
 
     selector = Selector()
     selector.add_range(args.node)
-    print(selector)
     # in case there was one argument but it was not found in inventory
     if selector.how_many() != 1:
         parser.print_help()
@@ -109,8 +108,11 @@ def save(argv):
     
     from rhubarbe.imagesrepo import the_imagesrepo
     actual_image = the_imagesrepo.where_to_save(nodename, args.output)
-    message_bus.put_nowait({'saving_image' : actual_image})
-    monitor_class = Monitor if not args.curses else MonitorCurses
+    message_bus.put_nowait({'info' : "Saving image {}".format(actual_image)})
+# turn off curses mode that has no added value here
+# the progressbar won't show too well anyway
+#    monitor_class = Monitor if not args.curses else MonitorCurses
+    monitor_class = Monitor
     monitor = monitor_class([node], message_bus)
     saver = ImageSaver(node, image=actual_image,
                        message_bus=message_bus, monitor = monitor)

@@ -38,6 +38,7 @@ class ImageSaver:
         reset node when finished unless reset is False
         """
         # start_frisbeed will return the ip+port to use 
+        yield from self.feedback('info', "Saving image from {}".format(self.node))
         port = yield from self.start_collector()
         yield from self.node.save_stage2(port, reset)
         # we can now kill the server
@@ -59,12 +60,14 @@ class ImageSaver:
             loop.run_until_complete(wrapper)
             return 0
         except KeyboardInterrupt as e:
+            ### xxx - cleanup image ? or rename it ?
             self.monitor.set_goodbye("rhubarbe-save : keyboard interrupt - exiting")
             tasks.cancel()
             loop.run_forever()
             tasks.exception()
             return 1
         except asyncio.TimeoutError as e:
+            ### xxx - cleanup image ? or rename it ?
             self.monitor.set_goodbye("rhubarbe-save : timeout expired after {}s".format(self.timeout))
             return 1
         finally:

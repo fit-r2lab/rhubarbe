@@ -193,8 +193,6 @@ we would have written instead in pure python-3.5 this
 ## P1 : known bugs for production
 
 * test. test. test:
-* load -c does not reset terminal at the end (`tset` is needed)
-  * looks like endwin() **is** correctly **called** but somhow something comes back **afterwards** and breaks the terminal.
  
 ## for deployment (P2)
 
@@ -216,6 +214,7 @@ we would have written instead in pure python-3.5 this
 
 ## cosmetic - known bugs (P4)
 
+* save: might make sense to clean up saved image in case of keyboard interrupt or timeout
 * implement some way to store the logs from frisbee and imagezip somewhere
 * wait really is not talkative; even without -v we'd expect some logging...
 * is there a way to remove incomplete images under -save (both keybord interrupt and timeout..)
