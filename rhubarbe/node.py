@@ -56,7 +56,10 @@ class Node:
             text = yield from client_response.text()
             self.status = text.strip()
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             self.status = None
+        return self.status
 
     ####################
     # what status to expect after a message is sent

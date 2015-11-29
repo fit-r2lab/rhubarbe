@@ -201,6 +201,10 @@ we would have written instead in pure python-3.5 this
 
 ## nice to have (P3)
 
+* would be really cool if the authorization system could actually (propose to)  **get the lease** if nobody else uses the testbed at that time. 
+  * need to do simple tests using the omf-generated certificate; will that alow to authenticate at the REST API and create the lease ?
+  * in which case we'll most likely need to configure the resource name...
+
 * robustify ensure_reset ? (fit04)
     if a node is still answering ping right after it was reset, then it is exhibiting the oblivion issue, so it needs to be turned off; maybe repeatedly so.
 
@@ -208,15 +212,12 @@ we would have written instead in pure python-3.5 this
 
 * *not even sure* should iwait have a telnet mode (-n/--telnet) as well ? 
 
-* would be really cool if the authorization system could actually **get the lease** if nobody else uses the testbed at that time. 
-  * need to do simple tests using the omf-generated certificate; will that alow to authenticate at the REST API and create the lease ?
-  * in which case we'll most likely need to configure the resource name...
 
 ## cosmetic - known bugs (P4)
 
 * save: might make sense to clean up saved image in case of keyboard interrupt or timeout
+* wait: really is not talkative; add -v ? ; more logs ? ; a curses mode ?
 * implement some way to store the logs from frisbee and imagezip somewhere
-* wait really is not talkative; even without -v we'd expect some logging...
 * is there a way to remove incomplete images under -save (both keybord interrupt and timeout..)
 * should we not log all the messages on the feedback/bus onto logger as well ?
 job but somehow something later does it again...
@@ -224,3 +225,4 @@ job but somehow something later does it again...
   * getch() to return curses.KEY_RESIZE in such a case
   * window.nodelay(1) allows to make getch() non-blocking
 * Istatus -1/--on : list nodes that are on - same for -0/--off
+* *not even sure* do we need to tweak Node so that a control_hostname could be used as an argument to create a Node ? 
