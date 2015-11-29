@@ -5,8 +5,8 @@ import asyncio
 from argparse import ArgumentParser
 
 from rhubarbe.selector import Selector, add_selector_arguments, selected_selector
-from rhubarbe.monitor import Monitor
-from rhubarbe.monitor_curses import MonitorCurses
+from rhubarbe.display import Display
+from rhubarbe.display_curses import DisplayCurses
 from rhubarbe.node import Node
 from rhubarbe.imageloader import ImageLoader
 from rhubarbe.imagesaver import ImageSaver
@@ -70,10 +70,10 @@ def load(argv):
 
     # send feedback
     message_bus.put_nowait({'loading_image' : actual_image})
-    monitor_class = Monitor if not args.curses else MonitorCurses
-    monitor = monitor_class(nodes, message_bus)
+    display_class = Display if not args.curses else DisplayCurses
+    display = display_class(nodes, message_bus)
     loader = ImageLoader(nodes, image=actual_image, bandwidth=args.bandwidth,
-                         message_bus=message_bus, monitor=monitor)
+                         message_bus=message_bus, display=display)
     return loader.main(reset=args.reset, timeout=args.timeout)
  
 ####################
@@ -111,11 +111,11 @@ def save(argv):
     message_bus.put_nowait({'info' : "Saving image {}".format(actual_image)})
 # turn off curses mode that has no added value here
 # the progressbar won't show too well anyway
-#    monitor_class = Monitor if not args.curses else MonitorCurses
-    monitor_class = Monitor
-    monitor = monitor_class([node], message_bus)
+#    display_class = Display if not args.curses else DisplayCurses
+    display_class = Display
+    display = display_class([node], message_bus)
     saver = ImageSaver(node, image=actual_image,
-                       message_bus=message_bus, monitor = monitor)
+                       message_bus=message_bus, display = display)
     return saver.main(reset = args.reset, timeout=args.timeout)
 
 ####################
@@ -192,17 +192,17 @@ def wait(argv):
     coros = [ ssh.wait_for(args.backoff) for ssh in sshs ]
 
 # iwait/curses won't work too well - turned off for now
-#    monitor_class = Monitor if not args.curses else MonitorCurses
-    monitor_class = Monitor
-    monitor = monitor_class(nodes, message_bus)
+#    display_class = Display if not args.curses else DisplayCurses
+    display_class = Display
+    display = display_class(nodes, message_bus)
 
     @asyncio.coroutine
     def run():
         yield from asyncio.gather(*coros)
-        yield from monitor.stop()
+        yield from display.stop()
 
     t1 = util.self_manage(run())
-    t2 = util.self_manage(monitor.run())
+    t2 = util.self_manage(display.run())
     tasks = asyncio.gather(t1, t2)
     wrapper = asyncio.wait_for(tasks, timeout = args.timeout)
     try:

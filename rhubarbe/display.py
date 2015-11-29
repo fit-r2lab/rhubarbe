@@ -10,20 +10,20 @@ from rhubarbe.logger import logger
 
 # message_bus is just an asyncio.Queue
 
-# a monitor instance comes with a hash
-# 'ip' -> MonitorNode
-# in its simplest form a MonitorNode just has
+# a display instance comes with a hash
+# 'ip' -> DisplayNode
+# in its simplest form a DisplayNode just has
 # a hostname (retrieved from ip through inventory)
 # a rank in the nodes list (starting at 0)
 # a percentage
 
-class MonitorNode:
+class DisplayNode:
     def __init__(self, name, rank):
         self.name = name
         self.rank = rank
         self.percent = 0
 
-class Monitor:
+class Display:
     def __init__(self, nodes, message_bus):
         self.message_bus = message_bus
         self.nodes = nodes
@@ -32,16 +32,16 @@ class Monitor:
         self._start_time = None
         # this will go from 0 to 100*len(self.nodes)
         self.total_percent = 0
-        # correspondance ip -> monitor_node
-        self._monitor_node_by_ip = {}
+        # correspondance ip -> display_node
+        self._display_node_by_ip = {}
         self.goodbye_message = None
-        # for the basic monitoring : we use a ingle global progress bar
+        # for the basic displaying : we use a ingle global progress bar
         self.pbar = None
         
-    def get_monitor_node(self, ip):
+    def get_display_node(self, ip):
         # if we have it already
-        if ip in self._monitor_node_by_ip:
-            return self._monitor_node_by_ip[ip]
+        if ip in self._display_node_by_ip:
+            return self._display_node_by_ip[ip]
         
         # in case the incoming ip is a the reboot ip
         from rhubarbe.inventory import the_inventory
@@ -49,8 +49,8 @@ class Monitor:
         # locate this in the subject nodes list
         for rank, node in enumerate(self.nodes):
             if node.control_ip_address() == control_ip:
-                self._monitor_node_by_ip[ip] = MonitorNode(node.control_hostname(), rank)
-                return self._monitor_node_by_ip[ip]
+                self._display_node_by_ip[ip] = DisplayNode(node.control_hostname(), rank)
+                return self._display_node_by_ip[ip]
 
     @asyncio.coroutine
     def run(self):
@@ -59,7 +59,7 @@ class Monitor:
         
         while self._alive:
             message = yield from self.message_bus.get()
-            if message == 'END-MONITOR':
+            if message == 'END-DISPLAY':
                 self._alive = False
                 break
             self.dispatch(message)
@@ -70,7 +70,7 @@ class Monitor:
     @asyncio.coroutine
     def stop(self):
         # soft stop
-        yield from self.message_bus.put("END-MONITOR")
+        yield from self.message_bus.put("END-DISPLAY")
 
 #    def stop_nowait(self):
 #        if self._alive:
@@ -85,7 +85,7 @@ class Monitor:
           else 5*'-'
         if isinstance(message, dict) and 'ip' in message:
             ip = message['ip']
-            node = self.get_monitor_node(ip)
+            node = self.get_display_node(ip)
             if 'tick' in message:
                 self.dispatch_ip_tick_hook(ip, node, message, timestamp, duration)
             elif 'percent' in message:
@@ -138,7 +138,7 @@ class Monitor:
     def set_goodbye(self, message):
         self.goodbye_message = message
 
-    #################### specifics of the basic monitor 
+    #################### specifics of the basic display 
     def start_hook(self):
         pass
 

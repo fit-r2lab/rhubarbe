@@ -4,11 +4,11 @@ from rhubarbe.collector import Collector
 import rhubarbe.util as util
 
 class ImageSaver:
-    def __init__(self, node, image, message_bus, monitor):
+    def __init__(self, node, image, message_bus, display):
         self.node = node
         self.image = image
         self.message_bus = message_bus
-        self.monitor = monitor
+        self.display = display
         #
         self.collector = None
 
@@ -48,12 +48,12 @@ class ImageSaver:
     def run(self, reset):
         yield from (self.stage1() if reset else self.feedback('info', "Skipping stage1"))
         yield from (self.stage2(reset))
-        yield from self.monitor.stop()
+        yield from self.display.stop()
 
     def main(self, reset, timeout):
         loop = asyncio.get_event_loop()
         t1 = util.self_manage(self.run(reset))
-        t2 = util.self_manage(self.monitor.run())
+        t2 = util.self_manage(self.display.run())
         tasks = asyncio.gather(t1, t2)
         wrapper = asyncio.wait_for(tasks, timeout)
         try:
@@ -61,17 +61,17 @@ class ImageSaver:
             return 0
         except KeyboardInterrupt as e:
             ### xxx - cleanup image ? or rename it ?
-            self.monitor.set_goodbye("rhubarbe-save : keyboard interrupt - exiting")
+            self.display.set_goodbye("rhubarbe-save : keyboard interrupt - exiting")
             tasks.cancel()
             loop.run_forever()
             tasks.exception()
             return 1
         except asyncio.TimeoutError as e:
             ### xxx - cleanup image ? or rename it ?
-            self.monitor.set_goodbye("rhubarbe-save : timeout expired after {}s".format(self.timeout))
+            self.display.set_goodbye("rhubarbe-save : timeout expired after {}s".format(self.timeout))
             return 1
         finally:
             self.collector and self.collector.stop_nowait()
-            self.monitor.epilogue()
+            self.display.epilogue()
             loop.close()
         

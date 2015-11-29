@@ -6,9 +6,9 @@ import curses
 import sys
 
 from rhubarbe.logger import logger
-from rhubarbe.monitor import Monitor
+from rhubarbe.display import Display
 
-class MonitorCurses(Monitor):
+class DisplayCurses(Display):
 
     # extra room on top and on the left
     offsetl = 3

@@ -7,11 +7,11 @@ from rhubarbe.leases import Leases
 class ImageLoader:
 
     def __init__(self, nodes,  image, bandwidth,
-                 message_bus, monitor):
+                 message_bus, display):
         self.nodes = nodes
         self.image = image
         self.bandwidth = bandwidth
-        self.monitor = monitor
+        self.display = display
         self.message_bus = message_bus
         #
         self.frisbeed = None
@@ -65,29 +65,29 @@ class ImageLoader:
             yield from self.feedback('authorization','access granted')
             yield from (self.stage1() if reset else self.feedback('info', "Skipping stage1"))
             yield from (self.stage2(reset))
-        yield from self.monitor.stop()
+        yield from self.display.stop()
 
     # from http://stackoverflow.com/questions/30765606/whats-the-correct-way-to-clean-up-after-an-interrupted-event-loop
     def main(self, reset, timeout):
         loop = asyncio.get_event_loop()
         t1 = util.self_manage(self.run(reset))
-        t2 = util.self_manage(self.monitor.run())
+        t2 = util.self_manage(self.display.run())
         tasks = asyncio.gather(t1, t2)
         wrapper = asyncio.wait_for(tasks, timeout)
         try:
             loop.run_until_complete(wrapper)
             return 0
         except KeyboardInterrupt as e:
-            self.monitor.set_goodbye("rhubarbe-load : keyboard interrupt - exiting")
+            self.display.set_goodbye("rhubarbe-load : keyboard interrupt - exiting")
             tasks.cancel()
             loop.run_forever()
             tasks.exception()
             return 1
         except asyncio.TimeoutError as e:
-            self.monitor.set_goodbye("rhubarbe-load : timeout expired after {}s".format(timeout))
+            self.display.set_goodbye("rhubarbe-load : timeout expired after {}s".format(timeout))
             return 1
         finally:
             self.frisbeed and self.frisbeed.stop_nowait()
             self.nextboot_cleanup()
-            self.monitor.epilogue()
+            self.display.epilogue()
             loop.close()
