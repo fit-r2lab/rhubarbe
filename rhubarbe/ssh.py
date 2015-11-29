@@ -7,26 +7,32 @@ import asyncssh
 from rhubarbe.node import Node
 
 debug = False
+#debug = True
 
 # this class is specialized (see clientsession_closure below)
 # this is how we can access self.node which is a reference to
 # the corresponding Node object
 class MySSHClientSession(asyncssh.SSHClientSession):
+    def __init__(self, *args, **kwds):
+        self.data = ""
+        super().__init__(*args, **kwds)
+
     def data_received(self, data, datatype):
         # not adding a \n since it's already in there
-        if debug: print('SSS: {}:{}-> {}'.format(self.node, self.command, data), end='')
+        if debug: print('SSS DR: {}:{}-> {} [[of type {}]]'.format(self.node, self.command, data, datatype), end='')
+        self.data += data
 
     def connection_made(self, conn):
-        if debug: print('SSS: connection made {}'.format(conn))
+        if debug: print('SSS CM: {} {}'.format(self.node, conn))
         pass
 
     def connection_lost(self, exc):
         if exc:
-            if debug: print('SSS connection lost: ' + str(exc), file=sys.stderr)
+            if debug: print('SSS CL: {} - exc={}'.format(self.node, exc))
         pass
 
     def eof_received(self):
-        if debug: print('SSS {}:self.command got EOF'.format(self.node, self.command))
+        if debug: print('SSS EOF: {}'.format(self.node, self.command))
 
 
 class MySSHClient(asyncssh.SSHClient):
@@ -37,8 +43,12 @@ class MySSHClient(asyncssh.SSHClient):
         if debug: print('SSC Authentication successful.')
 
 class SshProxy:
-    def __init__(self, node, verbose=False):
+    """
+    talk to a Node's control interface using ssh
+    """
+    def __init__(self, node, username='root', verbose=False):
         self.node = node
+        self.username = username
         self.verbose = verbose
         #
         self.hostname = self.node.control_hostname()
@@ -54,7 +64,7 @@ class SshProxy:
             # also pass here client_keys = [some_list]
             # see http://asyncssh.readthedocs.org/en/latest/api.html#specifyingprivatekeys
             self.conn, self.client = yield from asyncssh.create_connection(
-                MySSHClient, self.hostname, username='root', known_hosts=None
+                MySSHClient, self.hostname, username=self.username, known_hosts=None
                 )
             return True
         except (OSError, asyncssh.Error) as e:
@@ -64,6 +74,10 @@ class SshProxy:
 
     @asyncio.coroutine
     def run(self, command):
+        """
+        Run a command
+        todo : how to read the output
+        """
         class clientsession_closure(MySSHClientSession):
             def __init__(ssh_client_session, *args, **kwds):
                 ssh_client_session.node = self.node
@@ -73,6 +87,7 @@ class SshProxy:
         print(5*'-', "running on ", self.hostname, ':', command)
         chan, session = yield from self.conn.create_session(clientsession_closure, command)
         yield from chan.wait_closed()
+        return session.data
 
     @asyncio.coroutine
     def close(self):
@@ -80,6 +95,9 @@ class SshProxy:
 
     @asyncio.coroutine
     def wait_for(self, backoff):
+        """
+        Wait until the ssh service is usable 
+        """
         self.status = False
         while True:
             self.status = yield from self.connect()
@@ -102,8 +120,10 @@ def probe(h, message_bus):
     c = yield from proxy.connect()
     if not c:
         return False
-    yield from proxy.run('cat /etc/lsb-release /etc/fedora-release 2> /dev/null')
-    yield from proxy.run('hostname')
+    out1 = yield from proxy.run('cat /etc/lsb-release /etc/fedora-release 2> /dev/null')
+    print("command1 returned {}".format(out1))
+    out2 = yield from proxy.run('hostname')
+    print("command2 returned {}".format(out2))
     yield from proxy.close()
     return True
 
@@ -118,4 +138,3 @@ if __name__ == '__main__':
 
     for node, retcod in zip(nodes, retcods):
         print("{}:{}".format(node, retcod))
-                
