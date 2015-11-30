@@ -21,6 +21,26 @@ from rhubarbe.logger import logger
 debug = False
 #debug = True
 
+class ReconnectableSocketIO:
+    def __init__(self, hostname, port):
+        self.hostname = hostname
+        self.port = port
+        self.socketio = None
+
+    def emit(self, channel, message):
+        try:
+            self.socketio.emit(channel, message,
+                               ReconnectableSocketIO.callback)
+        except:
+            action = "connecting" if self.socketio is None else "reconnecting"
+            logger.info("{} to sidecar ws://{}:{}/"
+                        .format(action, self.hostname, self.port))
+            self.socketio = SocketIO(self.hostname, self.port, LoggingNamespace)
+            
+    @staticmethod
+    def callback(*args, **kwds):
+        logger.info('on socketIO response args={} kwds={}'.format(args, kwds))
+
 class MonitorNode:
     """
     the logic for probing a node as part of monitoring
@@ -30,10 +50,10 @@ class MonitorNode:
     . third, checks for ping
     """
     
-    def __init__(self, node, report_wlan, sidecar_socketio, channel):
+    def __init__(self, node, report_wlan, reconnectable, channel):
         self.node = node
         self.report_wlan = report_wlan
-        self.sidecar_socketio = sidecar_socketio
+        self.reconnectable = reconnectable
         self.channel = channel
         # current info - will be reported to sidecar
         # xxx
@@ -56,20 +76,12 @@ class MonitorNode:
             if k.startswith('wlan'):
                 self.info[k] = 0.
         
-    @staticmethod
-    def socketio_callback(*args, **kwds):
-        logger.info('on socketIO response args={} kwds={}'.format(args, kwds))
-
     def report_info(self):
         """
         Send info to sidecar
         """
         logger.info("Emitting {}".format(self.info))
-        try:
-            self.sidecar_socketio.emit(self.channel, json.dumps([self.info]),
-                                       MonitorNode.socketio_callback)
-        except Exception as e:
-            logger.info("need to reconnect to sidecar")
+        self.reconnectable.emit(self.channel, json.dumps([self.info]))
         
     def set_info_and_report(self, *overrides):
         """
@@ -230,14 +242,12 @@ class Monitor:
         self.report_wlan = report_wlan
         hostname = the_config.value('monitor', 'sidecar_hostname')
         port = int(the_config.value('monitor', 'sidecar_port'))
-        # xxx is there a need to reconnect sometimes ?
-        logger.info("socketio connecting to hostname={}".format(hostname))
-        socketio = SocketIO(hostname, port, LoggingNamespace)
+        reconnectable = ReconnectableSocketIO(hostname, port)
         channel = the_config.value('monitor', 'sidecar_channel')
         nodes = [ Node (cmc_name, message_bus) for cmc_name in cmc_names ]
         # xxx always report wlan for now
         self.monitor_nodes = \
-            [ MonitorNode (node, True, socketio, channel) for node in nodes]
+            [ MonitorNode (node, True, reconnectable, channel) for node in nodes]
 
     @asyncio.coroutine
     def run(self):
