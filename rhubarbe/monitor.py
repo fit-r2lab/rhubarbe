@@ -13,16 +13,13 @@ from socketIO_client import SocketIO, LoggingNamespace
 # re-check; with node (1) it seemed to work a little weird but in fact the
 # regular monitor was still working in the background, so...
 
-from ssh import SshProxy
-from config import the_config
+from rhubarbe.node import Node
+from rhubarbe.ssh import SshProxy
+from rhubarbe.config import the_config
+from rhubarbe.logger import logger
 
 debug = False
 #debug = True
-
-#from logger import logger
-# should use logger but this triggers the usual bug with asyncio
-def myprint(*args):
-    print(time.strftime("%M:%S "), *args)
 
 class MonitorNode:
     """
@@ -40,7 +37,7 @@ class MonitorNode:
         self.channel = channel
         # current info - will be reported to sidecar
         # xxx
-        self.info = {'id': 1 }
+        self.info = {'id': node.id }
         # remember previous wlan measurement to compute rate
         self.history = {}
 
@@ -61,16 +58,18 @@ class MonitorNode:
         
     @staticmethod
     def socketio_callback(*args, **kwds):
-        print('on socketIO response', *args, **kwds)
+        logger.info('on socketIO response args={} kwds={}'.format(args, kwds))
 
     def report_info(self):
         """
         Send info to sidecar
         """
-        if debug: myprint("Emitting {}".format(self.info))
-        self.sidecar_socketio.emit(self.channel, json.dumps([self.info]),
-                                   MonitorNode.socketio_callback)
-
+        logger.info("Emitting {}".format(self.info))
+        try:
+            self.sidecar_socketio.emit(self.channel, json.dumps([self.info]),
+                                       MonitorNode.socketio_callback)
+        except Exception as e:
+            self.logger("need to reconnect to sidecar")
         
     def set_info_and_report(self, *overrides):
         """
@@ -151,7 +150,7 @@ class MonitorNode:
         The logic for getting one node's info and send it to sidecar
         """
         node = self.node
-        if debug: myprint("entering pass1, info={}".format(self.info))
+        if debug: logger.info("entering pass1, info={}".format(self.info))
         # pass1 : check for status
         padding_dict = {
             'control_ping' : 'off',
@@ -165,7 +164,7 @@ class MonitorNode:
         if status == "off":
             self.set_info_and_report({'cmc_on_off' : 'off'}, padding_dict)
             return
-        if debug: myprint("entering pass2, info={}".format(self.info))
+        if debug: logger.info("entering pass2, info={}".format(self.info))
         # pass2 : node is ON - let's try to ssh it
         self.set_info({'cmc_on_off' : 'on'})
         padding_dict = {
@@ -182,20 +181,20 @@ class MonitorNode:
                 "head /sys/class/net/wlan?/statistics/[rt]x_bytes"                
             )
         ssh = SshProxy(self.node)
-        if debug: myprint("trying to ssh-connect")
+        if debug: logger.info("trying to ssh-connect")
         try:
             timeout = float(the_config.value('monitor', 'ssh_timeout'))
             connected = yield from asyncio.wait_for(ssh.connect(), timeout=timeout)
         except asyncio.TimeoutError as e:
             connected = False
-        if debug: myprint("connected={}".format(connected))
+        if debug: logger.info("connected={}".format(connected))
         if connected:
             command = ";".join(remote_commands)
             output = yield from ssh.run(command)
             self.parse_ssh_output(output, padding_dict)
             self.report_info()
             return
-        if debug: myprint("entering pass3, info={}".format(self.info))
+        if debug: logger.info("entering pass3, info={}".format(self.info))
         # pass3 : node is ON but could not ssh
         # check for ping
         # I don't know of an asyncio library to deal with icmp
@@ -233,7 +232,7 @@ class Monitor:
         hostname = the_config.value('monitor', 'sidecar_hostname')
         port = int(the_config.value('monitor', 'sidecar_port'))
         # xxx is there a need to reconnect sometimes ?
-        print("hostname={}".format(hostname))
+        logger.info("socketio connecting to hostname={}".format(hostname))
         socketio = SocketIO(hostname, port, LoggingNamespace)
         channel = the_config.value('monitor', 'sidecar_channel')
         nodes = [ Node (cmc_name, message_bus) for cmc_name in cmc_names ]

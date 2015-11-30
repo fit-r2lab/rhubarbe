@@ -10,6 +10,8 @@ from rhubarbe.display_curses import DisplayCurses
 from rhubarbe.node import Node
 from rhubarbe.imageloader import ImageLoader
 from rhubarbe.imagesaver import ImageSaver
+from rhubarbe.monitor import Monitor
+
 from rhubarbe.ssh import SshProxy
 from rhubarbe.leases import Leases
 from rhubarbe.logger import logger
@@ -22,7 +24,7 @@ import rhubarbe.util as util
 # rhubarbe load -i fedora 12
 # would result in a call
 # load ( [ "-i", "fedora", "12" ])
-supported_commands = [ 'load', 'save', 'status', 'wait', 'list', 'version' ]
+supported_commands = [ 'load', 'save', 'status', 'wait', 'list', 'monitor', 'version' ]
 
 ####################
 def load(argv):
@@ -249,6 +251,58 @@ def list(argv):
         from rhubarbe.inventory import the_inventory
         the_inventory.display(verbose=True)
     return 0
+
+####################
+def monitor(argv):
+    from rhubarbe.config import the_config
+    default_cycle = the_config.value('monitor', 'cycle')
+    parser = ArgumentParser()
+    parser.add_argument('-c', "--cycle", default=default_cycle, type=float,
+                        help="Delay to wait between 2 probes of each node, default ={}"
+                        .format(default_cycle))
+    parser.add_argument("-w", "--no-wlan", dest="report_wlan", default=True, action='store_true',
+                        help="avoid probing of wlan traffic rates")
+    add_selector_arguments(parser)
+    args = parser.parse_args(argv)
+
+    selector = selected_selector(args)
+    loop = asyncio.get_event_loop()
+    message_bus = asyncio.Queue()
+
+    # xxx having to feed a Display instance with nodes
+    # at creation time is a nuisance
+    display = Display([], message_bus)
+
+    message_bus.put_nowait({'selected_nodes' : selector})
+    monitor = Monitor(selector.cmc_names(),
+                      message_bus = message_bus,
+                      cycle = args.cycle,
+                      report_wlan=args.report_wlan)
+
+    @asyncio.coroutine
+    def run():
+        yield from monitor.run()
+        yield from display.stop()
+
+    t1 = util.self_manage(run())
+    t2 = util.self_manage(display.run())
+    tasks = asyncio.gather(t1, t2)
+    wrapper = asyncio.gather(tasks)
+    try:
+        loop.run_until_complete(wrapper)
+        return 0
+    except KeyboardInterrupt as e:
+        print("rhubarbe-wait : keyboard interrupt - exiting")
+        tasks.cancel()
+        loop.run_forever()
+        tasks.exception()
+        return 1
+    except asyncio.TimeoutError as e:
+        print("rhubarbe-wait : timeout expired after {}s".format(args.timeout))
+        return 1
+    finally:
+        loop.close()
+    
 
 ####################
 def version(argv):

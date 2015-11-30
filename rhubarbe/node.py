@@ -22,6 +22,8 @@ class Node:
         self.status = None
         self.action = None
         self.mac = None
+        # for monitor
+        self.id = int("".join([x for x in cmc_name if x in "0123456789"]))
 
     def __repr__(self):
         return "<Node {}>".format(self.control_hostname())
@@ -52,6 +54,7 @@ class Node:
             client_response = yield from aiohttp.get(url)
         except Exception as e:
             self.status = None
+            return self.status
         try:
             text = yield from client_response.text()
             self.status = text.strip()

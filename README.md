@@ -226,3 +226,4 @@ job but somehow something later does it again...
   * window.nodelay(1) allows to make getch() non-blocking
 * Istatus -1/--on : list nodes that are on - same for -0/--off
 * *not even sure* do we need to tweak Node so that a control_hostname could be used as an argument to create a Node ? 
+* list config -> add an option to select a section
