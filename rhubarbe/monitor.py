@@ -226,12 +226,12 @@ class MonitorNode:
             return
 
     @asyncio.coroutine
-    def probe_forever(self, cycle):
+    def probe_forever(self, cycle, ping_timeout, ssh_timeout):
         """
         runs forever, wait <cycle> seconds between 2 runs of probe()
         """
         while True:
-            yield from self.probe()
+            yield from self.probe(ping_timeout, ssh_timeout)
             yield from asyncio.sleep(cycle)
             
 
@@ -248,8 +248,8 @@ class Monitor:
         # xxx always report wlan for now
         self.monitor_nodes = \
             [ MonitorNode (node, True, reconnectable, channel) for node in nodes]
-        self.ssh_timeout = float(the_config.value('monitor', 'ssh_timeout'))
         self.ping_timeout = float(the_config.value('monitor', 'ping_timeout'))
+        self.ssh_timeout = float(the_config.value('monitor', 'ssh_timeout'))
 
     @asyncio.coroutine
     def run(self):
