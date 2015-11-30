@@ -70,6 +70,7 @@ class SshProxy:
         except (OSError, asyncssh.Error) as e:
             #yield from self.node.feedback('ssh_status', 'connect failed')
             # print('MYssh failed: {}'.format(e))
+            self.conn, self.client = None, None
             return False
 
     @asyncio.coroutine
@@ -89,9 +90,12 @@ class SshProxy:
         yield from chan.wait_closed()
         return session.data
 
+    # >>> asyncio.iscoroutine(asyncssh.SSHClientConnection.close)
+    # False
     @asyncio.coroutine
     def close(self):
-        self.conn.close()
+        if self.conn is not None:
+            self.conn.close()
 
     @asyncio.coroutine
     def wait_for(self, backoff):
