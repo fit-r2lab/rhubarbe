@@ -2,21 +2,32 @@
 
 from __future__ import print_function
 
+import sys
+import os
+import os.path
+from distutils.core import setup
+from rhubarbe.version import version as rhubarbe_version
+
+# check python version
 from sys import version_info
 major, minor= version_info[0:2]
 if not (major == 3 and minor >= 4):
     print("python 3.4 or higher is required")
     exit(1)
 
-from distutils.core import setup
-
-from rhubarbe.version import version as version_tag
-
 # read licence info
 with open("COPYING") as f:
     license = f.read()
 with open("README.md") as f:
     long_description = f.read()
+
+from rhubarbe.main import supported_subcommands
+subcommand_symlinks = [ "bin/rhubarbe-{}".format(subcommand) for subcommand in supported_subcommands ]
+if sys.argv[1] in ('sdist'):
+    for subcommand in supported_subcommands:
+        link = "bin/rhubarbe-{}".format(subcommand)
+        if not os.path.exists(link):
+            os.symlink("rhubarbe", link)
 
 ### requirements - used by pip install
 # *NOTE* for ubuntu: also run this beforehand
@@ -31,19 +42,19 @@ required_modules = [
 
 setup(
     name             = "rhubarbe",
-    version          = version_tag,
+    version          = rhubarbe_version,
     description      = "Testbed Management Framework for R2Lab",
     long_description = long_description,
     license          = license,
     author           = "Thierry Parmentelat",
     author_email     = "thierry.parmentelat@inria.fr",
-    download_url     = "http://github/build.onelab.eu/rhubarbe/rhubarbe-{v}.tar.gz".format(v=version_tag),
+    download_url     = "http://github/build.onelab.eu/rhubarbe/rhubarbe-{v}.tar.gz".format(v=rhubarbe_version),
     url              = "https://github.com/parmentelat/fitsophia/tree/master/rhubarbe",
     platforms        = "Linux",
     packages         = [ 'rhubarbe' ],
     data_files       =
       [ ('/etc/rhubarbe', [ 'COPYING', 'README.md', 'rhubarbe.conf', 'inventory.json.template' ] ) ],
-    scripts          = [ 'bin/rhubarbe' ],
+    scripts          = [ 'bin/rhubarbe' ] + subcommand_symlinks,
     install_requires = required_modules,
 )
 

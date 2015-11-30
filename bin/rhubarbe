@@ -5,21 +5,35 @@ import sys
 import rhubarbe.main
 
 def main():
-    supported = rhubarbe.main.supported_commands
+    supported = rhubarbe.main.supported_subcommands
     command = sys.argv[0]
-    if len(sys.argv) <= 1:
+    args = None
+    subcommand = None
+    # can we find a supported subcommand in argv[0]
+    # i.e. when invoked as rhubarbe-monitor
+    for candidate in supported:
+        if candidate in sys.argv[0]:
+            subcommand = candidate
+            args = sys.argv[1:]
+            break
+
+    # not found that way : subcommand must be argv[1]
+    # so we need at least one argv left
+    if not subcommand and len(sys.argv) <= 1:
         print("Need to run {} with a subcommand among {{{}}}"
               .format(command, ",".join(supported)))
         exit(1)
         
-    subcommand = sys.argv[1]
-    if subcommand not in supported:
-        print("Unknown subcommand {} - use on of {{{}}}"
-              .format(subcommand, ",".join(supported)))
-        exit(1)
+    if not subcommand:
+        subcommand = sys.argv[1]
+        args = sys.argv[2:]
+        if subcommand not in supported:
+            print("Unknown subcommand {} - use on of {{{}}}"
+                  .format(subcommand, ",".join(supported)))
+            exit(1)
+    # do it
     entry_point = getattr(rhubarbe.main, subcommand)
     # remove subcommand from args
-    args = sys.argv[2:]
     try:
         exit(entry_point(args))
     except Exception as e:

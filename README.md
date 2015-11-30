@@ -196,7 +196,8 @@ we would have written instead in pure python-3.5 this
  
 ## for deployment (P2)
 
-* rewrite monitor.py within this framework ()
+* monitor.sh / monitor.log
+
 * the script for synchronizing images from bemol to faraday seems to have gone
 
 ## nice to have (P3)

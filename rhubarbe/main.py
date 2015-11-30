@@ -17,16 +17,23 @@ from rhubarbe.leases import Leases
 from rhubarbe.logger import logger
 import rhubarbe.util as util
 
-# a supported command comes with a function in this module
-# that takes a list of args 
+# a supported command comes with a driver function
+# in this module, that takes a list of args 
 # and returns 0 for success and s/t else otherwise
 # specifically, command
 # rhubarbe load -i fedora 12
 # would result in a call
 # load ( [ "-i", "fedora", "12" ])
-supported_commands = [ 'load', 'save', 'status', 'wait', 'list', 'monitor', 'version' ]
 
 ####################
+supported_subcommands = []
+
+def subcommand(driver):
+    supported_subcommands.append(driver.__name__)
+    return driver
+
+####################
+@subcommand
 def load(argv):
     from rhubarbe.config import the_config
     from rhubarbe.imagesrepo import the_imagesrepo
@@ -79,6 +86,7 @@ def load(argv):
     return loader.main(reset=args.reset, timeout=args.timeout)
  
 ####################
+@subcommand
 def save(argv):
     from rhubarbe.config import the_config
     default_timeout = the_config.value('nodes', 'save_default_timeout')
@@ -121,6 +129,7 @@ def save(argv):
     return saver.main(reset = args.reset, timeout=args.timeout)
 
 ####################
+@subcommand
 def status(argv):
     from rhubarbe.config import the_config
     default_timeout = the_config.value('nodes', 'status_default_timeout')
@@ -162,6 +171,7 @@ def status(argv):
         loop.close()
 
 ####################
+@subcommand
 def wait(argv):
     from rhubarbe.config import the_config
     default_timeout = the_config.value('nodes', 'wait_default_timeout')
@@ -225,6 +235,7 @@ def wait(argv):
         loop.close()
         
 ####################
+@subcommand
 def list(argv):
     from rhubarbe.config import the_config
     parser = ArgumentParser()
@@ -253,6 +264,7 @@ def list(argv):
     return 0
 
 ####################
+@subcommand
 def monitor(argv):
     from rhubarbe.config import the_config
     default_cycle = the_config.value('monitor', 'cycle')
@@ -305,6 +317,7 @@ def monitor(argv):
     
 
 ####################
+@subcommand
 def version(argv):
     from rhubarbe.version import version
     print("rhubarbe version {}".format(version))

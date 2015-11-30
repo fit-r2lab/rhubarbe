@@ -15,7 +15,6 @@ from socketIO_client import SocketIO, LoggingNamespace
 
 from rhubarbe.node import Node
 from rhubarbe.ssh import SshProxy
-from rhubarbe.config import the_config
 from rhubarbe.logger import logger
 
 debug = False
@@ -156,7 +155,7 @@ class MonitorNode:
         self.set_info({'os_release' : os_release}, padding_dict, wlan_info_dict)
 
     @asyncio.coroutine
-    def probe(self):
+    def probe(self, ping_timeout, ssh_timeout):
         """
         The logic for getting one node's info and send it to sidecar
         """
@@ -194,8 +193,7 @@ class MonitorNode:
         ssh = SshProxy(self.node)
         if debug: logger.info("trying to ssh-connect")
         try:
-            timeout = float(the_config.value('monitor', 'ssh_timeout'))
-            connected = yield from asyncio.wait_for(ssh.connect(), timeout=timeout)
+            connected = yield from asyncio.wait_for(ssh.connect(), timeout=ssh_timeout)
         except asyncio.TimeoutError as e:
             connected = False
         if debug: logger.info("connected={}".format(connected))
@@ -220,8 +218,7 @@ class MonitorNode:
                 *command,
                 stdout = asyncio.subprocess.DEVNULL,
                 stderr = asyncio.subprocess.DEVNULL)
-            timeout = float(the_config.value('monitor', 'ping_timeout'))
-            retcod = yield from asyncio.wait_for(subprocess.wait(), timeout=timeout)
+            retcod = yield from asyncio.wait_for(subprocess.wait(), timeout=ping_timeout)
             self.set_info_and_report({'control_ping' : 'on'})
             return
         except asyncio.TimeoutError as e:
@@ -242,6 +239,7 @@ class Monitor:
     def __init__(self, cmc_names, message_bus, cycle, report_wlan):
         self.cycle = cycle
         self.report_wlan = report_wlan
+        from rhubarbe.config import the_config
         hostname = the_config.value('monitor', 'sidecar_hostname')
         port = int(the_config.value('monitor', 'sidecar_port'))
         reconnectable = ReconnectableSocketIO(hostname, port)
@@ -250,10 +248,14 @@ class Monitor:
         # xxx always report wlan for now
         self.monitor_nodes = \
             [ MonitorNode (node, True, reconnectable, channel) for node in nodes]
+        self.ssh_timeout = float(the_config.value('monitor', 'ssh_timeout'))
+        self.ping_timeout = float(the_config.value('monitor', 'ping_timeout'))
 
     @asyncio.coroutine
     def run(self):
-        return asyncio.gather(*[monitor_node.probe_forever(self.cycle)
+        return asyncio.gather(*[monitor_node.probe_forever(self.cycle,
+                                                           ping_timeout = self.ping_timeout,
+                                                           ssh_timeout = self.ssh_timeout)
                                 for monitor_node in self.monitor_nodes])
 
 if __name__ == '__main__':
@@ -261,6 +263,7 @@ if __name__ == '__main__':
     from node import Node
     rebootnames = sys.argv[1:]
     message_bus = asyncio.Queue()
+    from rhubarbe.config import the_config
     cycle = the_config.value('monitor', 'cycle')
     monitor = Monitor(rebootnames, message_bus, cycle=2, report_wlan=True)
     loop = asyncio.get_event_loop()
