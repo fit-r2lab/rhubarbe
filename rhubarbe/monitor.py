@@ -203,6 +203,8 @@ class MonitorNode:
             command = ";".join(remote_commands)
             output = yield from ssh.run(command)
             self.parse_ssh_output(output, padding_dict)
+            # required as otherwise we leak openfiles
+            yield from ssh.close()
             self.report_info()
             return
         if debug: logger.info("entering pass3, info={}".format(self.info))
