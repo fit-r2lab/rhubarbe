@@ -273,7 +273,7 @@ def monitor(argv):
     # at creation time is a nuisance
     display = Display([], message_bus)
 
-    message_bus.put_nowait({'selected_nodes' : selector})
+    logger.info({'selected_nodes' : selector})
     monitor = Monitor(selector.cmc_names(),
                       message_bus = message_bus,
                       cycle = args.cycle,
@@ -292,13 +292,13 @@ def monitor(argv):
         loop.run_until_complete(wrapper)
         return 0
     except KeyboardInterrupt as e:
-        print("rhubarbe-wait : keyboard interrupt - exiting")
+        logger.info("rhubarbe-wait : keyboard interrupt - exiting")
         tasks.cancel()
         loop.run_forever()
         tasks.exception()
         return 1
     except asyncio.TimeoutError as e:
-        print("rhubarbe-wait : timeout expired after {}s".format(args.timeout))
+        logger.info("rhubarbe-wait : timeout expired after {}s".format(args.timeout))
         return 1
     finally:
         loop.close()

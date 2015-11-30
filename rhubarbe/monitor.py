@@ -69,7 +69,7 @@ class MonitorNode:
             self.sidecar_socketio.emit(self.channel, json.dumps([self.info]),
                                        MonitorNode.socketio_callback)
         except Exception as e:
-            self.logger("need to reconnect to sidecar")
+            logger.info("need to reconnect to sidecar")
         
     def set_info_and_report(self, *overrides):
         """
@@ -77,10 +77,6 @@ class MonitorNode:
         """
         self.set_info(*overrides)
         self.report_info()
-
-    def feedback(self, message):
-        print("tmp feedback : {}".format(message))
-
 
     ubuntu_matcher = re.compile("DISTRIB_RELEASE=(?P<ubuntu_version>[0-9.]+)")
     fedora_matcher = re.compile("Fedora release (?P<fedora_version>\d+)")
@@ -127,17 +123,20 @@ class MonitorNode:
         wlan_info_dict = {}
         for rxtx_key, bytes in rxtx_dict.items():
             device, rxtx = rxtx_key
-            self.feedback("node={self.node} collected {bytes} for device {device} in {rxtx}".format(**locals()))
+            if debug:
+                logger.info("node={self.node} collected {bytes} for device {device} in {rxtx}"
+                            .format(**locals()))
             # do we have something on this measurement ?
             if rxtx_key in self.history:
                 previous_bytes, previous_time = self.history[rxtx_key]
                 info_key = "{device}_{rxtx}_rate".format(**locals())
                 new_rate = 8.*(bytes - previous_bytes) / (now - previous_time)
                 wlan_info_dict[info_key] = new_rate
-                self.feedback("node={} computed {} bps for key {} "
-                              "- bytes = {}, pr = {}, now = {}, pr = {}"
-                              .format(id, new_rate, info_key,
-                                      bytes, previous_bytes, now, previous_time));
+                if debug:
+                    logger.info("node={} computed {} bps for key {} "
+                                "- bytes = {}, pr = {}, now = {}, pr = {}"
+                                .format(id, new_rate, info_key,
+                                        bytes, previous_bytes, now, previous_time))
             # store this measurement for next run
             self.history[rxtx_key] = (bytes, now)
         # xxx would make sense to clean up history for measurements that

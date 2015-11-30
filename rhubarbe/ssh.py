@@ -84,7 +84,7 @@ class SshProxy:
                 ssh_client_session.command = command
                 super().__init__(*args, **kwds)
 
-        print(5*'-', "running on ", self.hostname, ':', command)
+        #print(5*'-', "running on ", self.hostname, ':', command)
         chan, session = yield from self.conn.create_session(clientsession_closure, command)
         yield from chan.wait_closed()
         return session.data
