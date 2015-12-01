@@ -45,6 +45,7 @@ class TelnetProxy:
         from rhubarbe.config import the_config
         self.port = int(the_config.value('networking', 'telnet_port'))
         self.backoff = float(the_config.value('networking', 'telnet_backoff'))
+        self.timeout = float(the_config.value('networking', 'telnet_timeout'))
         # internals
         self._transport = None
         self._protocol = None
@@ -69,13 +70,18 @@ class TelnetProxy:
         loop = asyncio.get_event_loop()
         try:
             self._transport, self._protocol = \
-              yield from loop.create_connection(client_factory, self.control_ip, self.port)
+              yield from asyncio.wait_for(
+                  loop.create_connection(client_factory, self.control_ip, self.port),
+                  self.timeout)
             logger.info("{}: telnet connected".format(self.control_ip))
             return True
+        except asyncio.TimeoutError as e:
+            yield from self.feedback('frisbee_status', "timed out..")
+            self._transport, self._protocol = None, None            
         except Exception as e:
 #            import traceback
 #            traceback.print_exc()
-            # just making sure
+            logger.info("telnet connect: unexpected exception {}".format(e))
             self._transport, self._protocol = None, None
 
     @asyncio.coroutine

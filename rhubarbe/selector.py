@@ -95,11 +95,11 @@ def selected_selector(parser_args):
     if parser_args.all_nodes:
         from rhubarbe.config import the_config
         selector.add_range(the_config.value('testbed', 'all_scope'))
-    if not ranges:
-        try:
+    elif not ranges:
+        if os.getenv('NODES'):
             for node in os.environ["NODES"].split():
                 selector.add_range(node)
-        except KeyError:
+        else:
             print("no argument specified : this requires you to set env. variable 'NODES'")
             exit(1)            
     else:

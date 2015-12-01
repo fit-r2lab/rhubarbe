@@ -5,6 +5,19 @@ import asyncio
 # to connect to sidecar
 from socketIO_client import SocketIO, LoggingNamespace
 
+########## use a dedicated logger for monitor
+import logging
+
+log_format = '%(asctime)s %(levelname)s %(filename)s:%(lineno)d %(message)s'
+
+logging.basicConfig(
+    level=logging.INFO,
+    format = log_format,
+    filename = '/var/log/monitor.log'
+    )
+
+logger = logging.getLogger('monitor')
+
 # TODO
 # (*)  find proper index!!!
 #      could we just remove all alphnum from the cmc_name
@@ -15,12 +28,18 @@ from socketIO_client import SocketIO, LoggingNamespace
 
 from rhubarbe.node import Node
 from rhubarbe.ssh import SshProxy
-from rhubarbe.logger import logger
 
 debug = False
 #debug = True
 
+##########
 class ReconnectableSocketIO:
+    """
+    can emit a message to a socketio service, or reconnect to it
+    NOTE that this implementation is not robust, in the sense 
+    that when we attempt to emit a message to a disconnected service,
+    this message is dropped
+    """
     def __init__(self, hostname, port):
         self.hostname = hostname
         self.port = port
@@ -39,6 +58,24 @@ class ReconnectableSocketIO:
     @staticmethod
     def callback(*args, **kwds):
         logger.info('on socketIO response args={} kwds={}'.format(args, kwds))
+
+# print one-line status
+def one_char_summary(info):
+    if 'cmc_on_off' in info and info['cmc_on_off'] != 'on':
+        return '.'
+    elif 'control_ping' in info and info['control_ping'] != 'on':
+        return 'o'
+    elif 'control_ssh' in info and info['control_ssh'] != 'on':
+        return '0'
+    elif 'os_release' in info and 'fedora' in info['os_release']:
+        return 'F'
+    elif 'os_release' in info and 'ubuntu' in info['os_release']:
+        return 'U'
+    else:
+        return '^'
+
+def one_line_summary(info):
+    return "{:02d} : {}".format(info['id'], one_char_summary(info))
 
 class MonitorNode:
     """
@@ -79,7 +116,7 @@ class MonitorNode:
         """
         Send info to sidecar
         """
-        logger.info("Emitting {}".format(self.info))
+        logger.info(one_line_summary(self.info))
         self.reconnectable.emit(self.channel, json.dumps([self.info]))
         
     def set_info_and_report(self, *overrides):
@@ -248,8 +285,8 @@ class Monitor:
         # xxx always report wlan for now
         self.monitor_nodes = \
             [ MonitorNode (node, True, reconnectable, channel) for node in nodes]
-        self.ping_timeout = float(the_config.value('monitor', 'ping_timeout'))
-        self.ssh_timeout = float(the_config.value('monitor', 'ssh_timeout'))
+        self.ping_timeout = float(the_config.value('networking', 'ping_timeout'))
+        self.ssh_timeout = float(the_config.value('networking', 'ssh_timeout'))
 
     @asyncio.coroutine
     def run(self):

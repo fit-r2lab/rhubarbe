@@ -38,6 +38,8 @@ required_modules = [
     'aiohttp',
     'asyncssh',
     'progressbar33',
+    # for monitor
+    'socketIO-client',
 ]
 
 setup(
@@ -53,8 +55,12 @@ setup(
     platforms        = "Linux",
     packages         = [ 'rhubarbe' ],
     data_files       =
-      [ ('/etc/rhubarbe', [ 'COPYING', 'README.md', 'rhubarbe.conf', 'inventory.json.template' ] ) ],
-    scripts          = [ 'bin/rhubarbe' ] + subcommand_symlinks,
+      [ ('/etc/rhubarbe',
+         [ 'COPYING', 'README.md', 'rhubarbe.conf', 'inventory.json.template' ] ) ],
+    scripts          = [
+        'bin/rhubarbe',
+        'bin/monitor.sh',
+    ] + subcommand_symlinks,
     install_requires = required_modules,
 )
 

@@ -141,14 +141,14 @@ Configuration is done through a collection of files, which are loaded in this or
  
  Format is like aim	 `.ini` file, should be straightforward. Just beware to **not mention quotes** around strings, as such quotes end up in the python string verbatim.
  
-## Permission system
+## Authorization system
 
 Among things to be configured is the URL for a leases server. This for now assumes the following
 
 * You run an instance of an OMF_SFA service at that hostname and port
 * And the OMF_SFA service exposes a single resource.
 
-This is an admittedly specific policy for R2Lab, as opposed to other OMF-based deployments, since we want the reservations to be made on the testbed as a whole, since this is not sharable. This rather *ad hoc*  approach can easily be revisited if there's interest.
+This is an admittedly specific policy for R2Lab, as opposed to other OMF-based deployments, since we want the reservations to be made on the testbed as a whole (to ensure reproducibility). This rather *ad hoc*  approach can easily be revisited if there's interest.
 
 # Installation
 
@@ -192,13 +192,14 @@ we would have written instead in pure python-3.5 this
 
 ## P1 : known bugs for production
 
-* test. test. test:
+* test. test. test
+* test monitor.sh (monitor logs still in `rhubarbe.conf`...)
  
 ## for deployment (P2)
 
-* monitor.sh / monitor.log
-
-* the script for synchronizing images from bemol to faraday seems to have gone
+* take down previous monitor
+* check that rhubarbe-save is connected to the authorization system
+* other commands (wait, status, etc...) should issue a warning when not authorized
 
 ## nice to have (P3)
 
@@ -211,20 +212,25 @@ we would have written instead in pure python-3.5 this
 
 * *not even sure* refactor how mains are done; some have a monitor and some others not
 
-* *not even sure* should iwait have a telnet mode (-n/--telnet) as well ? 
-
+* *not even sure* should wait have a telnet mode (-n/--telnet) as well ? 
 
 ## cosmetic - known bugs (P4)
 
-* save: might make sense to clean up saved image in case of keyboard interrupt or timeout
+* save: might make sense to clean up saved image in case of keyboard interrupt or timeout - like, renaming the image as <>-broken
 * wait: really is not talkative; add -v ? ; more logs ? ; a curses mode ?
 * implement some way to store the logs from frisbee and imagezip somewhere
-* is there a way to remove incomplete images under -save (both keybord interrupt and timeout..)
 * should we not log all the messages on the feedback/bus onto logger as well ?
-job but somehow something later does it again...
-* curses react to window resize
+* *not quite useful* curses react to window resize
   * getch() to return curses.KEY_RESIZE in such a case
   * window.nodelay(1) allows to make getch() non-blocking
-* Istatus -1/--on : list nodes that are on - same for -0/--off
-* *not even sure* do we need to tweak Node so that a control_hostname could be used as an argument to create a Node ? 
+* status -1/--on : list nodes that are on - same for -0/--off; could apply to wait; with these options then the stdout could only contain the node names without any other sugar then
 * list config -> add an option to select a section
+* monitor logs & one-liners as they were with earlier version
+
+* *not even sure* do we need to tweak Node so that a control_hostname could be used as an argument to create a Node ? 
+
+* test d3 plugin - message appears in the Console: it's odd because I cannot link this problem to this line number...
+    
+#
+    TypeError: Cannot read property 'update_from_news' of undefined
+    livetable.js:261
