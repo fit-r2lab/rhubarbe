@@ -111,29 +111,34 @@ class MyLease:
 ####################
 class Leases:
     # the details of the omf_sfa instance where to look for leases
-    def __init__(self, message_bus, login=None):
+    def __init__(self, message_bus):
         from rhubarbe.config import the_config
         self.hostname = the_config.value('authorization', 'leases_server')
         self.port = the_config.value('authorization', 'leases_port')
         self.message_bus = message_bus
-        self.login = login if login is not None else os.getlogin()
         self.myleases = None
 
     def __repr__(self):
-        return "<Leases for login {} - omf_sfa@{}:{}>"\
-            .format(self.login, self.hostname, self.port)
-
-    def has_special_privileges(self):
-        # the condition on login is mostly for tests
-        return self.login == 'root' and os.getuid() == 0
+        if self.myleases is None:
+            return "<Leases (unfetched) - omf_sfa://{}:{}>"\
+                .format(self.hostname, self.port)
+        else:
+            return "<Leases fetched at {} - omf_sfa://{}:{} - {} leases>"\
+                .format(self.fetch_time, self.hostname, self.port, len(self.myleases))
 
     @asyncio.coroutine
     def feedback(self, field, msg):
         yield from self.message_bus.put({field: msg})
 
+    def has_special_privileges(self, login=None):
+        self.login = login if login is not None else os.getlogin()
+        # the condition on login is mostly for tests
+        return login == 'root' and os.getuid() == 0
+
     @asyncio.coroutine
-    def is_valid(self):
-        if self.has_special_privileges():
+    def is_valid(self, login=None):
+        self.login = login if login is not None else os.getlogin()
+        if self.has_special_privileges(login):
             return True
         try:
             yield from self.fetch()
@@ -149,6 +154,7 @@ class Leases:
         if self.myleases is not None:
             return
         self.myleases = []
+        self.fetch_time = time.strftime("%Y-%m-%d @ %H:%M")
         try:
             connector = aiohttp.TCPConnector(verify_ssl=False)
             url = "https://{}:{}/resources/leases".format(self.hostname, self.port)
@@ -160,34 +166,33 @@ class Leases:
         except Exception as e:
             yield from self.feedback('leases_error', 'cannot get leases from {}'.format(self))
         
-    def _is_valid(self):
-        valid_leases = [ lease.is_valid(self.login) for lease in self.myleases]
+    def _is_valid(self, login):
+        valid_leases = [ lease.is_valid(login) for lease in self.myleases]
         return valid_leases and valid_leases[0]
 
-    def display(self):
-        if self.has_special_privileges():
-            yield from self.feedback('lease', "{}: privileged account".format(self))
-        else:
-            yield from self.feedback('lease', str(self))
+    # this can be used with a fake message queue, it's synchroneous
+    def print(self, login=None):
+        print(5*'-', self,
+              "with special privileges" if self.has_special_privileges(login) else "")
+        if self.myleases is not None:
             for i, mylease in enumerate(self.myleases):
-                yield from self.feedback('lease', "{}: {}".format(i, mylease))
+                print('lease', "{}: {}".format(i, mylease))
 
 # micro test
 if __name__ == '__main__':
     import sys
     @asyncio.coroutine
-    def foo(login):
-        leases = Leases(asyncio.Queue(), login=login)
+    def foo(leases, login):
         print("leases {}".format(leases))
         valid = yield from leases.is_valid()
         print("valid = {}".format(valid))
-        leases.display()
-    def test_one_login(login):
-        print("Testing for login={}".format(login))
-        asyncio.get_event_loop().run_until_complete(foo(login))
+        leases.print()
+    def test_one_login(leases, login):
+        print(10*'=', "Testing for login={}".format(login))
+        asyncio.get_event_loop().run_until_complete(foo(leases, login))
 
+    leases = Leases(asyncio.Queue())
     builtin_logins = ['root', 'someoneelse', 'onelab.inria.foo1']
     arg_logins = sys.argv[1:]
     for login in arg_logins + builtin_logins:
-        test_one_login(login)
-    
+        test_one_login(leases, login)

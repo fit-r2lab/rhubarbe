@@ -248,10 +248,16 @@ def list(argv):
     parser.add_argument("-s", "--sort", dest='sort_by', action='store', default='size',
                         choices=('date', 'size'),
                         help="sort by date or by size")
+    parser.add_argument("-l", "--leases", action='store_true', default=False,
+                        help="display leases")
     parser.add_argument("-r", "--reverse", action='store_true', default=False,
                         help="reverse sort")
     parser.add_argument("-a", "--all", action='store_true', default=False)
     args = parser.parse_args(argv)
+
+    scope_attrs = ('config', 'images', 'inventory', 'leases', 'all')
+    if not any([getattr(args, attr) for attr in scope_attrs]):
+        args.images = True
 
     if args.config or args.all:
         the_config.display()
@@ -261,6 +267,15 @@ def list(argv):
     if args.inventory or args.all:
         from rhubarbe.inventory import the_inventory
         the_inventory.display(verbose=True)
+    if args.leases or args.all:
+        from rhubarbe.leases import Leases
+        message_bus = asyncio.Queue()
+        leases = Leases(message_bus)
+        @asyncio.coroutine
+        def run():
+            yield from leases.fetch()
+            leases.print()
+        asyncio.get_event_loop().run_until_complete(run())
     return 0
 
 ####################
