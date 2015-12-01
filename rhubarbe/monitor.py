@@ -290,10 +290,11 @@ class Monitor:
 
     @asyncio.coroutine
     def run(self):
-        return asyncio.gather(*[monitor_node.probe_forever(self.cycle,
-                                                           ping_timeout = self.ping_timeout,
-                                                           ssh_timeout = self.ssh_timeout)
-                                for monitor_node in self.monitor_nodes])
+        return asyncio.gather(
+            *[monitor_node.probe_forever(self.cycle,
+                                         ping_timeout = self.ping_timeout,
+                                         ssh_timeout = self.ssh_timeout)
+              for monitor_node in self.monitor_nodes])
 
 if __name__ == '__main__':
     import sys
