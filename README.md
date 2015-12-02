@@ -80,7 +80,6 @@ The arguments, known as a *node_spec* can be individual nodes, ranges, or even s
     
 
 
-
 ## Logging
 
 At this point all logging goes into a file named `rhubarbe.log`, excpet for the monitoring tool that logs into `/var/log/monitor.log`
@@ -150,6 +149,11 @@ This is an admittedly specific policy for R2Lab, as opposed to other OMF-based d
 You need `python-3.4` or higher, and installation can be achieved simply with
 
     pip3 install rhubarbe
+    
+## Update
+
+    pip3 install --upgrade rhubarbe
+
 
 ## Other libraries
 
@@ -187,13 +191,13 @@ we would have written instead in pure python-3.5 this
 
 * test. test. test
 * test monitor.sh (monitor logs still in `rhubarbe.conf`...)
-* deploy when done
  
 ## for deployment (P2)
 
 * take down previous monitor
 * check that rhubarbe-save is connected to the authorization system
 * other commands (wait, status, etc...) should issue a warning when not authorized
+* rlist -l seems broken, and not sure if owners are properly displayed
 
 ## nice to have (P3)
 
