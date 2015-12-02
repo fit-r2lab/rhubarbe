@@ -19,7 +19,8 @@ class MySSHClientSession(asyncssh.SSHClientSession):
 
     def data_received(self, data, datatype):
         # not adding a \n since it's already in there
-        if debug: print('SSS DR: {}:{}-> {} [[of type {}]]'.format(self.node, self.command, data, datatype), end='')
+        if debug: print('SSS DR: {}:{}-> {} [[of type {}]]'.
+                        format(self.node, self.command, data, datatype), end='')
         self.data += data
 
     def connection_made(self, conn):
@@ -104,6 +105,8 @@ class SshProxy:
         """
         self.status = False
         while True:
+            if self.verbose:
+                yield from self.node.feedback('ssh_status', "trying to connect")
             self.status = yield from self.connect()
             if self.status:
                 if self.verbose:
@@ -117,6 +120,7 @@ class SshProxy:
                     "cannot connect, backing off for {:.3}s".format(random_backoff))
             yield from asyncio.sleep(random_backoff)
 
+# mostly test-oriented
 @asyncio.coroutine
 def probe(h, message_bus):
     node = Node(h, message_bus)

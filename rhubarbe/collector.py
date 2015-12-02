@@ -46,7 +46,7 @@ class Collector:
             command_line = command
             if self.subprocess.returncode is None:
                 logger.info("collector started: {}".format(command_line))
-                yield from self.feedback('info', "image collector server started")
+                yield from self.feedback('info', "collector started on {}".format(self.image))
                 self.port = port
                 return port
             else:
@@ -68,4 +68,5 @@ class Collector:
                 pass
             self.subprocess = None
             logger.info("collector (on port {}) stopped".format(self.port))
-            self.feedback_nowait('info', "image collector server (on port {}) stopped".format(self.port))
+            self.feedback_nowait('info', "image collector server (on port {}) stopped"
+                                 .format(self.port))

@@ -4,6 +4,8 @@
 
     pip3 install rhubarbe
 
+This is connected to an authorization system; most of the functions are rather intrusive, and require the user to have obtained a lease (reservation), at the onelab portal, applicable to the current time and day, before the tool can be used. Note that the `root` user is unconditionnally granted permission.
+
 To load your `fedora-21` image on 18 nodes simultaneously:
     
     rhubarbe load -i fedora-21 1-18 &
@@ -16,8 +18,6 @@ To save the image of node 10, do this
 
     rhubarbe save 10
 
-This is connected to an authorization system; most of the functions are rather intrusive, and require the user to have obtained a lease (reservation), at the onelab portal, applicable to the current time and day, before the tool can be used. Note that the `root` user is unconditionnally granted permission.
-
 
 # Purpose
 
@@ -26,14 +26,17 @@ This is a tentative rewriting of the `omf6 load` and other similar commands, in 
 * `rhubarbe load` : parallel loading of an image, much like `omf6 load`
   * Two modes are supported, with the `-c` option running on top of curses to show individual progress for each node
   * 'nextboot' symlinks (that tell a node to boot onto the frisbee image) are reliably removed in all cases, even if program crashes or is interrupted
-* `rhubarbe save` image saving, much like `omf6 save`
-* `rhubarbe wait` : waiting for all nodes to be available (can connect to ssh)
+* `rhubarbe save` : image saving, much like `omf6 save`
+* `rhubarbe wait` : waiting for all nodes to be available (i.e. to be connectable via ssh)
+* `rhubarbe list` : inspect current leases, list images, inventory, and similar functions
 
 With these additional benefits:
 
 * single configuration file in `/etc/rhubarbe/rhubarbe.conf`, individual setting can be overridden at either user- (`~/.rhubarbe.conf`) or directory- (`./rhubarbe.conf`) level
 * all commands accept a timeout; a timeout that actually works, that is.
 * all commands return a reliable code. When everything goes fine for all subject nodes they return 0, and 1 otherwise.
+
+In addition, `rhubarbe monitor` is a monitoring tool can be used to feed a `socket.io` service about the current status of the testbed in realtime.
 
 # How to use
 
@@ -42,13 +45,13 @@ With these additional benefits:
 The python entry point is named `rhubarbe` but it should be called with an additional subcommand.
 
     root@bemol ~ # rhubarbe
-    Need to run rhubarbe with a subcommand among {load,save,status,wait,list,version}
+    Need to run rhubarbe with a subcommand among {load,save,status,wait,list,monitor,version}
 
 	root@bemol ~ # rhubarbe load --help
 
 ## Invoking : node scope
 
-So in short:
+Every command expects a list of nodes as its arguments 
 
     $ rhubarbe load [-i filename] 1 4 5
     
@@ -65,32 +68,22 @@ The arguments, known as a *node_spec* can be individual nodes, ranges, or even s
   *  1 3 5 7 9 
 * all nodes 
   * `$ rhubarbe load -a` on nodes
-  * 1 through 37 on `faraday.inria.fr`
+  * 1 through 37 on `faraday.inria.fr` (exact scope being defined in the configuration)
 * negation
   * `$ rhubarbe load -a ~10-20` on nodes
   * 1 to 9, and 21 to 37
 
-Run `rhubarbe load --help` as usual for a list of options.
-
-## Env. variables    
-
-If no node argument is provided on the command line, the value of the `NODES` environment variable is used. So 
-
-    $ all-nodes
-    $ focus-nodes-on
-    $ echo this way you can check : NODES=$NODES
-    $ rhubarbe load
-
-Would effectively address all nodes currently turned on
-
-In addition, the `-a` option allows you to refer to the whole testbed (see `testbed.all_scope` in the config). It can be used and combined with other ranges, so to deal with all nodes except node 4, one can do
-
-    $ rhubarbe load -a ~4 
+* if no node argument is provided on the command line, the value of the `NODES` environment variable is used. So you can select your set of nodes once, and just use the commands without arguments
+  * `$ export NODES="12-15 18-24"`
+  * `$ rhubarbe load`
+  * `$ rhubarbe wait`
     
+
+
 
 ## Logging
 
-At this point all logging goes into a file named `rhubarbe.log`
+At this point all logging goes into a file named `rhubarbe.log`, excpet for the monitoring tool that logs into `/var/log/monitor.log`
  
 # Configuration
 
@@ -137,9 +130,9 @@ Configuration is done through a collection of files, which are loaded in this or
  * `~/.rhubarbe.conf`
  * `./rhubarbe.conf`
 
- So in essence, there is a system-wide config (mandatory), that should contain all variable definitions, and possibly overridden values at a user level, or even more specific at a directory level; these 2 last files do not need to be complete and can just redefine one variable if needed.
+So in essence, there is a (mandatory) system-wide config, that should contain all variable definitions, and possibly overridden values at a user level, or even more specific at a directory level; these 2 last files do not need to be complete and can just redefine one variable if needed.
  
- Format is like aim	 `.ini` file, should be straightforward. Just beware to **not mention quotes** around strings, as such quotes end up in the python string verbatim.
+Format is known as a `.ini` file, should be straightforward. Just beware to **not mention quotes** around strings, as such quotes end up in the python string verbatim.
  
 ## Authorization system
 
@@ -154,13 +147,13 @@ This is an admittedly specific policy for R2Lab, as opposed to other OMF-based d
 
 ## Core
 
-You need `python-3.4` or higher. A `pypi` packaging is in the works. 
+You need `python-3.4` or higher, and installation can be achieved simply with
 
     pip3 install rhubarbe
 
 ## Other libraries
 
-Installed with `pip3`
+The following will be installed by `pip3` if not yet available
 
 * `telnetlib3` for invoking `frisbee` on the nodes
 * `aiohttp` for talking to the CMC cards
@@ -168,7 +161,7 @@ Installed with `pip3`
    * **ubuntu:** there is a need to run `apt-get install libffi-dev` before `pip3 install asyncssh`
 * `progressbar33` is used in rendering progress bar in the regular monitor (i.e. without the -c option).
 
-## A word on the `asyncio` module
+# A word on the `asyncio` module
 
 We use python 3.4's `asyncio` library. python3.4 can be taken as granted on the ubuntus we use on both `faraday` and `bemol`. 
 
@@ -194,6 +187,7 @@ we would have written instead in pure python-3.5 this
 
 * test. test. test
 * test monitor.sh (monitor logs still in `rhubarbe.conf`...)
+* deploy when done
  
 ## for deployment (P2)
 
@@ -216,10 +210,12 @@ we would have written instead in pure python-3.5 this
 
 ## cosmetic - known bugs (P4)
 
-* save: might make sense to clean up saved image in case of keyboard interrupt or timeout - like, renaming the image as <>-broken
-* wait: really is not talkative; add -v ? ; more logs ? ; a curses mode ?
+* ~~save: might make sense to clean up saved image in case of keyboard interrupt or timeout - like, renaming the image as <>-broken~~
+* ~~wait -v~~
+* add another config file (for local tweaks)
+* find a singleton class and use it for the_config, the_inventory, etc...
 * implement some way to store the logs from frisbee and imagezip somewhere
-* should we not log all the messages on the feedback/bus onto logger as well ?
+* *not sure* should we not log all the messages on the feedback/bus onto logger as well ?
 * *not quite useful* curses react to window resize
   * getch() to return curses.KEY_RESIZE in such a case
   * window.nodelay(1) allows to make getch() non-blocking

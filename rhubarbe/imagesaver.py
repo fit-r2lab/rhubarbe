@@ -1,3 +1,4 @@
+import os
 import asyncio
 
 from rhubarbe.collector import Collector
@@ -50,6 +51,14 @@ class ImageSaver:
         yield from (self.stage2(reset))
         yield from self.display.stop()
 
+    def mark_image_as_partial(self):
+        # never mind if that fails, we might call this before
+        # the file is created
+        try:
+            os.rename(self.image, self.image + ".partial")
+        except:
+            pass
+
     def main(self, reset, timeout):
         loop = asyncio.get_event_loop()
         t1 = util.self_manage(self.run(reset))
@@ -60,18 +69,18 @@ class ImageSaver:
             loop.run_until_complete(wrapper)
             return 0
         except KeyboardInterrupt as e:
-            ### xxx - cleanup image ? or rename it ?
+            self.mark_image_as_partial()
             self.display.set_goodbye("rhubarbe-save : keyboard interrupt - exiting")
             tasks.cancel()
             loop.run_forever()
             tasks.exception()
             return 1
         except asyncio.TimeoutError as e:
-            ### xxx - cleanup image ? or rename it ?
-            self.display.set_goodbye("rhubarbe-save : timeout expired after {}s".format(self.timeout))
+            self.mark_image_as_partial()
+            self.display.set_goodbye("rhubarbe-save : timeout expired after {}s"
+                                     .format(self.timeout))
             return 1
         finally:
             self.collector and self.collector.stop_nowait()
             self.display.epilogue()
             loop.close()
-        
