@@ -7,6 +7,9 @@ import json
 
 from rhubarbe.logger import logger
 
+debug = False
+#debug = True
+
 # Nov 2015
 # what we get from omf_sfa is essentially something like this
 #root@faraday /tmp/asyncio # curl -k https://localhost:12346/resources/leases
@@ -45,21 +48,26 @@ from rhubarbe.logger import logger
 #    ],
 #    "about": "/resources/leases"
 #  }
+#
+# myslice tends to keep leases contiguous, and so does a lot of delete/create
+# in this case it seems omf_sfa keeps the lease object but removes the subject from the 'components'
+# field. In any case it is quite frequent to see this 'components' being an empty list
 
-class MyLease:
+class Lease:
+    """
+    a simple extract from the omf_sfa loghorrea
+    """
 
     wire_timeformat = "%Y-%m-%dT%H:%M:%S%Z"
     human_timeformat = "%m-%d @ %H:%M %Z"
 
-    """
-    a simple extract from the omf_sfa loghorrea
-    """
     def __init__(self, omf_sfa_resource):
         r = omf_sfa_resource
         try:
             self.owner = r['account']['name']
             # this is only for information since there's only one node exposed to SFA
-            self.subject = r['components'][0]['name']
+            # so, we take only the first name
+            self.subjects = [component['name'] for component in r['components']]
             sfrom = r['valid_from']
             suntil = r['valid_until']
             # turns out that datetime.strptime() does not seem to like
@@ -70,11 +78,7 @@ class MyLease:
             self.iuntil = calendar.timegm(time.strptime(suntil, self.wire_timeformat))
             self.broken = False
         except Exception as e:
-            if 'components' not in r:
-                self.broken = 'lease with no component : ignored'
-            else:
-                self.broken = "lease broken b/c of exception {}".format(e)
-            yield from self.feedback('lease', "ERROR: {}".format(self.broken))
+            self.broken = "lease broken b/c of exception {}".format(e)
 
     def __repr__(self):
         if self.broken:
@@ -89,11 +93,11 @@ class MyLease:
                 self.human(self.ifrom),
                 self.human(self.iuntil))
         return "<Lease for {} on {} - {}>"\
-            .format(self.owner, self.subject, time_message)
+            .format(self.owner, " & ".join(self.subjects), time_message)
 
     @staticmethod
     def human(epoch):
-        return time.strftime(MyLease.human_timeformat, time.localtime(epoch))
+        return time.strftime(Lease.human_timeformat, time.localtime(epoch))
 
     def is_valid(self, owner):
         if self.broken:
@@ -120,11 +124,11 @@ class Leases:
 
     def __repr__(self):
         if self.myleases is None:
-            return "<Leases (unfetched) - omf_sfa://{}:{}>"\
+            return "<Leases from omf_sfa://{}:{} - **(UNFETCHED)**>"\
                 .format(self.hostname, self.port)
         else:
-            return "<Leases fetched at {} - omf_sfa://{}:{} - {} leases>"\
-                .format(self.fetch_time, self.hostname, self.port, len(self.myleases))
+            return "<Leases from omf_sfa://{}:{} - fetched at {} - {} leases>"\
+                .format(self.hostname, self.port, self.fetch_time, len(self.myleases))
 
     @asyncio.coroutine
     def feedback(self, field, msg):
@@ -156,15 +160,22 @@ class Leases:
         self.myleases = []
         self.fetch_time = time.strftime("%Y-%m-%d @ %H:%M")
         try:
+            if debug: print("Leases are being fetched")
             connector = aiohttp.TCPConnector(verify_ssl=False)
             url = "https://{}:{}/resources/leases".format(self.hostname, self.port)
             response = yield from aiohttp.get(url, connector=connector)
             text = yield from response.text()
             omf_sfa_answer = json.loads(text)
+            if debug: print("Leases received answer {}".format(omf_sfa_answer))
             resources = omf_sfa_answer['resource_response']['resources']
-            self.myleases = [ MyLease(resource) for resource in resources ]
+            # we should keep only the non-broken ones but until we are confident
+            # that debugging is over, et's be cautious
+            self.myleases = [ Lease(resource) for resource in resources ]
+                
         except Exception as e:
-            yield from self.feedback('leases_error', 'cannot get leases from {}'.format(self))
+            if debug: print("Leases.fetch: exception {}".format(e))
+            yield from self.feedback('leases_error', 'cannot get leases from {} - exception {}'
+                                     .format(self, e))
         
     def _is_valid(self, login):
         valid_leases = [ lease.is_valid(login) for lease in self.myleases]

@@ -61,12 +61,11 @@ else
     DEST=bemol.pl.sophia.inria.fr
 endif
 
-# WARNING : for a ubuntu machine only
+# installing in ~/rhubarbe-sync
 
 sync:
-	@echo WARNING : double check these locations on the remote end
-	rsync -av $$(git ls-files rhubarbe) root@$(DEST):/usr/local/lib/python3.4/dist-packages/rhubarbe/
-	rsync -av $$(git ls-files bin) root@$(DEST):/usr/local/bin
+	@echo 'WARNING: need to run bin/rhubarbe from ~/rhubarbe-sync'
+	rsync -av --relative $$(git ls-files) root@$(DEST):rhubarbe-sync/
 
 both: bemol faraday
 
@@ -75,3 +74,9 @@ faraday:
 
 bemol:
 	$(MAKE) sync deployment=bemol
+
+### old stuff
+override:
+	@echo WARNING : double check these locations on the remote end
+	rsync -av $$(git ls-files rhubarbe) root@$(DEST):/usr/local/lib/python3.4/dist-packages/rhubarbe/
+	rsync -av $$(git ls-files bin) root@$(DEST):/usr/local/bin
