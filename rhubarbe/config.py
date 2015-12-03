@@ -7,6 +7,7 @@ from rhubarbe.logger import logger
 # location, mandatory
 locations = [
     ("/etc/rhubarbe/rhubarbe.conf", True),
+    ("/etc/rhubarbe/rhubarbe.conf.local", False),
     (os.path.expanduser("~/.rhubarbe.conf"), False),
     ("./rhubarbe.conf", False),
 ]
@@ -18,9 +19,11 @@ class RhubarbeConfig:
 
     def __init__(self):
         self.parser = configparser.ConfigParser()
+        self.files = []
         # load all configurations when they exist
         for location, mandatory in locations:
             if os.path.exists(location):
+                self.files.append(location)
                 self.parser.read(location)
                 logger.info("Loaded config from {}".format(location))                
             elif mandatory:
@@ -65,10 +68,15 @@ class RhubarbeConfig:
         ip, prefixlen = local_ip_on_same_network_as(the_inventory.one_control_interface())
         return ip
 
-    def display(self):
-        for sname, section in self.parser.items():
-            print(10*'='," section {}".format(sname))
-            for fname, value in section.items():
-                print("{} = {}".format(fname, value))
+    def display(self, sections):
+        for i, file in enumerate(self.files):
+            print("{}-th config file = {}".format(i+1, file)) 
+        def match(section, sections):
+            return not sections or section in sections
+        for sname, section in sorted(self.parser.items()):
+            if match(sname, sections) and section:
+                print(10*'='," section {}".format(sname))
+                for fname, value in sorted(section.items()):
+                    print("{} = {}".format(fname, value))
 
 the_config = RhubarbeConfig()

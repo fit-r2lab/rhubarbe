@@ -132,10 +132,17 @@ In short: see `/etc/rhubarbe/rhubarbe.conf`
 Configuration is done through a collection of files, which are loaded in this order if they exist:
 
  * `/etc/rhubarbe/rhubarbe.conf`
+ * `/etc/rhubarbe/rhubarbe.conf.local`
  * `~/.rhubarbe.conf`
  * `./rhubarbe.conf`
 
-So in essence, there is a (mandatory) system-wide config, that should contain all variable definitions, and possibly overridden values at a user level, or even more specific at a directory level; these 2 last files do not need to be complete and can just redefine one variable if needed.
+So in essence, there is 
+ * a (mandatory) system-wide config `/etc/rhubarbe/rhubarbe.conf`, hat contains all variable definitions; 
+ * given that `/etc/rhubarbe/rhubarbe.conf` is likely to be overwritten at anytime by `pip3 install`, you can store your own system-wide changes in `/etc/rhubarbe.conf.local`;
+ * then each user can override any value she likes,
+ * and finally one can be even more specific and configure things at a directory level.
+
+ The first file will come with all the settings defined, but any of the other 3 does not need to be complete and can just redefine one variable if needed.
  
 Format is known as a `.ini` file, should be straightforward. Just beware to **not mention quotes** around strings, as such quotes end up in the python string verbatim.
  
@@ -163,12 +170,12 @@ You need `python-3.4` or higher, and installation can be achieved simply with
 
 ## Other libraries
 
-The following will be installed by `pip3` if not yet available
+The following will be automatically installed by `pip3` if not yet installed:
 
 * `telnetlib3` for invoking `frisbee` on the nodes
 * `aiohttp` for talking to the CMC cards
 * `asyncssh` for talking to ssh (rhubarbe wait mostly for now); 
-   * **ubuntu:** there is a need to run `apt-get install libffi-dev` before `pip3 install asyncssh`
+   * **ubuntu:** you may need to run `apt-get install libffi-dev` before `pip3 install asyncssh`
 * `progressbar33` is used in rendering progress bar in the regular monitor (i.e. without the -c option).
 
 # A word on the `asyncio` module
@@ -200,9 +207,10 @@ we would have written instead in pure python-3.5 this
  
 ## for deployment (P2)
 
+* fix issues with empty leases being displayed in the onelab portal
 * take down previous monitor
 * check that rhubarbe-save is connected to the authorization system
-* other commands (wait, status, etc...) should issue a warning when not authorized
+* some other commands (wait, status, etc...) should issue a warning when not authorized
 * rhubarbe leases -l seems broken, and not sure if owners are properly displayed
 
 ## nice to have (P3)

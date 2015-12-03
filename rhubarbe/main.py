@@ -23,7 +23,7 @@ import rhubarbe.util as util
 # specifically, command
 # rhubarbe load -i fedora 12
 # would result in a call
-# load ( [ "-i", "fedora", "12" ])
+# load ( "-i", "fedora", "12" )
 
 ####################
 supported_subcommands = []
@@ -34,14 +34,18 @@ def subcommand(driver):
 
 ####################
 @subcommand
-def load(argv):
+def load(*argv):
+    usage = """
+    Load an image on selected nodes in parallel
+    Requires a valid lease
+    """
     from rhubarbe.config import the_config
     from rhubarbe.imagesrepo import the_imagesrepo
     default_image = the_imagesrepo.default()
     default_timeout = the_config.value('nodes', 'load_default_timeout')
     default_bandwidth = the_config.value('networking', 'bandwidth')
                             
-    parser = ArgumentParser()
+    parser = ArgumentParser(usage=usage)
     parser.add_argument("-i", "--image", action='store', default=default_image,
                         help="Specify image to load (default is {})".format(default_image))
     parser.add_argument("-t", "--timeout", action='store', default=default_timeout, type=float,
@@ -87,11 +91,16 @@ def load(argv):
  
 ####################
 @subcommand
-def save(argv):
+def save(*argv):
+    usage = """
+    Save an image from a node
+    Requires a valid lease
+    """
+
     from rhubarbe.config import the_config
     default_timeout = the_config.value('nodes', 'save_default_timeout')
 
-    parser = ArgumentParser()
+    parser = ArgumentParser(usage=usage)
     parser.add_argument("-o", "--output", action='store', default=None,
                         help="Specify output name for image")
     parser.add_argument("-t", "--timeout", action='store', default=default_timeout, type=float,
@@ -130,11 +139,14 @@ def save(argv):
 
 ####################
 @subcommand
-def status(argv):
+def status(*argv):
+    usage = """
+    Retrieve the CMC-status of selected nodes (i.e. on or off)
+    """
     from rhubarbe.config import the_config
     default_timeout = the_config.value('nodes', 'status_default_timeout')
     
-    parser = ArgumentParser()
+    parser = ArgumentParser(usage=usage)
     parser.add_argument("-t", "--timeout", action='store', default=default_timeout, type=float,
                         help="Specify global timeout for the whole process, default={}"
                               .format(default_timeout))
@@ -172,12 +184,16 @@ def status(argv):
 
 ####################
 @subcommand
-def wait(argv):
+def wait(*argv):
+    usage = """
+    Wait for selected nodes to be reachable by ssh
+    Returns 0 if all nodes indeed are reachable
+    """
     from rhubarbe.config import the_config
     default_timeout = the_config.value('nodes', 'wait_default_timeout')
     default_backoff = the_config.value('networking', 'ssh_backoff')
     
-    parser = ArgumentParser()
+    parser = ArgumentParser(usage=usage)
     parser.add_argument("-t", "--timeout", action='store', default=default_timeout, type=float,
                         help="Specify global timeout for the whole process, default={}"
                               .format(default_timeout))
@@ -236,11 +252,11 @@ def wait(argv):
         
 ####################
 @subcommand
-def leases(argv):
-    """
+def leases(*argv):
+    usage = """
     Display current leases
     """
-    parser = ArgumentParser()
+    parser = ArgumentParser(usage=usage)
     args = parser.parse_args(argv)
     from rhubarbe.leases import Leases
     message_bus = asyncio.Queue()
@@ -254,11 +270,11 @@ def leases(argv):
 
 ####################
 @subcommand
-def images(argv):
-    """
+def images(*argv):
+    usage = """
     Display available images
     """
-    parser = ArgumentParser()
+    parser = ArgumentParser(usage=usage)
     parser.add_argument("-s", "--sort", dest='sort_by', action='store', default='size',
                         choices=('date', 'size'),
                         help="sort by date or by size")
@@ -271,11 +287,11 @@ def images(argv):
     
 ####################
 @subcommand
-def inventory(argv):
-    """
+def inventory(*argv):
+    usage = """
     Display inventory
     """
-    parser = ArgumentParser()
+    parser = ArgumentParser(usage=usage)
     args = parser.parse_args(argv)
     from rhubarbe.inventory import the_inventory
     the_inventory.display(verbose=True)
@@ -283,23 +299,29 @@ def inventory(argv):
 
 ####################
 @subcommand
-def config(argv):
-    """
+def config(*argv):
+    usage = """
     Display global configuration
     """
-    parser = ArgumentParser()
-    # xxx could use a -s option to pick a given section
-    args = parser.parse_args()
+    parser = ArgumentParser(usage=usage)
+    parser.add_argument("sections", nargs='*', 
+                        type=str,
+                        help="config section(s) to display")
+    args = parser.parse_args(argv)
     from rhubarbe.config import the_config
-    the_config.display()
+    the_config.display(args.sections)
     return 0
 
 ####################
 @subcommand
-def monitor(argv):
+def monitor(*argv):
+    usage = """
+    Cyclic probe all selected nodes to report real-time status 
+    at a sidecar service over socketIO
+    """
     from rhubarbe.config import the_config
     default_cycle = the_config.value('monitor', 'cycle')
-    parser = ArgumentParser()
+    parser = ArgumentParser(usage=usage)
     parser.add_argument('-c', "--cycle", default=default_cycle, type=float,
                         help="Delay to wait between 2 probes of each node, default ={}"
                         .format(default_cycle))
@@ -349,7 +371,7 @@ def monitor(argv):
 
 ####################
 @subcommand
-def version(argv):
+def version(*argv):
     from rhubarbe.version import version
     print("rhubarbe version {}".format(version))
     return 0

@@ -35,7 +35,7 @@ def main():
     entry_point = getattr(rhubarbe.main, subcommand)
     # remove subcommand from args
     try:
-        exit(entry_point(args))
+        exit(entry_point(*args))
     except Exception as e:
         import traceback
         traceback.print_exc()
