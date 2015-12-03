@@ -127,7 +127,7 @@ class Leases:
             return "<Leases from omf_sfa://{}:{} - **(UNFETCHED)**>"\
                 .format(self.hostname, self.port)
         else:
-            return "<Leases from omf_sfa://{}:{} - fetched at {} - {} leases>"\
+            return "<Leases from omf_sfa://{}:{} - fetched at {} - {} lease(s)>"\
                 .format(self.hostname, self.port, self.fetch_time, len(self.myleases))
 
     @asyncio.coroutine
@@ -137,7 +137,7 @@ class Leases:
     def has_special_privileges(self, login=None):
         self.login = login if login is not None else os.getlogin()
         # the condition on login is mostly for tests
-        return login == 'root' and os.getuid() == 0
+        return self.login == 'root' and os.getuid() == 0
 
     @asyncio.coroutine
     def is_valid(self, login=None):
@@ -146,7 +146,7 @@ class Leases:
             return True
         try:
             yield from self.fetch()
-            return self._is_valid()
+            return self._is_valid(login)
         except Exception as e:
             yield from self.feedback('info', "Could not fetch leases : {}".format(e))
             return False

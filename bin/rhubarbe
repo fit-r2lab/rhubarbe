@@ -20,7 +20,7 @@ def main():
     # not found that way : subcommand must be argv[1]
     # so we need at least one argv left
     if not subcommand and len(sys.argv) <= 1:
-        print("Need to run {} with a subcommand among {{{}}}"
+        print("{} needs a subcommand in {{{}}}"
               .format(command, ",".join(supported)))
         exit(1)
         

@@ -236,46 +236,62 @@ def wait(argv):
         
 ####################
 @subcommand
-def list(argv):
-    from rhubarbe.config import the_config
+def leases(argv):
+    """
+    Display current leases
+    """
     parser = ArgumentParser()
-    parser.add_argument("-c", "--config", action='store_true', default=False,
-                        help="display configuration store")
-    parser.add_argument("-i", "--images", action='store_true', default=False,
-                        help="display available images")
-    parser.add_argument("-n", "--inventory", action='store_true', default=False,
-                        help="display nodes from inventory")
+    args = parser.parse_args(argv)
+    from rhubarbe.leases import Leases
+    message_bus = asyncio.Queue()
+    leases = Leases(message_bus)
+    @asyncio.coroutine
+    def run():
+        yield from leases.fetch()
+        leases.print()
+    asyncio.get_event_loop().run_until_complete(run())
+    return 0
+
+####################
+@subcommand
+def images(argv):
+    """
+    Display available images
+    """
+    parser = ArgumentParser()
     parser.add_argument("-s", "--sort", dest='sort_by', action='store', default='size',
                         choices=('date', 'size'),
                         help="sort by date or by size")
-    parser.add_argument("-l", "--leases", action='store_true', default=False,
-                        help="display leases")
     parser.add_argument("-r", "--reverse", action='store_true', default=False,
                         help="reverse sort")
-    parser.add_argument("-a", "--all", action='store_true', default=False)
+    from rhubarbe.imagesrepo import the_imagesrepo
     args = parser.parse_args(argv)
+    the_imagesrepo.display(args.sort_by, args.reverse)
+    return 0
+    
+####################
+@subcommand
+def inventory(argv):
+    """
+    Display inventory
+    """
+    parser = ArgumentParser()
+    args = parser.parse_args(argv)
+    from rhubarbe.inventory import the_inventory
+    the_inventory.display(verbose=True)
+    return 0
 
-    scope_attrs = ('config', 'images', 'inventory', 'leases', 'all')
-    if not any([getattr(args, attr) for attr in scope_attrs]):
-        args.images = True
-
-    if args.config or args.all:
-        the_config.display()
-    if args.images or args.all:
-        from rhubarbe.imagesrepo import the_imagesrepo
-        the_imagesrepo.display(args.sort_by, args.reverse)
-    if args.inventory or args.all:
-        from rhubarbe.inventory import the_inventory
-        the_inventory.display(verbose=True)
-    if args.leases or args.all:
-        from rhubarbe.leases import Leases
-        message_bus = asyncio.Queue()
-        leases = Leases(message_bus)
-        @asyncio.coroutine
-        def run():
-            yield from leases.fetch()
-            leases.print()
-        asyncio.get_event_loop().run_until_complete(run())
+####################
+@subcommand
+def config(argv):
+    """
+    Display global configuration
+    """
+    parser = ArgumentParser()
+    # xxx could use a -s option to pick a given section
+    args = parser.parse_args()
+    from rhubarbe.config import the_config
+    the_config.display()
     return 0
 
 ####################

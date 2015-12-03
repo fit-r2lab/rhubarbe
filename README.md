@@ -28,7 +28,6 @@ This is a tentative rewriting of the `omf6 load` and other similar commands, in 
   * 'nextboot' symlinks (that tell a node to boot onto the frisbee image) are reliably removed in all cases, even if program crashes or is interrupted
 * `rhubarbe save` : image saving, much like `omf6 save`
 * `rhubarbe wait` : waiting for all nodes to be available (i.e. to be connectable via ssh)
-* `rhubarbe list` : inspect current leases, list images, inventory, and similar functions
 
 With these additional benefits:
 
@@ -36,7 +35,14 @@ With these additional benefits:
 * all commands accept a timeout; a timeout that actually works, that is.
 * all commands return a reliable code. When everything goes fine for all subject nodes they return 0, and 1 otherwise.
 
-In addition, `rhubarbe monitor` is a monitoring tool can be used to feed a `socket.io` service about the current status of the testbed in realtime.
+A few additional features are available as well for convenience
+
+* `rhubarbe leases` : inspect current leases
+* `rhubarbe images` : list available images
+* `rhubarbe inventory` : display inventory
+* `rhubarbe config` : display config
+
+Finally, `rhubarbe monitor` is a monitoring tool that can be used to feed a `socket.io` service about the current status of the testbed in realtime. This is what is called the *sidecar* service on R2Lab.
 
 # How to use
 
@@ -45,13 +51,13 @@ In addition, `rhubarbe monitor` is a monitoring tool can be used to feed a `sock
 The python entry point is named `rhubarbe` but it should be called with an additional subcommand.
 
     root@bemol ~ # rhubarbe
-    Need to run rhubarbe with a subcommand among {load,save,status,wait,list,monitor,version}
+    rhubarbe needs a subcommand in {load,save,status,wait,leases,images,inventory,config,monitor,version}
 
 	root@bemol ~ # rhubarbe load --help
 
 ## Invoking : node scope
 
-Every command expects a list of nodes as its arguments 
+Most commands expect a list of nodes as its arguments 
 
     $ rhubarbe load [-i filename] 1 4 5
     
@@ -197,7 +203,7 @@ we would have written instead in pure python-3.5 this
 * take down previous monitor
 * check that rhubarbe-save is connected to the authorization system
 * other commands (wait, status, etc...) should issue a warning when not authorized
-* rlist -l seems broken, and not sure if owners are properly displayed
+* rhubarbe leases -l seems broken, and not sure if owners are properly displayed
 
 ## nice to have (P3)
 
@@ -224,7 +230,7 @@ we would have written instead in pure python-3.5 this
   * getch() to return curses.KEY_RESIZE in such a case
   * window.nodelay(1) allows to make getch() non-blocking
 * status -1/--on : list nodes that are on - same for -0/--off; could apply to wait; with these options then the stdout could only contain the node names without any other sugar then
-* list config -> add an option to select a section
+* rhubarbe config -> add an option to select a section
 * monitor logs & one-liners as they were with earlier version
 
 * *not even sure* do we need to tweak Node so that a control_hostname could be used as an argument to create a Node ? 
