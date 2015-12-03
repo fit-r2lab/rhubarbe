@@ -2,7 +2,7 @@
 # initscript for the rhubarbe monitoring service
 # to be run in faraday
 
-type rhubarbe || {
+type rhubarbe >& /dev/null || {
     echo "$0 requires rhubarbe to be (pip3-)installed"
     exit 1
     }
