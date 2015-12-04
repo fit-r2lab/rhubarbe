@@ -1,6 +1,7 @@
 import asyncio
 
 from rhubarbe.logger import logger
+from rhubarbe.config import Config
 
 class Collector:
     def __init__(self, image, message_bus):
@@ -21,7 +22,7 @@ class Collector:
         """
         Start a collector instance; returns a port_number
         """
-        from rhubarbe.config import the_config
+        the_config = Config()
         netcat = the_config.value('frisbee', 'netcat')
         local_ip = the_config.local_control_ip()
         # should use default.ndz if not provided

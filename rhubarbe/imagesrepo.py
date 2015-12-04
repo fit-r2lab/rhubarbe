@@ -3,9 +3,12 @@ import os.path
 import glob
 import time
 
-class ImagesRepo:
+from rhubarbe.config import Config
+from rhubarbe.singleton import Singleton
+
+class ImagesRepo(metaclass = Singleton):
     def __init__(self):
-        from rhubarbe.config import the_config
+        the_config = Config()
         self.repo = the_config.value('frisbee', 'images_dir')
         self.name = the_config.value('frisbee', 'default_image')
 
@@ -121,6 +124,3 @@ class ImagesRepo:
                     shown = True
                 else:
                     print("{:>31} {:40}".format("a.k.a.", prefix))
-                    
-
-the_imagesrepo = ImagesRepo()

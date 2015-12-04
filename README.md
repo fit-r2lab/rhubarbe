@@ -202,14 +202,18 @@ we would have written instead in pure python-3.5 this
 
 ## P1 : known bugs for production
 
-* test. test. test
-* test monitor.sh (monitor logs still in `rhubarbe.conf`...)
+* **monitor logs still in `rhubarbe.log`**
+  * to find out where exactly : `find / -name rhubarbe.log | xargs ls -lart`
+    
+  * apparently when ran from cron this ends up in `/root/fitsophia/rhubarbe.log`
+
+* check that the previous monitor is down as expected (Done?)
+* check that rhubarbe-save is connected to the authorization system
+* test, test, test...
  
 ## for deployment (P2)
 
 * fix issues with empty leases being displayed in the onelab portal
-* take down previous monitor
-* check that rhubarbe-save is connected to the authorization system
 * some other commands (wait, status, etc...) should issue a warning when not authorized
 * rhubarbe leases -l seems broken, and not sure if owners are properly displayed
 
@@ -228,21 +232,22 @@ we would have written instead in pure python-3.5 this
 
 ## cosmetic - known bugs (P4)
 
+* status -1/--on : list nodes that are on - same for -0/--off; could apply to wait; with these options then the stdout could only contain the node names without any other sugar then
 * ~~save: might make sense to clean up saved image in case of keyboard interrupt or timeout - like, renaming the image as <>-broken~~
 * ~~wait -v~~
-* add another config file (for local tweaks)
-* find a singleton class and use it for the_config, the_inventory, etc...
+* ~~add another config file (for local tweaks)~~
+* ~~find a singleton class and use it for the_config, the_inventory, etc...~~
 * implement some way to store the logs from frisbee and imagezip somewhere
 * *not sure* should we not log all the messages on the feedback/bus onto logger as well ?
 * *not quite useful* curses react to window resize
   * getch() to return curses.KEY_RESIZE in such a case
   * window.nodelay(1) allows to make getch() non-blocking
-* status -1/--on : list nodes that are on - same for -0/--off; could apply to wait; with these options then the stdout could only contain the node names without any other sugar then
 * rhubarbe config -> add an option to select a section
 * monitor logs & one-liners as they were with earlier version
 
 * *not even sure* do we need to tweak Node so that a control_hostname could be used as an argument to create a Node ? 
 
+## related (website)
 * test d3 plugin - message appears in the Console: it's odd because I cannot link this problem to this line number...
     
 #

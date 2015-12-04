@@ -1,9 +1,12 @@
 import json
 
-class Inventory:
+from rhubarbe.singleton import Singleton
+from rhubarbe.config import Config
+
+class Inventory(metaclass = Singleton):
 
     def __init__(self):
-        from rhubarbe.config import the_config
+        the_config = Config()
         with open(the_config.value('testbed', 'inventory_path')) as feed:
            self._nodes = json.load(feed)
 
@@ -54,4 +57,3 @@ class Inventory:
     def all_control_hostnames(self):
         return (node['control']['hostname'] for node in self._nodes)
 
-the_inventory = Inventory()

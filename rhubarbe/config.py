@@ -2,6 +2,7 @@ import os
 import socket
 import configparser
 
+from rhubarbe.singleton import Singleton
 from rhubarbe.logger import logger
 
 # location, mandatory
@@ -15,7 +16,7 @@ locations = [
 class ConfigException(Exception):
     pass
 
-class RhubarbeConfig:
+class Config(metaclass = Singleton):
 
     def __init__(self):
         self.parser = configparser.ConfigParser()
@@ -59,11 +60,13 @@ class RhubarbeConfig:
 
     # maybe this one too
     def local_control_ip(self):
-        # if specified in the config file, then use that
+        ### if specified in the config file, then use that
         if 'networking' in self.parser and 'local_control_ip' in self.parser['networking']:
             return self.parser['networking']['local_control_ip']
-        # but otherwise guess it
-        from rhubarbe.inventory import the_inventory
+        ### but otherwise guess it
+        # do not import at toplevel to avoid import loop
+        from rhubarbe.inventory import Inventory
+        the_inventory = Inventory()
         from rhubarbe.guessip import local_ip_on_same_network_as
         ip, prefixlen = local_ip_on_same_network_as(the_inventory.one_control_interface())
         return ip
@@ -78,5 +81,3 @@ class RhubarbeConfig:
                 print(10*'='," section {}".format(sname))
                 for fname, value in sorted(section.items()):
                     print("{} = {}".format(fname, value))
-
-the_config = RhubarbeConfig()

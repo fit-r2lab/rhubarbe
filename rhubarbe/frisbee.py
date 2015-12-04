@@ -4,6 +4,7 @@ import telnetlib3
 
 from rhubarbe.logger import logger
 from rhubarbe.telnet import TelnetProxy
+from rhubarbe.config import Config
 
 class FrisbeeParser(telnetlib3.TerminalShell):
     def __init__(self, *args, **kwds):
@@ -86,7 +87,7 @@ class Frisbee(TelnetProxy):
     @asyncio.coroutine
     def run(self, multicast_ip, port):
         control_ip = self.control_ip
-        from rhubarbe.config import the_config
+        the_config = Config()
         client = the_config.value('frisbee', 'client')
         hdd = the_config.value('frisbee', 'hard_drive')
         self.command = \

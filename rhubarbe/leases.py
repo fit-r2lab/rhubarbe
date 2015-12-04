@@ -6,6 +6,7 @@ from datetime import datetime
 import json
 
 from rhubarbe.logger import logger
+from rhubarbe.config import Config
 
 debug = False
 #debug = True
@@ -116,7 +117,7 @@ class Lease:
 class Leases:
     # the details of the omf_sfa instance where to look for leases
     def __init__(self, message_bus):
-        from rhubarbe.config import the_config
+        the_config = Config()
         self.hostname = the_config.value('authorization', 'leases_server')
         self.port = the_config.value('authorization', 'leases_port')
         self.message_bus = message_bus

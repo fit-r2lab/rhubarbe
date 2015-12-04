@@ -1,5 +1,7 @@
 #/usr/bin/env python3
 
+from rhubarbe.config import Config
+
 import os
 
 class Selector:
@@ -7,7 +9,7 @@ class Selector:
     # typically regularname='fit' and rebootname='reboot'
     # so that fit01 and reboot01 are names that resolve
     def __init__(self):
-        from rhubarbe.config import the_config
+        the_config = Config()
         self.regularname = the_config.value('testbed', 'regularname')
         self.rebootname = the_config.value('testbed', 'rebootname')
         self.set = set()
@@ -93,7 +95,7 @@ def selected_selector(parser_args):
     selector = Selector()
     # nothing set on the command line : let's use $NODES
     if parser_args.all_nodes:
-        from rhubarbe.config import the_config
+        the_config = Config()
         selector.add_range(the_config.value('testbed', 'all_scope'))
     elif not ranges:
         if os.getenv('NODES'):

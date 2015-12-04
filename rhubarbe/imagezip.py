@@ -3,6 +3,7 @@ import asyncio
 import telnetlib3
 
 from rhubarbe.logger import logger
+from rhubarbe.config import Config
 from rhubarbe.telnet import TelnetProxy
 
 class ImageZipParser(telnetlib3.TerminalShell):
@@ -60,7 +61,7 @@ class ImageZip(TelnetProxy):
 
     @asyncio.coroutine
     def run(self, port):
-        from rhubarbe.config import the_config
+        the_config = Config()
         server_ip = the_config.local_control_ip()
         imagezip = the_config.value('frisbee', 'imagezip')
         netcat = the_config.value('frisbee', 'netcat')

@@ -50,7 +50,12 @@ testpypi:
 	$(call upload_pypi,testpypi)
 
 
-############################## for development 
+##############################
+tags:
+	git ls-files | xargs etags
+
+.PHONY: tags
+############################## for deploying before packaging
 # default is to mess with our preplab and let the production
 # site do proper upgrades using pip3
 deployment ?= bemol

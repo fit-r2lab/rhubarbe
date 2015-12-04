@@ -6,6 +6,7 @@ import asyncio
 import progressbar
 
 import rhubarbe.util as util
+from rhubarbe.inventory import Inventory
 from rhubarbe.logger import logger
 
 # message_bus is just an asyncio.Queue
@@ -43,8 +44,9 @@ class Display:
         if ip in self._display_node_by_ip:
             return self._display_node_by_ip[ip]
         
-        # in case the incoming ip is a the reboot ip
-        from rhubarbe.inventory import the_inventory
+        # in case the incoming ip is a reboot ip
+        from rhubarbe.inventory import Inventory
+        the_inventory = Inventory()
         control_ip = the_inventory.control_ip_from_any_ip(ip)
         # locate this in the subject nodes list
         for rank, node in enumerate(self.nodes):

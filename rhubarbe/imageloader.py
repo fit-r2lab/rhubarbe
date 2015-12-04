@@ -3,6 +3,7 @@ import asyncio
 import rhubarbe.util as util
 from rhubarbe.frisbeed import Frisbeed
 from rhubarbe.leases import Leases
+from rhubarbe.config import Config
 
 class ImageLoader:
 
@@ -22,7 +23,7 @@ class ImageLoader:
 
     @asyncio.coroutine
     def stage1(self):
-        from rhubarbe.config import the_config
+        the_config = Config()
         idle = int(the_config.value('nodes', 'idle_after_reset'))
         yield from asyncio.gather(*[node.load_stage1(idle) for node in self.nodes])
 
@@ -56,7 +57,7 @@ class ImageLoader:
     @asyncio.coroutine
     def run(self, reset):
         leases = Leases(self.message_bus)
-        self.feedback('authorization','checking for a valid lease')
+        yield from self.feedback('authorization','checking for a valid lease')
         valid = yield from leases.is_valid()
         if not valid:
             yield from self.feedback('authorization',

@@ -5,7 +5,10 @@ import asyncio
 # to connect to sidecar
 from socketIO_client import SocketIO, LoggingNamespace
 
+from rhubarbe.config import Config
+
 ########## use a dedicated logger for monitor
+# xxx not working as expected
 import logging
 
 log_format = '%(asctime)s %(levelname)s %(filename)s:%(lineno)d %(message)s'
@@ -276,7 +279,7 @@ class Monitor:
     def __init__(self, cmc_names, message_bus, cycle, report_wlan):
         self.cycle = cycle
         self.report_wlan = report_wlan
-        from rhubarbe.config import the_config
+        the_config = Config()
         hostname = the_config.value('monitor', 'sidecar_hostname')
         port = int(the_config.value('monitor', 'sidecar_port'))
         reconnectable = ReconnectableSocketIO(hostname, port)
@@ -301,7 +304,7 @@ if __name__ == '__main__':
     from node import Node
     rebootnames = sys.argv[1:]
     message_bus = asyncio.Queue()
-    from rhubarbe.config import the_config
+    the_config = Config()
     cycle = the_config.value('monitor', 'cycle')
     monitor = Monitor(rebootnames, message_bus, cycle=2, report_wlan=True)
     loop = asyncio.get_event_loop()

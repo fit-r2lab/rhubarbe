@@ -4,6 +4,8 @@ import asyncio
 
 from argparse import ArgumentParser
 
+from rhubarbe.config import Config
+from rhubarbe.imagesrepo import ImagesRepo
 from rhubarbe.selector import Selector, add_selector_arguments, selected_selector
 from rhubarbe.display import Display
 from rhubarbe.display_curses import DisplayCurses
@@ -11,10 +13,10 @@ from rhubarbe.node import Node
 from rhubarbe.imageloader import ImageLoader
 from rhubarbe.imagesaver import ImageSaver
 from rhubarbe.monitor import Monitor
-
 from rhubarbe.ssh import SshProxy
 from rhubarbe.leases import Leases
 from rhubarbe.logger import logger
+
 import rhubarbe.util as util
 
 # a supported command comes with a driver function
@@ -39,8 +41,8 @@ def load(*argv):
     Load an image on selected nodes in parallel
     Requires a valid lease
     """
-    from rhubarbe.config import the_config
-    from rhubarbe.imagesrepo import the_imagesrepo
+    the_config = Config()
+    the_imagesrepo = ImagesRepo()
     default_image = the_imagesrepo.default()
     default_timeout = the_config.value('nodes', 'load_default_timeout')
     default_bandwidth = the_config.value('networking', 'bandwidth')
@@ -97,7 +99,7 @@ def save(*argv):
     Requires a valid lease
     """
 
-    from rhubarbe.config import the_config
+    the_config = Config()
     default_timeout = the_config.value('nodes', 'save_default_timeout')
 
     parser = ArgumentParser(usage=usage)
@@ -125,7 +127,7 @@ def save(*argv):
     node = Node(cmc_name, message_bus)
     nodename = node.control_hostname()
     
-    from rhubarbe.imagesrepo import the_imagesrepo
+    the_imagesrepo = ImagesRepo()
     actual_image = the_imagesrepo.where_to_save(nodename, args.output)
     message_bus.put_nowait({'info' : "Saving image {}".format(actual_image)})
 # turn off curses mode that has no added value here
@@ -143,7 +145,7 @@ def status(*argv):
     usage = """
     Retrieve the CMC-status of selected nodes (i.e. on or off)
     """
-    from rhubarbe.config import the_config
+    the_config = Config()
     default_timeout = the_config.value('nodes', 'status_default_timeout')
     
     parser = ArgumentParser(usage=usage)
@@ -189,7 +191,7 @@ def wait(*argv):
     Wait for selected nodes to be reachable by ssh
     Returns 0 if all nodes indeed are reachable
     """
-    from rhubarbe.config import the_config
+    the_config = Config()
     default_timeout = the_config.value('nodes', 'wait_default_timeout')
     default_backoff = the_config.value('networking', 'ssh_backoff')
     
@@ -280,7 +282,7 @@ def images(*argv):
                         help="sort by date or by size")
     parser.add_argument("-r", "--reverse", action='store_true', default=False,
                         help="reverse sort")
-    from rhubarbe.imagesrepo import the_imagesrepo
+    the_imagesrepo = ImagesRepo()
     args = parser.parse_args(argv)
     the_imagesrepo.display(args.sort_by, args.reverse)
     return 0
@@ -293,7 +295,7 @@ def inventory(*argv):
     """
     parser = ArgumentParser(usage=usage)
     args = parser.parse_args(argv)
-    from rhubarbe.inventory import the_inventory
+    the_inventory = Inventory()
     the_inventory.display(verbose=True)
     return 0
 
@@ -308,7 +310,7 @@ def config(*argv):
                         type=str,
                         help="config section(s) to display")
     args = parser.parse_args(argv)
-    from rhubarbe.config import the_config
+    the_config = Config()
     the_config.display(args.sections)
     return 0
 
@@ -319,7 +321,7 @@ def monitor(*argv):
     Cyclic probe all selected nodes to report real-time status 
     at a sidecar service over socketIO
     """
-    from rhubarbe.config import the_config
+    the_config = Config()
     default_cycle = the_config.value('monitor', 'cycle')
     parser = ArgumentParser(usage=usage)
     parser.add_argument('-c', "--cycle", default=default_cycle, type=float,
