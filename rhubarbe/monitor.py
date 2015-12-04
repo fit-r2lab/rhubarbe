@@ -53,6 +53,8 @@ class ReconnectableSocketIO:
             self.socketio.emit(channel, message,
                                ReconnectableSocketIO.callback)
         except:
+            # make sure we reconnect later on
+            self.socketio = None
             label = "{}: {}".format(info['id'], one_char_summary(info))
             logger.warn("Dropped message {} - channel {} on {}"
                         .format(label, channel, self))
