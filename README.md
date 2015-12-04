@@ -18,14 +18,15 @@ To save the image of node 10, do this
 
     rhubarbe save 10
 
-
 # Purpose
 
-This is a tentative rewriting of the `omf6 load` and other similar commands, in python3 using `asyncio`. This results in a single-thread, yet reactive, solution. The following features are currently available:
+This is a tentative rewriting of the `omf6 load` and other similar commands, in python3 using `asyncio`. This results in a very efficient, single-thread, yet asynchroneous solution. The following features are currently available:
 
-* `rhubarbe load` : parallel loading of an image, much like `omf6 load`
-  * Two modes are supported, with the `-c` option running on top of curses to show individual progress for each node
-  * 'nextboot' symlinks (that tell a node to boot onto the frisbee image) are reliably removed in all cases, even if program crashes or is interrupted
+* `rhubarbe load` : parallel loading of an image, much like `omf6 load`. Two display modes are supported:
+  * with the `-c` option running on top of curses to show individual progress for each node
+  * otherwise, display is suitable to be redirected in a terminal with a global progressbar - much like `omf6 load`, or to a file.
+ 
+  In any case, 'nextboot' symlinks (that tell `pxelinux` that a node to boot onto the frisbee image) are reliably removed in all cases, even if program crashes or is interrupted.
 * `rhubarbe save` : image saving, much like `omf6 save`
 * `rhubarbe wait` : waiting for all nodes to be available (i.e. to be connectable via ssh)
 
@@ -33,7 +34,8 @@ With these additional benefits:
 
 * single configuration file in `/etc/rhubarbe/rhubarbe.conf`, individual setting can be overridden at either user- (`~/.rhubarbe.conf`) or directory- (`./rhubarbe.conf`) level
 * all commands accept a timeout; a timeout that actually works, that is.
-* all commands return a reliable code. When everything goes fine for all subject nodes they return 0, and 1 otherwise.
+* all commands return a reliable code. When everything goes fine for all subject nodes they return 0, and 1 otherwise
+* `load` comes with a `curses` mode that lets you visualize every node individually; very helpful when something goes wrong, so you can pinpoint which node is not behaving as expected.
 
 A few additional features are available as well for convenience
 
@@ -202,26 +204,23 @@ we would have written instead in pure python-3.5 this
 
 ## P1 : known bugs for production
 
-* **monitor logs still in `rhubarbe.log`**
-  * to find out where exactly : `find / -name rhubarbe.log | xargs ls -lart`
-    
-  * apparently when ran from cron this ends up in `/root/fitsophia/rhubarbe.log`
-
-* check that the previous monitor is down as expected (Done?)
-* check that rhubarbe-save is connected to the authorization system
 * test, test, test...
  
 ## for deployment (P2)
 
+* play with the REST interface about leases
+  * check that users can use their certificate to do write (PUT, UPDATE) actions
+  * configure the unique `omf_sfa` resource name in `rhubarbe.conf`
+  * rlease --auth-check : do we have the testbed at that time ? until when ?
+  * improve current display for leases (sort by date; use curses ?)
+  * provide a simple tool to **get a lease** if nobody else uses the testbed at that time. 
+
 * fix issues with empty leases being displayed in the onelab portal -> Loic
+
 * some other commands (wait, status, etc...) should issue a warning when not authorized
 * rhubarbe leases seems broken, and not sure if owners are properly displayed
 
 ## nice to have (P3)
-
-* would be really cool if the authorization system could actually (propose to)  **get the lease** if nobody else uses the testbed at that time. 
-  * need to do simple tests using the omf-generated certificate; will that alow to authenticate at the REST API and create the lease ?
-  * in which case we'll most likely need to configure the resource name...
 
 * robustify ensure_reset ? (fit04)
     if a node is still answering ping right after it was reset, then it is exhibiting the oblivion issue, so it needs to be turned off; maybe repeatedly so.
@@ -232,7 +231,13 @@ we would have written instead in pure python-3.5 this
 
 ## cosmetic - known bugs (P4)
 
-* status -1/--on : list nodes that are on - same for -0/--off; could apply to wait; with these options then the stdout could only contain the node names without any other sugar
+* merge `wait` and `status` in a more general `select` tool
+  * --status: show current output of `status`
+  * --export: show selected nodes within a `export NODES='blabla'` (for the `nodes` alias)
+  * -0/-1: select nodes that are on or off
+  * -a: all nodes
+  * --wait: select nodes that are ssh-reachable within the timeout
+
 * ~~save: might make sense to clean up saved image in case of keyboard interrupt or timeout - like, renaming the image as <>-broken~~
 * ~~wait -v~~
 * ~~add another config file (for local tweaks)~~
