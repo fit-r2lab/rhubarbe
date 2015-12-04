@@ -5,6 +5,12 @@ import logging.config
 # * one all-purpose logger that goes into ./rhubarbe.log
 # * one special logger for monitor that goes into /var/log/monitor.log
 
+import os
+if os.getlogin() == 'root':
+    monitor_output = '/var/log/monitor.log'
+else:
+    monitor_output = 'monitor.log'
+
 rhubarbe_logging_config = {
     'version' : 1,
     'disable_existing_loggers' : True,
@@ -25,7 +31,7 @@ rhubarbe_logging_config = {
             'level': 'INFO',
             'class': 'logging.FileHandler',
             'formatter': 'standard',
-            'filename' : '/var/log/monitor.log',
+            'filename' : monitor_output,
         },
     },
     'loggers': {
