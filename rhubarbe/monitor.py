@@ -12,9 +12,6 @@ from rhubarbe.logger import monitor_logger as logger
 from rhubarbe.node import Node
 from rhubarbe.ssh import SshProxy
 
-debug = False
-#debug = True
-
 ##########
 class ReconnectableSocketIO:
     """
@@ -24,9 +21,10 @@ class ReconnectableSocketIO:
     this message is dropped
     """
 
-    def __init__(self, hostname, port):
+    def __init__(self, hostname, port, debug=False):
         self.hostname = hostname
         self.port = port
+        self.debug = debug
         self.socketio = None
 
     def __repr__(self):
@@ -46,6 +44,7 @@ class ReconnectableSocketIO:
             self.socketio = None
 
     def emit_info(self, channel, info):
+        if self.debug: logger.info("emitting id={} : {}".format(info['id'], one_char_summary(info)))
         message = json.dumps([info])
         if self.socketio is None:
             self.connect()
@@ -87,13 +86,13 @@ class MonitorNode:
     . third, checks for ping
     """
     
-    def __init__(self, node, report_wlan, reconnectable, channel):
+    def __init__(self, node, report_wlan, reconnectable, channel, debug=False):
         self.node = node
         self.report_wlan = report_wlan
         self.reconnectable = reconnectable
         self.channel = channel
+        self.debug = debug
         # current info - will be reported to sidecar
-        # xxx
         self.info = {'id': node.id }
         # remember previous wlan measurement to compute rate
         self.history = {}
@@ -171,7 +170,7 @@ class MonitorNode:
         wlan_info_dict = {}
         for rxtx_key, bytes in rxtx_dict.items():
             device, rxtx = rxtx_key
-            if debug:
+            if self.debug:
                 logger.info("node={self.node} collected {bytes} for device {device} in {rxtx}"
                             .format(**locals()))
             # do we have something on this measurement ?
@@ -180,7 +179,7 @@ class MonitorNode:
                 info_key = "{device}_{rxtx}_rate".format(**locals())
                 new_rate = 8.*(bytes - previous_bytes) / (now - previous_time)
                 wlan_info_dict[info_key] = new_rate
-                if debug:
+                if self.debug:
                     logger.info("node={} computed {} bps for key {} "
                                 "- bytes = {}, pr = {}, now = {}, pr = {}"
                                 .format(id, new_rate, info_key,
@@ -197,7 +196,7 @@ class MonitorNode:
         The logic for getting one node's info and send it to sidecar
         """
         node = self.node
-        if debug: logger.info("entering pass1, info={}".format(self.info))
+        if self.debug: logger.info("entering pass1, info={}".format(self.info))
         # pass1 : check for status
         padding_dict = {
             'control_ping' : 'off',
@@ -211,7 +210,7 @@ class MonitorNode:
         if status == "off":
             self.set_info_and_report({'cmc_on_off' : 'off'}, padding_dict)
             return
-        if debug: logger.info("entering pass2, info={}".format(self.info))
+        if self.debug: logger.info("entering pass2, info={}".format(self.info))
         # pass2 : node is ON - let's try to ssh it
         self.set_info({'cmc_on_off' : 'on'})
         padding_dict = {
@@ -228,12 +227,12 @@ class MonitorNode:
                 "head /sys/class/net/wlan?/statistics/[rt]x_bytes"                
             )
         ssh = SshProxy(self.node)
-        if debug: logger.info("trying to ssh-connect")
+        if self.debug: logger.info("trying to ssh-connect")
         try:
             connected = yield from asyncio.wait_for(ssh.connect(), timeout=ssh_timeout)
         except asyncio.TimeoutError as e:
             connected = False
-        if debug: logger.info("connected={}".format(connected))
+        if self.debug: logger.info("connected={}".format(connected))
         if connected:
             command = ";".join(remote_commands)
             output = yield from ssh.run(command)
@@ -242,7 +241,7 @@ class MonitorNode:
             yield from ssh.close()
             self.report_info()
             return
-        if debug: logger.info("entering pass3, info={}".format(self.info))
+        if self.debug: logger.info("entering pass3, info={}".format(self.info))
         # pass3 : node is ON but could not ssh
         # check for ping
         # I don't know of an asyncio library to deal with icmp
@@ -273,18 +272,19 @@ class MonitorNode:
             
 
 class Monitor:
-    def __init__(self, cmc_names, message_bus, cycle, report_wlan):
+    def __init__(self, cmc_names, message_bus, cycle, report_wlan, debug=False):
         self.cycle = cycle
         self.report_wlan = report_wlan
+        self.debug = debug
         the_config = Config()
         hostname = the_config.value('monitor', 'sidecar_hostname')
         port = int(the_config.value('monitor', 'sidecar_port'))
-        reconnectable = ReconnectableSocketIO(hostname, port)
+        reconnectable = ReconnectableSocketIO(hostname, port, debug)
         channel = the_config.value('monitor', 'sidecar_channel')
         nodes = [ Node (cmc_name, message_bus) for cmc_name in cmc_names ]
         # xxx always report wlan for now
         self.monitor_nodes = \
-            [ MonitorNode (node, True, reconnectable, channel) for node in nodes]
+            [ MonitorNode (node, True, reconnectable, channel, debug) for node in nodes]
         self.ping_timeout = float(the_config.value('networking', 'ping_timeout'))
         self.ssh_timeout = float(the_config.value('networking', 'ssh_timeout'))
         self.log_period = float(the_config.value('monitor', 'log_period'))
