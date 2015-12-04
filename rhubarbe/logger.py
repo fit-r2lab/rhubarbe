@@ -5,10 +5,16 @@ import logging.config
 # * one all-purpose logger that goes into ./rhubarbe.log
 # * one special logger for monitor that goes into /var/log/monitor.log
 
-import os
-if os.getlogin() == 'root':
+#import os
+# os.getlogin() surprisingly does this sometimes
+# OSError: [Errno 25] Inappropriate ioctl for device
+#
+# so instead let's see if we can write in /var/log
+try:
     monitor_output = '/var/log/monitor.log'
-else:
+    with open(monitor_output, 'a') as f:
+        pass
+except:
     monitor_output = 'monitor.log'
 
 rhubarbe_logging_config = {
