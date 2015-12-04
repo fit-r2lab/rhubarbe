@@ -47,8 +47,15 @@ class ImageSaver:
 
     @asyncio.coroutine
     def run(self, reset):
-        yield from (self.stage1() if reset else self.feedback('info', "Skipping stage1"))
-        yield from (self.stage2(reset))
+        leases = Leases(self.message_bus)
+        yield from self.feedback('authorization','checking for a valid lease')
+        valid = yield from leases.is_valid()
+        if not valid:
+            yield from self.feedback('authorization',
+                                     "Access refused : you have no lease on the testbed at this time")
+        else:
+            yield from (self.stage1() if reset else self.feedback('info', "Skipping stage1"))
+            yield from (self.stage2(reset))
         yield from self.display.stop()
 
     def mark_image_as_partial(self):
