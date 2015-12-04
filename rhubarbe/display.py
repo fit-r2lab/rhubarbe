@@ -110,6 +110,8 @@ class Display:
             return "LITTERAL" + str(message)
         elif 'info' in message:
             return message['info']
+        elif 'authorization' in message:
+            return "AUTH: " + message['authorization']
         elif 'loading_image' in message:
             return "Loading image {}".format(message['loading_image'])
         elif 'selected_nodes' in message:
