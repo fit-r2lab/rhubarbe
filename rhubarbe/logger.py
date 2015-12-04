@@ -19,6 +19,10 @@ rhubarbe_logging_config = {
             'format': '%(asctime)s %(levelname)s %(filename)s:%(lineno)d %(message)s',
             'datefmt': '%m-%d %H:%M:%S'
         },
+        'shorter': { 
+            'format': '%(asctime)s %(levelname)s %(message)s',
+            'datefmt': '%d %H:%M:%S'
+        },
     },
     'handlers': {
         'rhubarbe': {
@@ -30,7 +34,7 @@ rhubarbe_logging_config = {
         'monitor': {
             'level': 'INFO',
             'class': 'logging.FileHandler',
-            'formatter': 'standard',
+            'formatter': 'shorter',
             'filename' : monitor_output,
         },
     },
