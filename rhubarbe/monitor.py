@@ -8,27 +8,7 @@ from socketIO_client import SocketIO, LoggingNamespace
 from rhubarbe.config import Config
 
 ########## use a dedicated logger for monitor
-# xxx not working as expected
-import logging
-
-log_format = '%(asctime)s %(levelname)s %(filename)s:%(lineno)d %(message)s'
-
-logging.basicConfig(
-    level=logging.INFO,
-    format = log_format,
-    filename = '/var/log/monitor.log'
-    )
-
-logger = logging.getLogger('monitor')
-
-# TODO
-# (*)  find proper index!!!
-#      could we just remove all alphnum from the cmc_name
-# (*) log in /var/log
-# (*) and add some one-liner for debugging
-# re-check; with node (1) it seemed to work a little weird but in fact the
-# regular monitor was still working in the background, so...
-
+from rhubarbe.logger import monitor_logger as logger
 from rhubarbe.node import Node
 from rhubarbe.ssh import SshProxy
 
@@ -43,26 +23,45 @@ class ReconnectableSocketIO:
     that when we attempt to emit a message to a disconnected service,
     this message is dropped
     """
+
     def __init__(self, hostname, port):
         self.hostname = hostname
         self.port = port
         self.socketio = None
 
-    def emit(self, channel, message):
+    def __repr__(self):
+        return "socket.io sidecar ws://{}:{}/"\
+            .format(self.hostname, self.port)
+    
+    # at some point we were running into the same issue as this one:
+    # https://github.com/liris/websocket-client/issues/222
+    # hopefully this harmless glitch has gone away
+    def connect(self):
+        action = "connect" if self.socketio is None else "reconnect"
+        try:
+            logger.info("{}ing to {}".format(action, self))
+            self.socketio = SocketIO(self.hostname, self.port, LoggingNamespace)
+        except:
+            logger.warn("Connection lost to {}".format(self))
+            self.socketio = None
+
+    def emit_info(self, channel, info):
+        message = json.dumps([info])
+        if self.socketio is None:
+            self.connect()
         try:
             self.socketio.emit(channel, message,
                                ReconnectableSocketIO.callback)
         except:
-            action = "connecting" if self.socketio is None else "reconnecting"
-            logger.info("{} to sidecar ws://{}:{}/"
-                        .format(action, self.hostname, self.port))
-            self.socketio = SocketIO(self.hostname, self.port, LoggingNamespace)
+            label = "{}: {}".format(info['id'], one_char_summary(info))
+            logger.warn("Dropped message {} - channel {} on {}"
+                        .format(label, channel, self))
             
     @staticmethod
     def callback(*args, **kwds):
         logger.info('on socketIO response args={} kwds={}'.format(args, kwds))
 
-# print one-line status
+# translate info into a single char for logging
 def one_char_summary(info):
     if 'cmc_on_off' in info and info['cmc_on_off'] != 'on':
         return '.'
@@ -76,9 +75,6 @@ def one_char_summary(info):
         return 'U'
     else:
         return '^'
-
-def one_line_summary(info):
-    return "{:02d} : {}".format(info['id'], one_char_summary(info))
 
 class MonitorNode:
     """
@@ -119,8 +115,7 @@ class MonitorNode:
         """
         Send info to sidecar
         """
-        logger.info(one_line_summary(self.info))
-        self.reconnectable.emit(self.channel, json.dumps([self.info]))
+        self.reconnectable.emit_info(self.channel, self.info)
         
     def set_info_and_report(self, *overrides):
         """
@@ -290,6 +285,7 @@ class Monitor:
             [ MonitorNode (node, True, reconnectable, channel) for node in nodes]
         self.ping_timeout = float(the_config.value('networking', 'ping_timeout'))
         self.ssh_timeout = float(the_config.value('networking', 'ssh_timeout'))
+        self.log_period = float(the_config.value('monitor', 'log_period'))
 
     @asyncio.coroutine
     def run(self):
@@ -298,6 +294,14 @@ class Monitor:
                                          ping_timeout = self.ping_timeout,
                                          ssh_timeout = self.ssh_timeout)
               for monitor_node in self.monitor_nodes])
+
+    @asyncio.coroutine
+    def log(self):
+        while True:
+            line = "".join([one_char_summary(mnode.info) for mnode in self.monitor_nodes])
+            logger.info(line)
+            yield from asyncio.sleep(self.log_period)
+            
 
 if __name__ == '__main__':
     import sys
@@ -308,4 +312,4 @@ if __name__ == '__main__':
     cycle = the_config.value('monitor', 'cycle')
     monitor = Monitor(rebootnames, message_bus, cycle=2, report_wlan=True)
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(monitor.run())
+    loop.run_until_complete(asyncio.gather(monitor.run(), monitor.report()))

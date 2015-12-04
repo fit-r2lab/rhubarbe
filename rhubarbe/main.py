@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 
+# DON'T import logger globally here
+# we need to be able to mess inside the logger module
+# before it gets loaded from another way
+
 import asyncio
 
 from argparse import ArgumentParser
@@ -15,7 +19,6 @@ from rhubarbe.imagesaver import ImageSaver
 from rhubarbe.monitor import Monitor
 from rhubarbe.ssh import SshProxy
 from rhubarbe.leases import Leases
-from rhubarbe.logger import logger
 
 import rhubarbe.util as util
 
@@ -75,6 +78,7 @@ def load(*argv):
 
     # send feedback
     message_bus.put_nowait({'selected_nodes' : selector})
+    from rhubarbe.logger import logger
     logger.info("timeout is {}".format(args.timeout))
     logger.info("bandwidth is {}".format(args.bandwidth))
 
@@ -158,6 +162,7 @@ def status(*argv):
     selector = selected_selector(args)
     message_bus = asyncio.Queue()
     
+    from rhubarbe.logger import logger
     message_bus.put_nowait({'selected_nodes' : selector})
     logger.info("timeout is {}".format(args.timeout))
 
@@ -214,6 +219,7 @@ def wait(*argv):
 
     if args.verbose:
         message_bus.put_nowait({'selected_nodes' : selector})
+    from rhubarbe.logger import logger
     logger.info("timeout is {}".format(args.timeout))
 
     loop = asyncio.get_event_loop()
@@ -286,7 +292,7 @@ def images(*argv):
     args = parser.parse_args(argv)
     the_imagesrepo.display(args.sort_by, args.reverse)
     return 0
-    
+
 ####################
 @subcommand
 def inventory(*argv):
@@ -317,6 +323,12 @@ def config(*argv):
 ####################
 @subcommand
 def monitor(*argv):
+
+    ### xxx hacky - do a side effect in the logger module
+    import rhubarbe.logger
+    rhubarbe.logger.logger = rhubarbe.logger.monitor_logger
+    ### xxx hacky
+    
     usage = """
     Cyclic probe all selected nodes to report real-time status 
     at a sidecar service over socketIO
@@ -340,15 +352,28 @@ def monitor(*argv):
     # at creation time is a nuisance
     display = Display([], message_bus)
 
+    from rhubarbe.logger import logger
     logger.info({'selected_nodes' : selector})
     monitor = Monitor(selector.cmc_names(),
                       message_bus = message_bus,
                       cycle = args.cycle,
                       report_wlan=args.report_wlan)
 
+    # trap signals so we get a nice message in monitor.log
+    import signal
+    import functools
+    def exiting(signame):
+        logger.info("Received signal {} - exiting".format(signame))
+        loop.stop()
+        exit(1)
+    for signame in ('SIGHUP', 'SIGQUIT', 'SIGINT', 'SIGTERM'):
+        loop.add_signal_handler(getattr(signal, signame),
+                                functools.partial(exiting, signame))
+
     @asyncio.coroutine
     def run():
-        yield from monitor.run()
+        # run both the core and the log loop in parallel
+        yield from asyncio.gather(monitor.run(), monitor.log())
         yield from display.stop()
 
     t1 = util.self_manage(run())
@@ -359,13 +384,13 @@ def monitor(*argv):
         loop.run_until_complete(wrapper)
         return 0
     except KeyboardInterrupt as e:
-        logger.info("rhubarbe-wait : keyboard interrupt - exiting")
+        logger.info("rhubarbe-monitor : keyboard interrupt - exiting")
         tasks.cancel()
         loop.run_forever()
         tasks.exception()
         return 1
     except asyncio.TimeoutError as e:
-        logger.info("rhubarbe-wait : timeout expired after {}s".format(args.timeout))
+        logger.info("rhubarbe-monitor : timeout expired after {}s".format(args.timeout))
         return 1
     finally:
         loop.close()
