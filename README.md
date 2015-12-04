@@ -217,13 +217,16 @@ we would have written instead in pure python-3.5 this
 
 * fix issues with empty leases being displayed in the onelab portal -> Loic
 
-* some other commands (wait, status, etc...) should issue a warning when not authorized
-* rhubarbe leases seems broken, and not sure if owners are properly displayed
+* review the `rhubarbe-images/` and `omf-images-6/` area, esp. on `bemol` where there obviously are duplicates.
+
+* plan a short meeting with Naoufal and Thierry
 
 ## nice to have (P3)
 
 * robustify ensure_reset ? (fit04)
     if a node is still answering ping right after it was reset, then it is exhibiting the oblivion issue, so it needs to be turned off; maybe repeatedly so.
+
+* some other commands (wait, status, etc...) should issue a warning when not authorized
 
 * *not even sure* refactor how mains are done; some have a monitor and some others not
 
