@@ -210,23 +210,21 @@ we would have written instead in pure python-3.5 this
 
 * play with the REST interface about leases
   * check that users can use their certificate to do write (PUT, UPDATE) actions
-  * configure the unique `omf_sfa` resource name in `rhubarbe.conf`
-  * rlease --auth-check : do we have the testbed at that time ? until when ?
-  * improve current display for leases (sort by date; use curses ?)
   * provide a simple tool to **get a lease** if nobody else uses the testbed at that time. 
 
 * fix issues with empty leases being displayed in the onelab portal -> Loic
 
-* review the `rhubarbe-images/` and `omf-images-6/` area, esp. on `bemol` where there obviously are duplicates.
+* connect the 'unavailable' tag in sidecar with omf_sfa
 
-* plan a short meeting with Naoufal and Thierry
+* review the `rhubarbe-images/` and `omf-images-6/` area, esp. on `bemol` where there obviously are duplicates.
+  * plan a short meeting with Naoufal and Thierry
 
 ## nice to have (P3)
 
-* robustify ensure_reset ? (fit04)
-    if a node is still answering ping right after it was reset, then it is exhibiting the oblivion issue, so it needs to be turned off; maybe repeatedly so.
+* *not even sure* `rhubarbe tell --on/--off/--reset` ?    
 
-* some other commands (wait, status, etc...) should issue a warning when not authorized
+* *I'd rather fix the real issue in the CMC code* robustify ensure_reset ? (fit04)
+    if a node is still answering ping right after it was reset, then it is exhibiting the oblivion issue, so it needs to be turned off; maybe repeatedly so.
 
 * *not even sure* refactor how mains are done; some have a monitor and some others not
 
@@ -241,12 +239,6 @@ we would have written instead in pure python-3.5 this
   * -a: all nodes
   * --wait: select nodes that are ssh-reachable within the timeout
 
-* ~~save: might make sense to clean up saved image in case of keyboard interrupt or timeout - like, renaming the image as <>-broken~~
-* ~~wait -v~~
-* ~~add another config file (for local tweaks)~~
-* ~~find a singleton class and use it for the_config, the_inventory, etc...~~
-* ~~rhubarbe config -> add an option to select a section~~
-* ~~monitor logs & one-liners as they were with earlier version~~
 * *not even sure* do we need to tweak Node so that a control_hostname could be used as an argument to create a Node ? 
 * *not sure* implement some way to store the logs from frisbee and imagezip somewhere
 * *not sure* should we not log all the messages on the feedback/bus onto logger as well ?
@@ -254,9 +246,3 @@ we would have written instead in pure python-3.5 this
   * getch() to return curses.KEY_RESIZE in such a case
   * window.nodelay(1) allows to make getch() non-blocking
 
-## related (website)
-* test d3 plugin - message appears in the Console: it's odd because I cannot link this problem to this line number...
-    
-#
-    TypeError: Cannot read property 'update_from_news' of undefined
-    livetable.js:261

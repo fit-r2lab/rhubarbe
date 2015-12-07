@@ -60,7 +60,6 @@ class Lease:
     """
 
     wire_timeformat = "%Y-%m-%dT%H:%M:%S%Z"
-    human_timeformat = "%m-%d @ %H:%M %Z"
 
     def __init__(self, omf_sfa_resource):
         r = omf_sfa_resource
@@ -78,39 +77,70 @@ class Lease:
             self.ifrom = calendar.timegm(time.strptime(sfrom, self.wire_timeformat))
             self.iuntil = calendar.timegm(time.strptime(suntil, self.wire_timeformat))
             self.broken = False
+            self.unique_component_name = Config().value('authorization', 'component_name')
+
         except Exception as e:
             self.broken = "lease broken b/c of exception {}".format(e)
 
+        if not self.subjects:
+            self.broken = "lease has no subject component"    
+
     def __repr__(self):
-        if self.broken:
-            return "<BROKEN LEASE {}>".format(self.broken)
         now = time.time()
         if self.iuntil < now:
             time_message = 'expired'
         elif self.ifrom < now:
-            time_message = "from now until {}".format(self.human(self.iuntil))
+            time_message = "from now until {}".format(self.human(self.iuntil, False))
         else:
             time_message = 'from {} until {}'.format(
-                self.human(self.ifrom),
-                self.human(self.iuntil))
-        return "<Lease for {} on {} - {}>"\
-            .format(self.owner, " & ".join(self.subjects), time_message)
+                self.human(self.ifrom, show_timezone=False),
+                self.human(self.iuntil, show_date=False))
+        # usual case is that self.subjects == [unique_component_name]
+        if len(self.subjects) == 1 and self.subjects[0] == self.unique_component_name:
+            scope = ""
+        else:
+            scope = " -> {}".format(" & ".join(self.subjects))
+        overall = "{}{} - {}".format(self.owner, scope, time_message)
+        if self.broken:
+            overall = "<BROKEN {}> ".format(self.broken) + overall
+        return overall
+
+    def sort_key(self):
+        return self.ifrom
 
     @staticmethod
-    def human(epoch):
-        return time.strftime(Lease.human_timeformat, time.localtime(epoch))
+    def human(epoch, show_date=True, show_timezone=True):
+        human_timeformat_date = "%m-%d @ %H:%M %Z"
+        human_timeformat_time_and_zone = "%H:%M %Z"
+        human_timeformat_time = "%H:%M"
+        format = human_timeformat_date if show_date \
+                 else human_timeformat_time_and_zone if show_timezone \
+                      else human_timeformat_time
+        return time.strftime(format, time.localtime(epoch))
 
-    def is_valid(self, owner):
+    def is_valid(self, login):
+        if debug: print("is_valid with lease {}".format(self), end="")
         if self.broken:
+            logger.info("ignoring broken lease {}".format(self))
+            if debug: print("is broken")
             return False
-        if not self.owner == owner:
-            logger.info("{} : wrong owner - wants {}".format(self, owner))
+        if not self.owner == login:
+            logger.info("{} : wrong login {} - owner is {}".format(self, login, self.owner))
+            if debug: print("{} is not owner {}".format(login, self.owner))
             return False
         if not self.ifrom <= time.time() <= self.iuntil:
+            if debug: print("not the right time")
             logger.info("{} : wrong timerange".format(self))
+            return False
+        if self.unique_component_name not in self.subjects:
+            if debug: print("expected {} among subjects {}"
+                            .format(self.unique_component_name, self.subjects))
+            logger.info("expected {} among subjects {}"
+                        .format(self.unique_component_name, self.subjects))
             return False
         # nothing more to check; the subject name cannot be wrong, there's only
         # one node that one can get a lease on
+        if debug: print("fine")
         return self
 
 ####################
@@ -121,33 +151,34 @@ class Leases:
         self.hostname = the_config.value('authorization', 'leases_server')
         self.port = the_config.value('authorization', 'leases_port')
         self.message_bus = message_bus
-        self.myleases = None
+        self.leases = None
+        self.login = os.getlogin()
 
     def __repr__(self):
-        if self.myleases is None:
+        if self.leases is None:
             return "<Leases from omf_sfa://{}:{} - **(UNFETCHED)**>"\
                 .format(self.hostname, self.port)
         else:
-            return "<Leases from omf_sfa://{}:{} - fetched at {} - {} lease(s)>"\
-                .format(self.hostname, self.port, self.fetch_time, len(self.myleases))
+#            return "<Leases from omf_sfa://{}:{} - fetched at {} - {} lease(s)>"\
+#                .format(self.hostname, self.port, self.fetch_time, len(self.leases))
+            return "<Leases from omf_sfa://{}:{} - {} lease(s)>"\
+                .format(self.hostname, self.port, len(self.leases))
 
     @asyncio.coroutine
     def feedback(self, field, msg):
         yield from self.message_bus.put({field: msg})
 
-    def has_special_privileges(self, login=None):
-        self.login = login if login is not None else os.getlogin()
+    def has_special_privileges(self):
         # the condition on login is mostly for tests
         return self.login == 'root' and os.getuid() == 0
 
     @asyncio.coroutine
-    def is_valid(self, login=None):
-        self.login = login if login is not None else os.getlogin()
-        if self.has_special_privileges(login):
+    def is_valid(self):
+        if self.has_special_privileges():
             return True
         try:
             yield from self.fetch()
-            return self._is_valid(login)
+            return self._is_valid(self.login)
         except Exception as e:
             yield from self.feedback('info', "Could not fetch leases : {}".format(e))
             return False
@@ -156,9 +187,9 @@ class Leases:
 # or ProxyConnector (that inherits TCPConnector) ?
     @asyncio.coroutine
     def fetch(self):
-        if self.myleases is not None:
+        if self.leases is not None:
             return
-        self.myleases = []
+        self.leases = []
         self.fetch_time = time.strftime("%Y-%m-%d @ %H:%M")
         try:
             if debug: print("Leases are being fetched")
@@ -171,7 +202,8 @@ class Leases:
             resources = omf_sfa_answer['resource_response']['resources']
             # we should keep only the non-broken ones but until we are confident
             # that debugging is over, et's be cautious
-            self.myleases = [ Lease(resource) for resource in resources ]
+            self.leases = [ Lease(resource) for resource in resources ]
+            self.leases.sort(key=Lease.sort_key)
                 
         except Exception as e:
             if debug: print("Leases.fetch: exception {}".format(e))
@@ -179,16 +211,17 @@ class Leases:
                                      .format(self, e))
         
     def _is_valid(self, login):
-        valid_leases = [ lease.is_valid(login) for lease in self.myleases]
-        return valid_leases and valid_leases[0]
+        # must have run fetch() before calling this
+        return any([lease.is_valid(login) for lease in self.leases])
 
     # this can be used with a fake message queue, it's synchroneous
-    def print(self, login=None):
+    def print(self):
         print(5*'-', self,
-              "with special privileges" if self.has_special_privileges(login) else "")
-        if self.myleases is not None:
-            for i, mylease in enumerate(self.myleases):
-                print('lease', "{}: {}".format(i, mylease))
+              "with special privileges" if self.has_special_privileges() else "")
+        if self.leases is not None:
+            for i, lease in enumerate(self.leases):
+                print("{:2d} {}: {}"
+                      .format(i+1, "^^" if lease.is_valid(self.login) else "..", lease))
 
 # micro test
 if __name__ == '__main__':

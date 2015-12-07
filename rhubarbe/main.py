@@ -262,19 +262,30 @@ def wait(*argv):
 @subcommand
 def leases(*argv):
     usage = """
-    Display current leases
+    Unless otherwise specified, displays current leases
     """
     parser = ArgumentParser(usage=usage)
+    parser.add_argument('-c', '--check', action='store_true', default=False,
+                        help="Check if you currently have a lease")
     args = parser.parse_args(argv)
     from rhubarbe.leases import Leases
     message_bus = asyncio.Queue()
     leases = Leases(message_bus)
-    @asyncio.coroutine
-    def run():
-        yield from leases.fetch()
-        leases.print()
-    asyncio.get_event_loop().run_until_complete(run())
-    return 0
+    loop = asyncio.get_event_loop()
+    if args.check:
+        @asyncio.coroutine
+        def check_leases():
+            ok = yield from leases.is_valid()
+            print("Access currently {}".format("granted" if ok else "denied"))
+            return 0 if ok else 1
+        return(loop.run_until_complete(check_leases()))
+    else:
+        @asyncio.coroutine
+        def display_leases():
+            yield from leases.fetch()
+            leases.print()
+        loop.run_until_complete(display_leases())
+        return 0
 
 ####################
 @subcommand
