@@ -4,6 +4,7 @@ import os
 import time, calendar
 from datetime import datetime
 import json
+import uuid
 
 from rhubarbe.logger import logger
 from rhubarbe.config import Config
@@ -65,6 +66,7 @@ class Lease:
         r = omf_sfa_resource
         try:
             self.owner = r['account']['name']
+            self.uuid = r['uuid']
             # this is only for information since there's only one node exposed to SFA
             # so, we take only the first name
             self.subjects = [component['name'] for component in r['components']]
@@ -110,12 +112,10 @@ class Lease:
 
     @staticmethod
     def human(epoch, show_date=True, show_timezone=True):
-        human_timeformat_date = "%m-%d @ %H:%M %Z"
-        human_timeformat_time_and_zone = "%H:%M %Z"
-        human_timeformat_time = "%H:%M"
-        format = human_timeformat_date if show_date \
-                 else human_timeformat_time_and_zone if show_timezone \
-                      else human_timeformat_time
+        format = ""
+        if show_date:     format += "%m-%d @ "
+        format                   += "%H:%M"
+        if show_timezone: format += " %Z"
         return time.strftime(format, time.localtime(epoch))
 
     def is_valid(self, login):
@@ -192,13 +192,14 @@ class Leases:
         self.leases = []
         self.fetch_time = time.strftime("%Y-%m-%d @ %H:%M")
         try:
-            if debug: print("Leases are being fetched")
+            logger.info("Leases are being fetched..")
             connector = aiohttp.TCPConnector(verify_ssl=False)
             url = "https://{}:{}/resources/leases".format(self.hostname, self.port)
             response = yield from aiohttp.get(url, connector=connector)
             text = yield from response.text()
             omf_sfa_answer = json.loads(text)
-            if debug: print("Leases received answer {}".format(omf_sfa_answer))
+            logger.info("Leases received")
+            logger.debug("Leases details {}".format(omf_sfa_answer))
             resources = omf_sfa_answer['resource_response']['resources']
             # we should keep only the non-broken ones but until we are confident
             # that debugging is over, et's be cautious
@@ -223,8 +224,86 @@ class Leases:
                 print("{:2d} {}: {}"
                       .format(i+1, "^^" if lease.is_valid(self.login) else "..", lease))
 
-# micro test
-if __name__ == '__main__':
+    ########## material to create and modify leases
+    @staticmethod
+    def to_wireformat(input):
+        if isinstance(input, (int, float)):
+            return time.strftime(Lease.wire_timeformat, input)
+        patterns = [
+            # fill in year
+            "%Y-{}:00",        "%Y-{}:00%Z",
+            "%Y-%m-{}:00",     "%Y-%m-{}:00%Z",
+            "%Y-%m-%dT{}:00",  "%Y-%m-%dT{}:00%Z",
+        ]
+
+        for pattern in patterns:
+            fill = time.strftime(pattern).format(input)
+            try:
+                #print("fill={}".format(fill))
+                n = time.strptime(fill, Lease.wire_timeformat)
+                return time.strftime(Lease.wire_timeformat, n)
+            except:
+#                import traceback
+#                traceback.print_exc()
+                pass    
+
+    
+    # xxx need to check from/until for non-overlap first
+    # xxx would make sense to check the owner is known as well
+    # at least in /home/
+    @asyncio.coroutine
+    def _create_lease(self, owner, input_from, input_until, prompt=False):
+        if not self.has_special_privileges():
+            print("must be root for now to create leases")
+            return
+        if not os.path.exists("/home/{}".format(owner)):
+            print("Unknown user {}".format(owner))
+            logger.error("Unknown user {}".format(owner))
+            return
+        t_from = Leases.to_wireformat(input_from)
+        if not t_from:
+            print("invalid time {}".format(input_from))
+            return
+        t_until = Leases.to_wireformat(input_until)
+        if not t_until:
+            print("invalid time {}".format(input_until))
+            return
+        if prompt:
+            print("from {} until {}".format(t_from, t_until))
+            asnwer = input("Want to proceed ? ")
+            if 'n' in answer:
+                return
+        unique_component_uuid = Config().value('authorization', 'component_uuid')
+        lease_request = {
+            'name' : str(uuid.uuid1()),
+            'valid_from' : t_from,
+            'valid_until' : t_until,
+            'account_attributes' : { 'name' : owner },
+            'components' : [ {'uuid' : unique_component_uuid} ],
+            }
+        # xxx not optimized for asyncio : just do a plain subprocess for now
+#        with open("/tmp/create-lease.json", 'w') as output:
+#            output.write(json.dumps(lease_request))
+        json_request = json.dumps(lease_request)
+        curl = [ 'curl', '-k' ]
+        curl += [ '--cert', os.path.expanduser("~/.omf/user_cert.pem") ]
+        curl += [ '-H', "Accept: application/json" ]
+        curl += [ '-H', "Content-Type:application/json" ]
+        curl += [ '-X', 'POST' ]
+        curl += [ '-d', json_request ]
+        curl += [ '-i', 'https://{}:{}/resources/leases'.format(self.hostname, self.port) ]
+
+        subprocess = yield from asyncio.create_subprocess_exec(
+            *curl,
+            stdout = asyncio.subprocess.DEVNULL,
+            stderr = asyncio.subprocess.DEVNULL)
+        retcod = yield from subprocess.wait()
+        print("curl returned {}".format(retcod))
+                
+##############################
+# micro test - not sure this works anymore as login
+# is not an argument any longer
+def test1():
     import sys
     @asyncio.coroutine
     def foo(leases, login):
@@ -241,3 +320,23 @@ if __name__ == '__main__':
     arg_logins = sys.argv[1:]
     for login in arg_logins + builtin_logins:
         test_one_login(leases, login)
+
+def test2():
+    import sys
+    leases = Leases(asyncio.Queue())
+    @asyncio.coroutine
+    def create(t1, t2):
+        yield from leases.fetch()
+        yield from leases._create_lease(owner, t1, t2)
+    owner = 'onelab.inria.thierry.admin1'
+    print("beneficiary is hard-wired as {}".format(owner))
+    #t1 = input("enter from time ")
+    #t2 = input("enter until time ")
+    t1, t2 = sys.argv[1:]
+    print("t1={}, t2={}".format(t1, t2))
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(create(t1, t2))
+    loop.close()
+
+if __name__ == '__main__':
+    test2()    
