@@ -10,7 +10,7 @@ from rhubarbe.logger import logger
 from rhubarbe.config import Config
 
 debug = False
-#debug = True
+debug = True
 
 # Nov 2015
 # what we get from omf_sfa is essentially something like this
@@ -79,6 +79,7 @@ class Lease:
             self.ifrom = calendar.timegm(time.strptime(sfrom, self.wire_timeformat))
             self.iuntil = calendar.timegm(time.strptime(suntil, self.wire_timeformat))
             self.broken = False
+            # this is only to get __repr__ as short as possible
             self.unique_component_name = Config().value('authorization', 'component_name')
 
         except Exception as e:
@@ -118,29 +119,24 @@ class Lease:
         if show_timezone: format += " %Z"
         return time.strftime(format, time.localtime(epoch))
 
-    def is_valid(self, login):
-        if debug: print("is_valid with lease {}".format(self), end="")
+    def is_valid(self, login, component_name):
+        if debug: logger.info("is_valid with lease {}: ".format(self))
         if self.broken:
-            logger.info("ignoring broken lease {}".format(self))
-            if debug: print("is broken")
+            if debug: logger.info("ignoring broken lease {}".format(self))
             return False
         if not self.owner == login:
-            logger.info("{} : wrong login {} - owner is {}".format(self, login, self.owner))
-            if debug: print("{} is not owner {}".format(login, self.owner))
+            if debug: logger.info("login {} is not owner - actual owner is {}".format(login, self.owner))
             return False
         if not self.ifrom <= time.time() <= self.iuntil:
-            if debug: print("not the right time")
-            logger.info("{} : wrong timerange".format(self))
+            if debug: logger.info("{} : wrong timerange".format(self))
             return False
-        if self.unique_component_name not in self.subjects:
-            if debug: print("expected {} among subjects {}"
-                            .format(self.unique_component_name, self.subjects))
-            logger.info("expected {} among subjects {}"
-                        .format(self.unique_component_name, self.subjects))
+        if component_name not in self.subjects:
+            if debug: logger.info("{} not among subjects {}"
+                                  .format(component_name, self.subjects))
             return False
         # nothing more to check; the subject name cannot be wrong, there's only
         # one node that one can get a lease on
-        if debug: print("fine")
+        if debug: logger.info("fine")
         return self
 
 ####################
@@ -153,6 +149,7 @@ class Leases:
         self.message_bus = message_bus
         self.leases = None
         self.login = os.getlogin()
+        self.unique_component_name = Config().value('authorization', 'component_name')
 
     def __repr__(self):
         if self.leases is None:
@@ -187,10 +184,17 @@ class Leases:
 # or ProxyConnector (that inherits TCPConnector) ?
     @asyncio.coroutine
     def fetch(self):
-        if self.leases is not None:
+        if self.leases is not None and self.unique_component_uuid is not None:
             return
+        yield from asyncio.gather(
+            self._fetch_leases(),
+            self._fetch_node_uuid(),
+        )
+        return
+
+    @asyncio.coroutine
+    def _fetch_leases(self):
         self.leases = []
-        self.fetch_time = time.strftime("%Y-%m-%d @ %H:%M")
         try:
             logger.info("Leases are being fetched..")
             connector = aiohttp.TCPConnector(verify_ssl=False)
@@ -198,22 +202,48 @@ class Leases:
             response = yield from aiohttp.get(url, connector=connector)
             text = yield from response.text()
             omf_sfa_answer = json.loads(text)
-            logger.info("Leases received")
-            logger.debug("Leases details {}".format(omf_sfa_answer))
+            logger.info("leases -> {}".format(omf_sfa_answer))
             resources = omf_sfa_answer['resource_response']['resources']
+            logger.info("{} leases received".format(len(resources)))
+            if debug: logger.info("Leases details {}".format(omf_sfa_answer))
             # we should keep only the non-broken ones but until we are confident
             # that debugging is over, et's be cautious
             self.leases = [ Lease(resource) for resource in resources ]
             self.leases.sort(key=Lease.sort_key)
+            self.fetch_time = time.strftime("%Y-%m-%d @ %H:%M")
                 
         except Exception as e:
             if debug: print("Leases.fetch: exception {}".format(e))
             yield from self.feedback('leases_error', 'cannot get leases from {} - exception {}'
                                      .format(self, e))
         
+    @asyncio.coroutine
+    def _fetch_node_uuid(self):
+        try:
+            logger.info("fetching node{}".format(self.unique_component_name))
+            connector = aiohttp.TCPConnector(verify_ssl=False)
+            url = "https://{}:{}/resources/nodes?name={}"\
+                .format(self.hostname, self.port, self.unique_component_name)
+            response = yield from aiohttp.get(url, connector=connector)
+            text = yield from response.text()
+            omf_sfa_answer = json.loads(text)
+            logger.info("Node received")
+            if debug: logger.info("node => {}".format(omf_sfa_answer))
+            r = omf_sfa_answer['resource_response']['resource']
+            self.unique_component_uuid = r['uuid']
+            logger.info("{} has uuid {}".format(self.unique_component_name,
+                                                self.unique_component_uuid))
+                
+        except Exception as e:
+            if debug: print("Nodes.fetch: exception {}".format(e))
+            yield from self.feedback('nodes',
+                                     'cannot get unique_component_uuid from {} - exception {}'
+                                     .format(self, e))
+        
     def _is_valid(self, login):
         # must have run fetch() before calling this
-        return any([lease.is_valid(login) for lease in self.leases])
+        return any([lease.is_valid(login, self.unique_component_name)
+                    for lease in self.leases])
 
     # this can be used with a fake message queue, it's synchroneous
     def print(self):
@@ -222,7 +252,8 @@ class Leases:
         if self.leases is not None:
             for i, lease in enumerate(self.leases):
                 print("{:2d} {}: {}"
-                      .format(i+1, "^^" if lease.is_valid(self.login) else "..", lease))
+                      .format(i+1, "^^" if lease.is_valid(self.login, self.unique_component_name) \
+                                    else "..", lease))
 
     ########## material to create and modify leases
     @staticmethod
@@ -273,13 +304,12 @@ class Leases:
             asnwer = input("Want to proceed ? ")
             if 'n' in answer:
                 return
-        unique_component_uuid = Config().value('authorization', 'component_uuid')
         lease_request = {
             'name' : str(uuid.uuid1()),
             'valid_from' : t_from,
             'valid_until' : t_until,
             'account_attributes' : { 'name' : owner },
-            'components' : [ {'uuid' : unique_component_uuid} ],
+            'components' : [ {'uuid' : self.unique_component_uuid} ],
             }
         # xxx could do better with aiohttp but for now this is good enough
         json_request = json.dumps(lease_request)
