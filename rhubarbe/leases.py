@@ -281,9 +281,7 @@ class Leases:
             'account_attributes' : { 'name' : owner },
             'components' : [ {'uuid' : unique_component_uuid} ],
             }
-        # xxx not optimized for asyncio : just do a plain subprocess for now
-#        with open("/tmp/create-lease.json", 'w') as output:
-#            output.write(json.dumps(lease_request))
+        # xxx could do better with aiohttp but for now this is good enough
         json_request = json.dumps(lease_request)
         curl = [ 'curl', '-k' ]
         curl += [ '--cert', os.path.expanduser("~/.omf/user_cert.pem") ]
