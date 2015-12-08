@@ -86,13 +86,44 @@ The arguments, known as a *node_spec* can be individual nodes, ranges, or even s
   * `$ rhubarbe load`
   * `$ rhubarbe wait`
     
+## The `leases` subcommand
 
+As of version 0.7.3:
+
+* `rhubarbe leases` is offered to all users to inspect the current leases in the system
+* `rhubarbe leases -i` is a utiliy offered to root only, unfortunately, that can create, update and delete leases in a simple terminal application.
 
 ## Logging
 
-At this point all logging goes into a file named `rhubarbe.log`, excpet for the monitoring tool that logs into `/var/log/monitor.log`
+At this point:
+
+* all logging goes into a file named `rhubarbe.log`, 
+* except for the monitoring tool that logs into `/var/log/monitor.log`
  
-# Configuration
+# Installation
+
+## Core
+
+You need `python-3.4` or higher, and installation can be achieved simply with
+
+    pip3 install rhubarbe
+    
+## Update
+
+    pip3 install --upgrade rhubarbe
+
+
+## Other libraries
+
+The following will be automatically installed by `pip3` if not yet installed:
+
+* `telnetlib3` for invoking `frisbee` on the nodes
+* `aiohttp` for talking to the CMC cards
+* `asyncssh` for talking to ssh (rhubarbe wait mostly for now); 
+   * **ubuntu:** you may need to run `apt-get install libffi-dev` before `pip3 install asyncssh`
+* `progressbar33` is used in rendering progress bar in the regular monitor (i.e. without the -c option).
+
+# Setting up
 
 ## Inventory
 
@@ -139,9 +170,10 @@ Configuration is done through a collection of files, which are loaded in this or
  * `./rhubarbe.conf`
 
 So in essence, there is 
- * a (mandatory) system-wide config `/etc/rhubarbe/rhubarbe.conf`, hat contains all variable definitions; 
- * given that `/etc/rhubarbe/rhubarbe.conf` is likely to be overwritten at anytime by `pip3 install`, you can store your own system-wide changes in `/etc/rhubarbe.conf.local`;
- * then each user can override any value she likes,
+
+ * a (mandatory) system-wide config `/etc/rhubarbe/rhubarbe.conf`, that ships with the `pip3` package and that contains all variable definitions; 
+ * given that `/etc/rhubarbe/rhubarbe.conf` is likely to be overwritten at anytime by `pip3 install`, you can store your own system-wide changes in the (optional) file `/etc/rhubarbe.conf.local`;
+ * then each user may override any value she likes,
  * and finally one can be even more specific and configure things at a directory level.
 
  The first file will come with all the settings defined, but any of the other 3 does not need to be complete and can just redefine one variable if needed.
@@ -156,29 +188,6 @@ Among things to be configured is the URL for a leases server. This for now assum
 * And the OMF_SFA service exposes a single resource.
 
 This is an admittedly specific policy for R2Lab, as opposed to other OMF-based deployments, since we want the reservations to be made on the testbed as a whole (to ensure reproducibility). This rather *ad hoc*  approach can easily be revisited if there's interest.
-
-# Installation
-
-## Core
-
-You need `python-3.4` or higher, and installation can be achieved simply with
-
-    pip3 install rhubarbe
-    
-## Update
-
-    pip3 install --upgrade rhubarbe
-
-
-## Other libraries
-
-The following will be automatically installed by `pip3` if not yet installed:
-
-* `telnetlib3` for invoking `frisbee` on the nodes
-* `aiohttp` for talking to the CMC cards
-* `asyncssh` for talking to ssh (rhubarbe wait mostly for now); 
-   * **ubuntu:** you may need to run `apt-get install libffi-dev` before `pip3 install asyncssh`
-* `progressbar33` is used in rendering progress bar in the regular monitor (i.e. without the -c option).
 
 # A word on the `asyncio` module
 
