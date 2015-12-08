@@ -35,10 +35,10 @@ class ImagesRepo(metaclass = Singleton):
         * behaviour depends on actual id (root stores in global repo, regular users store in '.')
         * name always contains nodename and date
         """
-        parts = [nodename, time.strftime("%Y-%m-%d@%H:%M")]
+        parts = ['saving', nodename, time.strftime("%Y-%m-%d@%H:%M")]
         if name_from_cli:
             parts.append(name_from_cli)
-        base = '='.join(parts) + self.suffix
+        base = '=='.join(parts) + self.suffix
         if os.getuid() == 0:
             return os.path.join(self.repo, base)
         else:
