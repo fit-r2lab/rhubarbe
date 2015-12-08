@@ -202,18 +202,27 @@ class Leases:
             response = yield from aiohttp.get(url, connector=connector)
             text = yield from response.text()
             omf_sfa_answer = json.loads(text)
-            logger.info("leases -> {}".format(omf_sfa_answer))
+            if debug: logger.info("Leases details {}".format(omf_sfa_answer))
+            ### when nothing applies we are getting this
+            # {'exception': {'code': 404, 'reason': 'No resources matching the request.'}}
+            # which omf_sfa chaps apparently think is normal
+            if 'exception' in omf_sfa_answer and \
+               omf_sfa_answer['exception']['reason'] == 'No resources matching the request.':
+                self.leases = []
+                self.fetch_time = time.strftime("%Y-%m-%d @ %H:%M")
+                return
             resources = omf_sfa_answer['resource_response']['resources']
             logger.info("{} leases received".format(len(resources)))
-            if debug: logger.info("Leases details {}".format(omf_sfa_answer))
             # we should keep only the non-broken ones but until we are confident
-            # that debugging is over, et's be cautious
+            # that broken leases truly have no other impact, let's be cautious
             self.leases = [ Lease(resource) for resource in resources ]
             self.leases.sort(key=Lease.sort_key)
             self.fetch_time = time.strftime("%Y-%m-%d @ %H:%M")
                 
         except Exception as e:
             if debug: print("Leases.fetch: exception {}".format(e))
+            import traceback
+            traceback.print_exc()            
             yield from self.feedback('leases_error', 'cannot get leases from {} - exception {}'
                                      .format(self, e))
         
@@ -228,7 +237,6 @@ class Leases:
             text = yield from response.text()
             omf_sfa_answer = json.loads(text)
             logger.info("Node received")
-            if debug: logger.info("node => {}".format(omf_sfa_answer))
             r = omf_sfa_answer['resource_response']['resource']
             self.unique_component_uuid = r['uuid']
             logger.info("{} has uuid {}".format(self.unique_component_name,
@@ -250,14 +258,20 @@ class Leases:
         print(5*'-', self,
               "with special privileges" if self.has_special_privileges() else "")
         if self.leases is not None:
+            def two_chars(lease):
+                if lease.broken:
+                    return 'BB'
+                if lease.is_valid(self.login, self.unique_component_name):
+                    return '^^'
+                return '..'
             for i, lease in enumerate(self.leases):
-                print("{:2d} {}: {}"
-                      .format(i+1, "^^" if lease.is_valid(self.login, self.unique_component_name) \
-                                    else "..", lease))
+                print("{:2d} {}: {}".format(i+1, two_chars(lease), lease))
 
     ########## material to create and modify leases
     @staticmethod
     def to_wireformat(input):
+        if not input:
+            return time.strftime(Lease.wire_timeformat, time.localtime())
         if isinstance(input, (int, float)):
             return time.strftime(Lease.wire_timeformat, input)
         patterns = [
@@ -279,11 +293,43 @@ class Leases:
                 pass    
 
     
+    #################### managing leases in the REST API
+    @asyncio.coroutine
+    def _send_json(self, request, verb):
+        # xxx could do better with aiohttp but for now this is good enough
+        if debug:
+            logger.info("Sending request {}".format(request))
+        json_request = json.dumps(request)
+        curl = [ 'curl', '-k', '-q' ]
+        curl += [ '--cert', os.path.expanduser("~/.omf/user_cert.pem") ]
+        curl += [ '-H', "Accept: application/json" ]
+        curl += [ '-H', "Content-Type:application/json" ]
+        curl += [ '-X', verb ]
+        curl += [ '-d', json_request ]
+        curl += [ '-i', 'https://{}:{}/resources/leases'.format(self.hostname, self.port) ]
+
+        # xxx retrive result so we know what's going wrong
+        with open("/tmp/request.json", "w") as output:
+            output.write(json.dumps(json_request) + "\n")
+
+        subprocess = yield from asyncio.create_subprocess_exec(
+            *curl,
+            stdout = asyncio.subprocess.PIPE,
+            stderr = asyncio.subprocess.STDOUT)
+        try:
+            out, err = yield from subprocess.communicate()
+            if debug: logger.info("curl returned {}".format(out))
+            return 0
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return 1
+
     # xxx need to check from/until for non-overlap first
     # xxx would make sense to check the owner is known as well
     # at least in /home/
     @asyncio.coroutine
-    def _create_lease(self, owner, input_from, input_until, prompt=False):
+    def _create_lease(self, owner, input_from, input_until):
         if not self.has_special_privileges():
             print("must be root for now to create leases")
             return
@@ -299,11 +345,6 @@ class Leases:
         if not t_until:
             print("invalid time {}".format(input_until))
             return
-        if prompt:
-            print("from {} until {}".format(t_from, t_until))
-            asnwer = input("Want to proceed ? ")
-            if 'n' in answer:
-                return
         lease_request = {
             'name' : str(uuid.uuid1()),
             'valid_from' : t_from,
@@ -311,60 +352,131 @@ class Leases:
             'account_attributes' : { 'name' : owner },
             'components' : [ {'uuid' : self.unique_component_uuid} ],
             }
-        # xxx could do better with aiohttp but for now this is good enough
-        json_request = json.dumps(lease_request)
-        curl = [ 'curl', '-k' ]
-        curl += [ '--cert', os.path.expanduser("~/.omf/user_cert.pem") ]
-        curl += [ '-H', "Accept: application/json" ]
-        curl += [ '-H', "Content-Type:application/json" ]
-        curl += [ '-X', 'POST' ]
-        curl += [ '-d', json_request ]
-        curl += [ '-i', 'https://{}:{}/resources/leases'.format(self.hostname, self.port) ]
+        retcod = yield from self._send_json(lease_request, 'POST')
+        return retcod
 
-        subprocess = yield from asyncio.create_subprocess_exec(
-            *curl,
-            stdout = asyncio.subprocess.DEVNULL,
-            stderr = asyncio.subprocess.DEVNULL)
-        retcod = yield from subprocess.wait()
-        print("curl returned {}".format(retcod))
-                
-##############################
-# micro test - not sure this works anymore as login
-# is not an argument any longer
-def test1():
-    import sys
+    def get_lease_by_rank(self, lease_rank):
+        try:
+            irank = int(lease_rank)
+            return self.leases[irank-1]
+        except:
+            pass
+        
     @asyncio.coroutine
-    def foo(leases, login):
-        print("leases {}".format(leases))
-        valid = yield from leases.is_valid()
-        print("valid = {}".format(valid))
-        leases.print()
-    def test_one_login(leases, login):
-        print(10*'=', "Testing for login={}".format(login))
-        asyncio.get_event_loop().run_until_complete(foo(leases, login))
+    def _update_lease(self, lease_rank, input_from=None, input_until=None):
+        if input_from is None and input_until is None:
+            logger.info("update_lease : nothing to do")
+            return
+        if input_from is not None:
+            t_from = Leases.to_wireformat(input_from)
+            if not t_from:
+                print("invalid time {}".format(input_from))
+                return
+        if input_until is not None:
+            t_until = Leases.to_wireformat(input_until)
+            if not t_until:
+                print("invalid time {}".format(input_until))
+                return
+        # lease_rank could be a rank as displayed by self.print()
+        the_lease = self.get_lease_by_rank(lease_rank)
+        if the_lease is None:
+            print("Cannot find lease with rank {}"
+                  .format(lease_rank))
+            return
+        lease_uuid = the_lease.uuid
+        request = {'uuid' : lease_uuid}
+        if input_from is not None:
+            request['valid_from'] = t_from
+        if input_until is not None:
+            request['valid_until'] = t_until
+        retcod = yield from self._send_json(request, 'PUT')
+        return retcod
 
-    leases = Leases(asyncio.Queue())
-    builtin_logins = ['root', 'someoneelse', 'onelab.inria.foo1']
-    arg_logins = sys.argv[1:]
-    for login in arg_logins + builtin_logins:
-        test_one_login(leases, login)
-
-def test2():
-    import sys
-    leases = Leases(asyncio.Queue())
     @asyncio.coroutine
-    def create(t1, t2):
-        yield from leases.fetch()
-        yield from leases._create_lease(owner, t1, t2)
-    owner = 'onelab.inria.thierry.admin1'
-    print("beneficiary is hard-wired as {}".format(owner))
-    #t1 = input("enter from time ")
-    #t2 = input("enter until time ")
-    t1, t2 = sys.argv[1:]
-    print("t1={}, t2={}".format(t1, t2))
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(create(t1, t2))
-    loop.close()
+    def _delete_lease(self, lease_rank):
+        # lease_rank could be a rank as displayed by self.print()
+        the_lease = self.get_lease_by_rank(lease_rank)
+        if the_lease is None:
+            print("Cannot find lease with rank {}"
+                  .format(lease_rank))
+            return
+        lease_uuid = the_lease.uuid
+        request = {'uuid' : lease_uuid}
+        retcod = yield from self._send_json(request, 'DELETE')
+        return retcod
 
-if __name__ == '__main__':
-    test2()    
+    @asyncio.coroutine
+    def main(self, interactive):
+        yield from self.fetch()
+        self.print()
+        if not interactive:
+            return 0
+        try:
+            result = yield from self.interactive()
+            return result
+        except KeyboardInterrupt as e:
+            print("Bye")
+            return 1
+
+    @asyncio.coroutine
+    def interactive(self):
+        help_message = """
+Enter one of the letters inside [], and answer the questions
+
+A lease index is a number as shown on the left in the leases list
+
+Times can be entered simply as 
+* 14:00 for today at 2p.m., or 
+* 27T10:30 for the 27th this month at 10:30 a.m., or
+* 12-10T01:00 for the 12th december this year at 1 a.m., or
+* 2016-01-02T08:00 for January 1st, 2016, at 8:00
+
+In all the above cases, times will be understood as local time (French Riviera). 
+
+Leaving a time empty means either 'now', or 'do not change', depending on the context
+"""
+        ### interactive mode
+        while True:
+            current_time = time.strftime("%H:%M")
+            answer = input("{} - Enter command ([l]ist, [a]dd, [u]pdate, [d]elete, [r]efresh, [h]elp, [q]uit : "
+                           .format(current_time))
+            char = answer[0].lower() if answer else 'l'
+            if char == 'l':
+                self.print()
+            elif char == 'a':
+                owner = input("For slice name : ")
+                time_from = input("From : ")
+                time_until = input("Until : ")
+                result = yield from self._create_lease(owner, time_from, time_until)
+                if result == 0:
+                    print("OK")
+                    self.leases = None
+                    yield from self.fetch()
+            elif char == 'u':
+                rank = input("Enter lease index : ")
+                time_from = input("From : ")
+                time_until = input("Until : ")
+                result = yield from self._update_lease(rank, time_from, time_until)
+                if result == 0:
+                    print("OK")
+                    self.leases = None
+                    yield from self.fetch()
+            elif char == 'd':
+                rank = input("Enter lease index : ")
+                result = yield from self._delete_lease(rank)
+                if result == 0:
+                    print("OK")
+                    self.leases = None
+                    yield from self.fetch()
+            elif char == 'r':
+                self.leases = None
+                yield from self.fetch()
+                self.print()
+            elif char == 'h':
+                print(help_message)
+            elif char == 'q':
+                print('bye')
+                break
+            else:
+                print("Command not understood {}".format(answer))
+        return 0

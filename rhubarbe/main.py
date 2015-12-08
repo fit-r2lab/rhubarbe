@@ -267,6 +267,8 @@ def leases(*argv):
     parser = ArgumentParser(usage=usage)
     parser.add_argument('-c', '--check', action='store_true', default=False,
                         help="Check if you currently have a lease")
+    parser.add_argument('-i', '--interactive', action='store_true', default=False,
+                        help="Interactively prompt for commands (create, update, delete)")
     args = parser.parse_args(argv)
     from rhubarbe.leases import Leases
     message_bus = asyncio.Queue()
@@ -280,11 +282,8 @@ def leases(*argv):
             return 0 if ok else 1
         return(loop.run_until_complete(check_leases()))
     else:
-        @asyncio.coroutine
-        def display_leases():
-            yield from leases.fetch()
-            leases.print()
-        loop.run_until_complete(display_leases())
+        loop.run_until_complete(leases.main(args.interactive))
+        loop.close()
         return 0
 
 ####################
