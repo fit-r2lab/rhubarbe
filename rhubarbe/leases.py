@@ -1,7 +1,9 @@
 import asyncio
 import aiohttp
 import os
-import time, calendar
+import pwd
+import time
+import calendar
 from datetime import datetime
 import json
 import uuid
@@ -148,7 +150,8 @@ class Leases:
         self.port = the_config.value('authorization', 'leases_port')
         self.message_bus = message_bus
         self.leases = None
-        self.login = os.getlogin()
+        # don't use os.getlogin() as this gives root if under su
+        self.login = pwd.getpwuid(os.getuid())[0]
         self.unique_component_name = Config().value('authorization', 'component_name')
 
     def __repr__(self):
@@ -221,15 +224,13 @@ class Leases:
                 
         except Exception as e:
             if debug: print("Leases.fetch: exception {}".format(e))
-            import traceback
-            traceback.print_exc()            
             yield from self.feedback('leases_error', 'cannot get leases from {} - exception {}'
                                      .format(self, e))
         
     @asyncio.coroutine
     def _fetch_node_uuid(self):
         try:
-            logger.info("fetching node{}".format(self.unique_component_name))
+            logger.info("for global uuid: fetching node {}".format(self.unique_component_name))
             connector = aiohttp.TCPConnector(verify_ssl=False)
             url = "https://{}:{}/resources/nodes?name={}"\
                 .format(self.hostname, self.port, self.unique_component_name)
@@ -259,6 +260,8 @@ class Leases:
               "with special privileges" if self.has_special_privileges() else "")
         if self.leases is not None:
             def two_chars(lease):
+                if self.has_special_privileges():
+                    return '**'
                 if lease.broken:
                     return 'BB'
                 if lease.is_valid(self.login, self.unique_component_name):
@@ -276,20 +279,18 @@ class Leases:
             return time.strftime(Lease.wire_timeformat, input)
         patterns = [
             # fill in year
-            "%Y-{}:00",        "%Y-{}:00%Z",
-            "%Y-%m-{}:00",     "%Y-%m-{}:00%Z",
-            "%Y-%m-%dT{}:00",  "%Y-%m-%dT{}:00%Z",
+            "%Y-{}:00%Z",           #"%Y-{}:00",        
+            "%Y-%m-{}:00%Z",        #"%Y-%m-{}:00",     
+            "%Y-%m-%dT{}:00%Z",     #"%Y-%m-%dT{}:00",  
+            "%Y-%m-%dT{}:00:00%Z",  #"%Y-%m-%dT{}:%M:00",  
         ]
 
         for pattern in patterns:
             fill = time.strftime(pattern).format(input)
             try:
-                #print("fill={}".format(fill))
                 n = time.strptime(fill, Lease.wire_timeformat)
                 return time.strftime(Lease.wire_timeformat, n)
             except:
-#                import traceback
-#                traceback.print_exc()
                 pass    
 
     
@@ -300,17 +301,19 @@ class Leases:
         if debug:
             logger.info("Sending request {}".format(request))
         json_request = json.dumps(request)
-        curl = [ 'curl', '-k', '-q' ]
+        curl = [ 'curl', '--silent', '-k' ]
         curl += [ '--cert', os.path.expanduser("~/.omf/user_cert.pem") ]
+        if self.login != 'root':
+            curl += [ '--key', os.path.expanduser("~/.ssh/id_rsa") ]
         curl += [ '-H', "Accept: application/json" ]
         curl += [ '-H', "Content-Type:application/json" ]
         curl += [ '-X', verb ]
         curl += [ '-d', json_request ]
         curl += [ '-i', 'https://{}:{}/resources/leases'.format(self.hostname, self.port) ]
 
-        # xxx retrive result so we know what's going wrong
-        with open("/tmp/request.json", "w") as output:
-            output.write(json.dumps(json_request) + "\n")
+        if debug:
+            with open("rhubarbe-send.json", "w") as output:
+                json.dump(json_request, output)
 
         subprocess = yield from asyncio.create_subprocess_exec(
             *curl,
@@ -318,11 +321,15 @@ class Leases:
             stderr = asyncio.subprocess.STDOUT)
         try:
             out, err = yield from subprocess.communicate()
-            if debug: logger.info("curl returned {}".format(out))
+            if debug:
+                logger.info("curl returned {}".format(out))
+                with open("rhubarbe-recv.json", "wb") as output:
+                    output.write(out)
             return 0
         except Exception as e:
-            import traceback
-            traceback.print_exc()
+            if debug:
+                import traceback
+                traceback.print_exc()
             return 1
 
     # xxx need to check from/until for non-overlap first
@@ -331,19 +338,17 @@ class Leases:
     @asyncio.coroutine
     def _create_lease(self, owner, input_from, input_until):
         if not self.has_special_privileges():
-            print("must be root for now to create leases")
-            return
-        if not os.path.exists("/home/{}".format(owner)):
-            print("Unknown user {}".format(owner))
-            logger.error("Unknown user {}".format(owner))
-            return
+            if not os.path.exists("/home/{}".format(owner)):
+                print("user {} not found under /home - giving up".format(owner))
+                logger.error("Unknown user {}".format(owner))
+                return
         t_from = Leases.to_wireformat(input_from)
         if not t_from:
-            print("invalid time {}".format(input_from))
+            print("invalid time from: {}".format(input_from))
             return
         t_until = Leases.to_wireformat(input_until)
         if not t_until:
-            print("invalid time {}".format(input_until))
+            print("invalid time until: {}".format(input_until))
             return
         lease_request = {
             'name' : str(uuid.uuid1()),
@@ -370,18 +375,17 @@ class Leases:
         if input_from is not None:
             t_from = Leases.to_wireformat(input_from)
             if not t_from:
-                print("invalid time {}".format(input_from))
+                print("invalid time from: {}".format(input_from))
                 return
         if input_until is not None:
             t_until = Leases.to_wireformat(input_until)
             if not t_until:
-                print("invalid time {}".format(input_until))
+                print("invalid time until: {}".format(input_until))
                 return
         # lease_rank could be a rank as displayed by self.print()
         the_lease = self.get_lease_by_rank(lease_rank)
-        if the_lease is None:
-            print("Cannot find lease with rank {}"
-                  .format(lease_rank))
+        if not the_lease:
+            print("Cannot find lease with rank {}".format(lease_rank))
             return
         lease_uuid = the_lease.uuid
         request = {'uuid' : lease_uuid}
@@ -396,9 +400,8 @@ class Leases:
     def _delete_lease(self, lease_rank):
         # lease_rank could be a rank as displayed by self.print()
         the_lease = self.get_lease_by_rank(lease_rank)
-        if the_lease is None:
-            print("Cannot find lease with rank {}"
-                  .format(lease_rank))
+        if not the_lease:
+            print("Cannot find lease with rank {}".format(lease_rank))
             return
         lease_uuid = the_lease.uuid
         request = {'uuid' : lease_uuid}
@@ -414,7 +417,7 @@ class Leases:
         try:
             result = yield from self.interactive()
             return result
-        except KeyboardInterrupt as e:
+        except (KeyboardInterrupt, EOFError) as e:
             print("Bye")
             return 1
 
@@ -426,7 +429,8 @@ Enter one of the letters inside [], and answer the questions
 A lease index is a number as shown on the left in the leases list
 
 Times can be entered simply as 
-* 14:00 for today at 2p.m., or 
+* just 14, or 14:00, for today at 2p.m.
+* 14:30 for today at 2:30 p.m., or 
 * 27T10:30 for the 27th this month at 10:30 a.m., or
 * 12-10T01:00 for the 12th december this year at 1 a.m., or
 * 2016-01-02T08:00 for January 1st, 2016, at 8:00
@@ -444,7 +448,10 @@ Leaving a time empty means either 'now', or 'do not change', depending on the co
             if char == 'l':
                 self.print()
             elif char == 'a':
-                owner = input("For slice name : ")
+                if self.has_special_privileges():
+                    owner = input("For slice name : ")
+                else:
+                    owner = self.login
                 time_from = input("From : ")
                 time_until = input("Until : ")
                 result = yield from self._create_lease(owner, time_from, time_until)

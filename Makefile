@@ -66,11 +66,11 @@ else
     DEST=bemol.pl.sophia.inria.fr
 endif
 
-# installing in ~/rhubarbe-sync
+# installing in /tmp/rhubarbe-sync
 
 sync:
 	@echo 'WARNING: need to run bin/rhubarbe from ~/rhubarbe-sync'
-	rsync -av --relative $$(git ls-files) root@$(DEST):rhubarbe-sync/
+	rsync -av --relative $$(git ls-files) root@$(DEST):/tmp/rhubarbe-sync/
 
 both: bemol faraday
 
