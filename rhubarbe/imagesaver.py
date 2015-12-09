@@ -24,7 +24,15 @@ class ImageSaver:
     def stage1(self):
         the_config = Config()
         idle = int(the_config.value('nodes', 'idle_after_reset'))
-        yield from self.node.save_stage1(idle)
+        yield from self.node.reboot_on_frisbee(idle)
+
+    # this is synchroneous
+    def nextboot_cleanup(self):
+        """
+        Remove nextboot symlinks for all nodes in this selection
+        so next boot will be off the harddrive
+        """
+        self.node.manage_nextboot_symlink('harddrive')
 
     @asyncio.coroutine
     def start_collector(self):
@@ -43,7 +51,7 @@ class ImageSaver:
         # start_frisbeed will return the ip+port to use 
         yield from self.feedback('info', "Saving image from {}".format(self.node))
         port = yield from self.start_collector()
-        yield from self.node.save_stage2(port, reset)
+        yield from self.node.run_imagezip(port, reset)
         # we can now kill the server
         self.collector.stop_nowait()
 
@@ -90,6 +98,7 @@ class ImageSaver:
                                      .format(self.timeout))
             return 1
         finally:
+            self.nextboot_cleanup()
             self.collector and self.collector.stop_nowait()
             self.display.epilogue()
             loop.close()

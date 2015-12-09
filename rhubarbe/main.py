@@ -42,7 +42,7 @@ def subcommand(driver):
 def load(*argv):
     usage = """
     Load an image on selected nodes in parallel
-    Requires a valid lease
+    Requires a valid lease - or to be root
     """
     the_config = Config()
     the_imagesrepo = ImagesRepo()
@@ -100,7 +100,7 @@ def load(*argv):
 def save(*argv):
     usage = """
     Save an image from a node
-    Requires a valid lease
+    Requires a valid lease - or to be root
     """
 
     the_config = Config()

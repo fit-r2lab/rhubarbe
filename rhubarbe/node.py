@@ -185,14 +185,14 @@ class Node:
             pass
         
     @asyncio.coroutine
-    def load_stage1(self, idle):
+    def reboot_on_frisbee(self, idle):
         self.manage_nextboot_symlink('frisbee')
         yield from self.ensure_reset()
         yield from self.feedback('reboot', "idling for {}s".format(idle))
         yield from asyncio.sleep(idle)
 
     @asyncio.coroutine
-    def load_stage2(self, ip , port, reset):
+    def run_frisbee(self, ip , port, reset):
         yield from self.wait_for_telnet('frisbee')
         self.manage_nextboot_symlink('cleanup')
         yield from self.frisbee.run(ip, port)
@@ -201,12 +201,10 @@ class Node:
         else:
             yield from self.feedback('reboot', 'skipping final reset')
 
-    # incidentally, same stages for both loading and saving
-    save_stage1 = load_stage1
-
     @asyncio.coroutine
-    def save_stage2(self, port, reset):
+    def run_imagezip(self, port, reset):
         yield from self.wait_for_telnet('imagezip')
+        self.manage_nextboot_symlink('cleanup')
         yield from self.imagezip.run(port)
         if reset:
             yield from self.ensure_reset()

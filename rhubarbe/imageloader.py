@@ -25,7 +25,7 @@ class ImageLoader:
     def stage1(self):
         the_config = Config()
         idle = int(the_config.value('nodes', 'idle_after_reset'))
-        yield from asyncio.gather(*[node.load_stage1(idle) for node in self.nodes])
+        yield from asyncio.gather(*[node.reboot_on_frisbee(idle) for node in self.nodes])
 
     @asyncio.coroutine
     def start_frisbeed(self):
@@ -42,7 +42,7 @@ class ImageLoader:
         """
         # start_frisbeed will return the ip+port to use 
         ip, port = yield from self.start_frisbeed()
-        yield from asyncio.gather(*[node.load_stage2(ip, port, reset) for node in self.nodes])
+        yield from asyncio.gather(*[node.run_frisbee(ip, port, reset) for node in self.nodes])
         # we can now kill the server
         self.frisbeed.stop_nowait()
 

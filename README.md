@@ -214,12 +214,13 @@ we would have written instead in pure python-3.5 this
 ## P1 : known bugs for production
 
 * test, test, test...
+* it appears that save might not reset the symlink upon exit ?!?
  
 ## for deployment (P2)
 
 * play with the REST interface about leases
   * check that users can use their certificate to do write (PUT, UPDATE) actions
-  * provide a simple tool to **get a lease** if nobody else uses the testbed at that time. 
+  * provide a simple tool to **manage leases** if nobody else uses the testbed at that time. 
 
 * fix issues with empty leases being displayed in the onelab portal -> Loic
 
