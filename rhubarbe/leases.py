@@ -7,6 +7,8 @@ import calendar
 from datetime import datetime
 import json
 import uuid
+import ssl
+import traceback
 
 from rhubarbe.logger import logger
 from rhubarbe.config import Config
@@ -94,8 +96,8 @@ class Lease:
         now = time.time()
         if self.iuntil < now:
             time_message = 'expired'
-        elif self.ifrom < now:
-            time_message = "from now until {}".format(self.human(self.iuntil, False))
+#        elif self.ifrom < now:
+#            time_message = "from now until {}".format(self.human(self.iuntil, False))
         else:
             time_message = 'from {} until {}'.format(
                 self.human(self.ifrom, show_timezone=False),
@@ -183,8 +185,6 @@ class Leases:
             yield from self.feedback('info', "Could not fetch leases : {}".format(e))
             return False
 
-# TCPConnector with verify_ssl = False
-# or ProxyConnector (that inherits TCPConnector) ?
     @asyncio.coroutine
     def fetch(self):
         if self.leases is not None and self.unique_component_uuid is not None:
@@ -200,10 +200,8 @@ class Leases:
         self.leases = []
         try:
             logger.info("Leases are being fetched..")
-            connector = aiohttp.TCPConnector(verify_ssl=False)
-            url = "https://{}:{}/resources/leases".format(self.hostname, self.port)
-            response = yield from aiohttp.get(url, connector=connector)
-            text = yield from response.text()
+
+            text = yield from self._REST_as_json('leases', 'GET', None)
             omf_sfa_answer = json.loads(text)
             if debug: logger.info("Leases details {}".format(omf_sfa_answer))
             ### when nothing applies we are getting this
@@ -214,6 +212,8 @@ class Leases:
                 self.leases = []
                 self.fetch_time = time.strftime("%Y-%m-%d @ %H:%M")
                 return
+            if 'error' in omf_sfa_answer:
+                raise Exception(omf_sfa_answer['error'])
             resources = omf_sfa_answer['resource_response']['resources']
             logger.info("{} leases received".format(len(resources)))
             # we should keep only the non-broken ones but until we are confident
@@ -224,6 +224,7 @@ class Leases:
                 
         except Exception as e:
             if debug: print("Leases.fetch: exception {}".format(e))
+            traceback.print_exc()
             yield from self.feedback('leases_error', 'cannot get leases from {} - exception {}'
                                      .format(self, e))
         
@@ -231,11 +232,8 @@ class Leases:
     def _fetch_node_uuid(self):
         try:
             logger.info("for global uuid: fetching node {}".format(self.unique_component_name))
-            connector = aiohttp.TCPConnector(verify_ssl=False)
-            url = "https://{}:{}/resources/nodes?name={}"\
-                .format(self.hostname, self.port, self.unique_component_name)
-            response = yield from aiohttp.get(url, connector=connector)
-            text = yield from response.text()
+            rest_qualifier = "nodes?name={}".format(self.unique_component_name)
+            text = yield from self._REST_as_json(rest_qualifier, 'GET', None)
             omf_sfa_answer = json.loads(text)
             logger.info("Node received")
             r = omf_sfa_answer['resource_response']['resource']
@@ -276,7 +274,7 @@ class Leases:
         if not input:
             return time.strftime(Lease.wire_timeformat, time.localtime())
         if isinstance(input, (int, float)):
-            return time.strftime(Lease.wire_timeformat, input)
+            return time.strftime(Lease.wire_timeformat, time.localtime(input))
         patterns = [
             # fill in year
             "%Y-{}:00%Z",           #"%Y-{}:00",        
@@ -293,51 +291,87 @@ class Leases:
             except:
                 pass    
 
+    #################### talking to the REST API
+    @staticmethod
+    def _ssl_context(with_cert, private_key_in_cert):
+        context = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
+        context.verify_mode = ssl.CERT_NONE
+        context.check_hostname = False
+        if with_cert:
+            cert = os.path.expanduser("~/.omf/user_cert.pem")
+            keyfile = None if private_key_in_cert else os.path.expanduser("~/.ssh/id_rsa")
+            if debug: logger.info("Using cert={}, keyfile={}".format(cert, keyfile))
+            context.load_cert_chain(cert, keyfile)
+        #if debug: print('SSL context stats', context.cert_store_stats())
+        return context
+
+    def ssl_context(self, with_cert):
+        return Leases._ssl_context(with_cert, self.login == 'root')
+
+    def get_cert_connector(self):
+        if not hasattr(self, 'cert_connector'):
+            context = self.ssl_context(with_cert=True)
+            self.cert_connector = aiohttp.TCPConnector(ssl_context = context)
+        return self.cert_connector
+
+    def get_anonymous_connector(self):
+        if not hasattr(self, 'anonymous_connector'):
+            context = self.ssl_context(with_cert=False)
+            self.anonymous_connector = aiohttp.TCPConnector(ssl_context = context)
+        return self.anonymous_connector
+
+    def _url(self, rest_qualifier):
+        return "https://{}:{}/resources/{}".format(self.hostname, self.port, rest_qualifier)
     
-    #################### managing leases in the REST API
     @asyncio.coroutine
-    def _send_json(self, request, verb):
-        # xxx could do better with aiohttp but for now this is good enough
-        if debug:
-            logger.info("Sending request {}".format(request))
-        json_request = json.dumps(request)
-        curl = [ 'curl', '--silent', '-k' ]
-        curl += [ '--cert', os.path.expanduser("~/.omf/user_cert.pem") ]
-        if self.login != 'root':
-            curl += [ '--key', os.path.expanduser("~/.ssh/id_rsa") ]
-        curl += [ '-H', "Accept: application/json" ]
-        curl += [ '-H', "Content-Type:application/json" ]
-        curl += [ '-X', verb ]
-        curl += [ '-d', json_request ]
-        curl += [ '-i', 'https://{}:{}/resources/leases'.format(self.hostname, self.port) ]
+    def _REST_as_json(self, rest_qualifier, verb, request):
+        """
+        connects to https://hostname:port/resources/<rest_qualifier> (rest_qualifier typically is 'leases')
+        using verb (GET/POST/PUT/DELETE)
+        and sending 'request' encoded in json (unless it's None, in which case no data is passed)
+        """
 
-        if debug:
-            with open("rhubarbe-send.json", "w") as output:
-                json.dump(json_request, output)
-
-        subprocess = yield from asyncio.create_subprocess_exec(
-            *curl,
-            stdout = asyncio.subprocess.PIPE,
-            stderr = asyncio.subprocess.STDOUT)
+        headers = {
+            'Accept' : 'application/json',
+            'Content-Type' : 'application/json'
+            }
         try:
-            out, err = yield from subprocess.communicate()
-            if debug:
-                logger.info("curl returned {}".format(out))
-                with open("rhubarbe-recv.json", "wb") as output:
-                    output.write(out)
-            return 0
+            lverb = verb.lower()
+            coro = getattr(aiohttp, lverb)
+            url = self._url(rest_qualifier)
+            # setting this to None - for GET essentially
+            data = None if not request else json.dumps(request)
+    
+            # patch : until we reconfigure omf_sfa so that can use the cert and keys
+            # so that at least we can issue GET requests
+            connector = self.get_anonymous_connector() if lverb == 'get' else self.get_cert_connector()
+
+            if debug: logger.info("Sending verb {} to {}".format(lverb, url))
+            response = yield from coro(url, connector=connector, data=data, headers=headers)
+            text = yield from response.text()
+            return text
         except Exception as e:
             if debug:
-                import traceback
                 traceback.print_exc()
-            return 1
+        
+# original recipe was relying on curl
+#        curl = [ 'curl', '--silent', '-k' ]
+#        curl += [ '--cert', os.path.expanduser("~/.omf/user_cert.pem") ]
+#        if self.login != 'root':
+#            curl += [ '--key', os.path.expanduser("~/.ssh/id_rsa") ]
+#        curl += [ '-H', "Accept: application/json" ]
+#        curl += [ '-H', "Content-Type: application/json" ]
+#        curl += [ '-X', verb ]
+#        curl += [ '-d', json_request ]
+#        curl += [ '-i', url ]
+
 
     # xxx need to check from/until for non-overlap first
     # xxx would make sense to check the owner is known as well
     # at least in /home/
     @asyncio.coroutine
     def _create_lease(self, owner, input_from, input_until):
-        if not self.has_special_privileges():
+        if owner != 'root':
             if not os.path.exists("/home/{}".format(owner)):
                 print("user {} not found under /home - giving up".format(owner))
                 logger.error("Unknown user {}".format(owner))
@@ -357,8 +391,17 @@ class Leases:
             'account_attributes' : { 'name' : owner },
             'components' : [ {'uuid' : self.unique_component_uuid} ],
             }
-        retcod = yield from self._send_json(lease_request, 'POST')
-        return retcod
+        text = yield from self._REST_as_json('leases', 'POST', lease_request)
+        # it is easy to update self.leases, let's do it instead of refetching
+        try:
+            js = json.loads(text)
+            resource = js['resource_response']['resource']
+            self.leases.append(Lease(resource))
+            print("OK")
+            return text
+        except:
+            traceback.print_exc()
+            pass
 
     def get_lease_by_rank(self, lease_rank):
         try:
@@ -393,8 +436,17 @@ class Leases:
             request['valid_from'] = t_from
         if input_until is not None:
             request['valid_until'] = t_until
-        retcod = yield from self._send_json(request, 'PUT')
-        return retcod
+        text = yield from self._REST_as_json('leases', 'PUT', request)
+        # xxx we could use this result to update self.leases instead of fetching it again
+        try:
+            js = json.loads(text)
+            js['resource_response']['resource']
+            self.leases = None
+            print("OK")
+            return text
+        except:
+            traceback.print_exc()
+            pass
 
     @asyncio.coroutine
     def _delete_lease(self, lease_rank):
@@ -405,8 +457,17 @@ class Leases:
             return
         lease_uuid = the_lease.uuid
         request = {'uuid' : lease_uuid}
-        retcod = yield from self._send_json(request, 'DELETE')
-        return retcod
+        text = yield from self._REST_as_json('leases', 'DELETE', request)
+        # xxx we could use this result to update self.leases instead of fetching it again
+        try:
+            js = json.loads(text)
+            if js['resource_response']['response'] == 'OK':
+                self.leases = None
+                print("OK")
+            return text
+        except:
+            traceback.print_exc()
+            pass
 
     @asyncio.coroutine
     def main(self, interactive):
@@ -440,6 +501,10 @@ In all the above cases, times will be understood as local time (French Riviera).
 Leaving a time empty means either 'now', or 'do not change', depending on the context
 """
         ### interactive mode
+        if not self.has_special_privileges():
+            # xxx need to reconfigure omf_sfa
+            print("Lease management available to root only for now")
+            return
         while True:
             current_time = time.strftime("%H:%M")
             answer = input("{} - Enter command ([l]ist, [a]dd, [u]pdate, [d]elete, [r]efresh, [h]elp, [q]uit : "
@@ -455,26 +520,17 @@ Leaving a time empty means either 'now', or 'do not change', depending on the co
                 time_from = input("From : ")
                 time_until = input("Until : ")
                 result = yield from self._create_lease(owner, time_from, time_until)
-                if result == 0:
-                    print("OK")
-                    self.leases = None
-                    yield from self.fetch()
+                yield from self.fetch()
             elif char == 'u':
                 rank = input("Enter lease index : ")
                 time_from = input("From : ")
                 time_until = input("Until : ")
                 result = yield from self._update_lease(rank, time_from, time_until)
-                if result == 0:
-                    print("OK")
-                    self.leases = None
-                    yield from self.fetch()
+                yield from self.fetch()
             elif char == 'd':
                 rank = input("Enter lease index : ")
                 result = yield from self._delete_lease(rank)
-                if result == 0:
-                    print("OK")
-                    self.leases = None
-                    yield from self.fetch()
+                yield from self.fetch()
             elif char == 'r':
                 self.leases = None
                 yield from self.fetch()
