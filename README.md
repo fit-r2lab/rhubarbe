@@ -214,20 +214,18 @@ we would have written instead in pure python-3.5 this
 ## P1 : known bugs for production
 
 * test, test, test...
-* it appears that save might not reset the symlink upon exit ?!?
  
 ## for deployment (P2)
 
-* play with the REST interface about leases
-  * check that users can use their certificate to do write (PUT, UPDATE) actions
-  * provide a simple tool to **manage leases** if nobody else uses the testbed at that time. 
+* rename the token exposed to portal.onelab as `37nodes@r2lab`
 
-* fix issues with empty leases being displayed in the onelab portal -> Loic
+* regular users cannot use their certificate to do write (PUT, UPDATE) actions
+  * wait for Aris's feedback on this bug
+
+* fix issues with empty leases being displayed in the onelab portal
+  * Loic
 
 * connect the 'unavailable' tag in sidecar with omf_sfa
-
-* review the `rhubarbe-images/` and `omf-images-6/` area, esp. on `bemol` where there obviously are duplicates.
-  * plan a short meeting with Naoufal and Thierry
 
 ## nice to have (P3)
 
