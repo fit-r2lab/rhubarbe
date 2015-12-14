@@ -129,13 +129,16 @@ class Node:
         if self.status is None:
             yield from self.get_status()
         if self.status not in self.message_to_reset_map:
-            yield from self.feedback('reboot', "Cannot get status at {}".format(self.cmc_name))
+            yield from self.feedback('reboot',
+                                     "Cannot get status at {}".format(self.cmc_name))
         message_to_send = self.message_to_reset_map[self.status]
-        yield from self.feedback('reboot', "Sending message '{}' to CMC {}"
+        yield from self.feedback('reboot',
+                                 "Sending message '{}' to CMC {}"
                                  .format(message_to_send, self.cmc_name))
         yield from self.send_action(message_to_send, check=True)
         if not self.action:
-            yield from self.feedback("Failed to send message {} to CMC {}"
+            yield from self.feedback('reboot',
+                                     "Failed to send message {} to CMC {}"
                                      .format(message_to_send, self.cmc_name))
 
 
@@ -188,7 +191,8 @@ class Node:
     def reboot_on_frisbee(self, idle):
         self.manage_nextboot_symlink('frisbee')
         yield from self.ensure_reset()
-        yield from self.feedback('reboot', "idling for {}s".format(idle))
+        yield from self.feedback('reboot',
+                                 "idling for {}s".format(idle))
         yield from asyncio.sleep(idle)
 
     @asyncio.coroutine
@@ -199,7 +203,8 @@ class Node:
         if reset:
             yield from self.ensure_reset()
         else:
-            yield from self.feedback('reboot', 'skipping final reset')
+            yield from self.feedback('reboot',
+                                     'skipping final reset')
 
     @asyncio.coroutine
     def run_imagezip(self, port, reset):
@@ -209,4 +214,5 @@ class Node:
         if reset:
             yield from self.ensure_reset()
         else:
-            yield from self.feedback('reboot', 'skipping final reset')
+            yield from self.feedback('reboot',
+                                     'skipping final reset')
