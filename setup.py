@@ -56,7 +56,7 @@ setup(
     packages         = [ 'rhubarbe' ],
     data_files       =
       [ ('/etc/rhubarbe',
-         [ 'COPYING', 'README.md', 'rhubarbe.conf', 'inventory.json.template' ] ) ],
+         [ 'rhubarbe.conf', 'inventory.json.template' ] ) ],
     scripts          = [
         'bin/rhubarbe',
         'bin/monitor.sh',
