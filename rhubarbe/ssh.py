@@ -78,7 +78,6 @@ class SshProxy:
     def run(self, command):
         """
         Run a command
-        todo : how to read the output
         """
         class clientsession_closure(MySSHClientSession):
             def __init__(ssh_client_session, *args, **kwds):
@@ -87,9 +86,12 @@ class SshProxy:
                 super().__init__(*args, **kwds)
 
         #print(5*'-', "running on ", self.hostname, ':', command)
-        chan, session = yield from self.conn.create_session(clientsession_closure, command)
-        yield from chan.wait_closed()
-        return session.data
+        try:
+            chan, session = yield from self.conn.create_session(clientsession_closure, command)
+            yield from chan.wait_closed()
+            return session.data
+        except:
+            return
 
     # >>> asyncio.iscoroutine(asyncssh.SSHClientConnection.close)
     # False

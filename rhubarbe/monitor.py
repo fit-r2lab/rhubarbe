@@ -44,7 +44,14 @@ class ReconnectableSocketIO:
             self.socketio = None
 
     def emit_info(self, channel, info):
-        if self.debug: logger.info("emitting id={} : {}".format(info['id'], one_char_summary(info)))
+        if self.debug:
+            if 'id' in info:
+                logger.info("{} emitting id={} : {}"
+                            .format(channel, info['id'], one_char_summary(info)))
+            else:
+                logger.info("{} emitting {}"
+                            .format(channel, info))
+                            
         message = json.dumps([info])
         if self.socketio is None:
             self.connect()
@@ -86,7 +93,7 @@ class MonitorNode:
     . third, checks for ping
     """
     
-    def __init__(self, node, report_wlan, reconnectable, channel, debug=False):
+    def __init__(self, node, reconnectable, channel, report_wlan=True, debug=False):
         self.node = node
         self.report_wlan = report_wlan
         self.reconnectable = reconnectable
@@ -234,13 +241,19 @@ class MonitorNode:
             connected = False
         if self.debug: logger.info("connected={}".format(connected))
         if connected:
-            command = ";".join(remote_commands)
-            output = yield from ssh.run(command)
-            self.parse_ssh_output(output, padding_dict)
-            # required as otherwise we leak openfiles
-            yield from ssh.close()
-            self.report_info()
-            return
+            try:
+                command = ";".join(remote_commands)
+                output = yield from ssh.run(command)
+                self.parse_ssh_output(output, padding_dict)
+                # required as otherwise we leak openfiles
+                try:
+                    yield from ssh.close()
+                except:
+                    pass
+                self.report_info()
+                return
+            except:
+                pass
         if self.debug: logger.info("entering pass3, info={}".format(self.info))
         # pass3 : node is ON but could not ssh
         # check for ping
@@ -271,31 +284,72 @@ class MonitorNode:
             yield from asyncio.sleep(cycle)
             
 
+from .leases import Lease, Leases
+
+class MonitorLeases:
+    def __init__(self, message_bus, reconnectable, channel, cycle, debug):
+        self.message_bus = message_bus
+        self.reconnectable = reconnectable
+        self.channel = channel
+        self.cycle = int(cycle)
+        self.debug = debug
+
+    @asyncio.coroutine
+    def run_forever(self):
+        leases = Leases(self.message_bus)
+        while True:
+            try:
+                yield from leases.refresh()
+                omf_leases = leases.resources
+                self.reconnectable.emit_info(self.channel, omf_leases)
+                if self.debug:
+                    yield from self.message_bus.put({'info': omf_leases})
+            except Exception as e:
+                print("could not get leases - exc: {} - {}", type(e), e)
+                import traceback
+                traceback.print_exc()
+            yield from asyncio.sleep(self.cycle)
+            
 class Monitor:
     def __init__(self, cmc_names, message_bus, cycle, report_wlan, debug=False):
         self.cycle = cycle
         self.report_wlan = report_wlan
         self.debug = debug
         the_config = Config()
-        hostname = the_config.value('monitor', 'sidecar_hostname')
-        port = int(the_config.value('monitor', 'sidecar_port'))
-        reconnectable = ReconnectableSocketIO(hostname, port, debug)
-        channel = the_config.value('monitor', 'sidecar_channel')
-        nodes = [ Node (cmc_name, message_bus) for cmc_name in cmc_names ]
-        # xxx always report wlan for now
-        self.monitor_nodes = \
-            [ MonitorNode (node, True, reconnectable, channel, debug) for node in nodes]
+
+        # get miscell config
         self.ping_timeout = float(the_config.value('networking', 'ping_timeout'))
         self.ssh_timeout = float(the_config.value('networking', 'ssh_timeout'))
         self.log_period = float(the_config.value('monitor', 'log_period'))
 
+        # socket IO pipe
+        hostname = the_config.value('monitor', 'sidecar_hostname')
+        port = int(the_config.value('monitor', 'sidecar_port'))
+        reconnectable = ReconnectableSocketIO(hostname, port, debug)
+
+        # the nodes part
+        channel = the_config.value('monitor', 'sidecar_channel_status')
+        nodes = [ Node (cmc_name, message_bus) for cmc_name in cmc_names ]
+        self.monitor_nodes = [
+            MonitorNode (node, reconnectable, channel, debug=debug, report_wlan = self.report_wlan)
+            for node in nodes]
+
+        # the leases part
+        cycle = the_config.value('monitor', 'cycle_leases')
+        channel = the_config.value('monitor', 'sidecar_channel_leases')
+        self.monitor_leases = MonitorLeases(
+            message_bus, reconnectable, channel, cycle, debug=debug)
+
+    # xxx no way to select/disable the 2 components (nodes and leases) for now
     @asyncio.coroutine
     def run(self):
         return asyncio.gather(
+            self.monitor_leases.run_forever(),
             *[monitor_node.probe_forever(self.cycle,
                                          ping_timeout = self.ping_timeout,
                                          ssh_timeout = self.ssh_timeout)
-              for monitor_node in self.monitor_nodes])
+              for monitor_node in self.monitor_nodes]
+        )
 
     @asyncio.coroutine
     def log(self):

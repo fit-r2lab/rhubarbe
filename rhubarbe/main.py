@@ -344,7 +344,7 @@ def monitor(*argv):
     at a sidecar service over socketIO
     """
     the_config = Config()
-    default_cycle = the_config.value('monitor', 'cycle')
+    default_cycle = the_config.value('monitor', 'cycle_status')
     parser = ArgumentParser(usage=usage)
     parser.add_argument('-c', "--cycle", default=default_cycle, type=float,
                         help="Delay to wait between 2 probes of each node, default ={}"

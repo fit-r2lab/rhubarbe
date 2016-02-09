@@ -151,10 +151,16 @@ class Leases:
         self.hostname = the_config.value('authorization', 'leases_server')
         self.port = the_config.value('authorization', 'leases_port')
         self.message_bus = message_bus
-        self.leases = None
         # don't use os.getlogin() as this gives root if under su
         self.login = pwd.getpwuid(os.getuid())[0]
         self.unique_component_name = Config().value('authorization', 'component_name')
+        ### computed later
+        # a list of Lease objects
+        self.leases = None
+        # output from omf-sfa
+        self.resources = None
+        # uuid for the (unique) node
+        self.unique_component_uuid = None
 
     def __repr__(self):
         if self.leases is None:
@@ -187,17 +193,22 @@ class Leases:
 
     @asyncio.coroutine
     def fetch(self):
-        if self.leases is not None and self.unique_component_uuid is not None:
-            return
-        yield from asyncio.gather(
-            self._fetch_leases(),
-            self._fetch_node_uuid(),
-        )
+        todos = []
+        if self.leases is None:
+            todos.append(self._fetch_leases())
+        if self.unique_component_uuid is None:
+            todos.append(self._fetch_node_uuid())
+        yield from asyncio.gather(*todos)
         return
 
     @asyncio.coroutine
+    def refresh(self):
+        self.leases = None
+        yield from self.fetch()
+
+    @asyncio.coroutine
     def _fetch_leases(self):
-        self.leases = []
+        self.leases = None
         try:
             logger.info("Leases are being fetched..")
 
@@ -214,11 +225,13 @@ class Leases:
                 return
             if 'error' in omf_sfa_answer:
                 raise Exception(omf_sfa_answer['error'])
-            resources = omf_sfa_answer['resource_response']['resources']
-            logger.info("{} leases received".format(len(resources)))
+            # resources is in the OMF format as intact as possible
+            self.resources = omf_sfa_answer['resource_response']['resources']
+            logger.info("{} leases received".format(len(self.resources)))
             # we should keep only the non-broken ones but until we are confident
             # that broken leases truly have no other impact, let's be cautious
-            self.leases = [ Lease(resource) for resource in resources ]
+            # decoded as a list of Lease objects
+            self.leases = [ Lease(resource) for resource in self.resources ]
             self.leases.sort(key=Lease.sort_key)
             self.fetch_time = time.strftime("%Y-%m-%d @ %H:%M")
                 
@@ -230,6 +243,7 @@ class Leases:
         
     @asyncio.coroutine
     def _fetch_node_uuid(self):
+        self.unique_component_uuid = None
         try:
             logger.info("for global uuid: fetching node {}".format(self.unique_component_name))
             rest_qualifier = "nodes?name={}".format(self.unique_component_name)
@@ -532,8 +546,7 @@ Leaving a time empty means either 'now', or 'do not change', depending on the co
                 result = yield from self._delete_lease(rank)
                 yield from self.fetch()
             elif char == 'r':
-                self.leases = None
-                yield from self.fetch()
+                yield from self.refresh()
                 self.print()
             elif char == 'h':
                 print(help_message)
