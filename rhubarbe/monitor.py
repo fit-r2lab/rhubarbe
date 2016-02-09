@@ -302,6 +302,7 @@ class MonitorLeases:
                 yield from leases.refresh()
                 omf_leases = leases.resources
                 self.reconnectable.emit_info(self.channel, omf_leases)
+                logger.info("advertising {} leases".format(len(omf_leases)))
                 if self.debug:
                     yield from self.message_bus.put({'info': omf_leases})
             except Exception as e:
