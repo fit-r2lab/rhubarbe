@@ -306,9 +306,7 @@ class MonitorLeases:
                 if self.debug:
                     yield from self.message_bus.put({'info': omf_leases})
             except Exception as e:
-                print("could not get leases - exc: {} - {}", type(e), e)
-                import traceback
-                traceback.print_exc()
+                logger.exception("monitor could not get leases")
             yield from asyncio.sleep(self.cycle)
             
 class Monitor:
