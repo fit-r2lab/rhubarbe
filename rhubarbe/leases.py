@@ -90,7 +90,7 @@ class Lease:
             self.broken = "lease broken b/c of exception {}".format(e)
 
         if not self.subjects:
-            self.broken = "lease has no subject component"    
+            self.broken = "(no component)"    
 
     def __repr__(self):
         now = time.time()
@@ -123,8 +123,11 @@ class Lease:
         if show_timezone: format += " %Z"
         return time.strftime(format, time.localtime(epoch))
 
-    def is_valid(self, login, component_name):
-        if debug: logger.info("is_valid with lease {}: ".format(self))
+    def currently_valid(self, login, component_name):
+        """
+        tells if the lease is currently applicable
+        """
+        if debug: logger.info("currently_valid with lease {}: ".format(self))
         if self.broken:
             if debug: logger.info("ignoring broken lease {}".format(self))
             return False
@@ -181,12 +184,12 @@ class Leases:
         return self.login == 'root' and os.getuid() == 0
 
     @asyncio.coroutine
-    def is_valid(self):
+    def currently_valid(self):
         if self.has_special_privileges():
             return True
         try:
             yield from self.fetch()
-            return self._is_valid(self.login)
+            return self._currently_valid(self.login)
         except Exception as e:
             yield from self.feedback('info', "Could not fetch leases : {}".format(e))
             return False
@@ -206,15 +209,36 @@ class Leases:
         self.leases = None
         yield from self.fetch()
 
+    def sort_leases(self):
+        self.leases.sort(key=Lease.sort_key)
+        
+    @staticmethod
+    def is_accepted(omf_lease):
+        """
+        expects a JSON resources description as produced by omf_sfa
+
+        returns a bool that says whether it should be considered
+        this is because when an attempt is made to reserve a lease that is 
+        already booked otherwise, a zombie lease (with no component) is 
+        created instead
+        this lease is also marked as 'pending' but we cannot use that 
+        status because it will become 'active' over its timespan
+        This just sounds like a design flaw
+        In any case, as far as we are concerned, it all boils down to checking 
+        that the lease as a non-empty list of components
+        """
+        return len(omf_lease['components']) > 0
+
     @asyncio.coroutine
     def _fetch_leases(self):
         self.leases = None
         try:
             logger.info("Leases are being fetched..")
 
-            text = yield from self._REST_as_json('leases', 'GET', None)
+            text = yield from self._REST_as_json('leases?status=accepted', 'GET', None)
             omf_sfa_answer = json.loads(text)
-            if debug: logger.info("Leases details {}".format(omf_sfa_answer))
+            if debug:
+                logger.info("Leases details {}".format(omf_sfa_answer))
             ### when nothing applies we are getting this
             # {'exception': {'code': 404, 'reason': 'No resources matching the request.'}}
             # which omf_sfa chaps apparently think is normal
@@ -228,11 +252,13 @@ class Leases:
             # resources is in the OMF format as intact as possible
             self.resources = omf_sfa_answer['resource_response']['resources']
             logger.info("{} leases received".format(len(self.resources)))
-            # we should keep only the non-broken ones but until we are confident
-            # that broken leases truly have no other impact, let's be cautious
+            # we keep only the non-broken ones; might not be the best idea ever
+            # esp. for admin, but well, this currently only is a backup/playground tool 
+            self.resources = [ resource for resource in self.resources if self.is_accepted(resource)]
+            logger.info("{} non-pending leases kept".format(len(self.resources)))
             # decoded as a list of Lease objects
             self.leases = [ Lease(resource) for resource in self.resources ]
-            self.leases.sort(key=Lease.sort_key)
+            self.sort_leases()
             self.fetch_time = time.strftime("%Y-%m-%d @ %H:%M")
                 
         except Exception as e:
@@ -261,9 +287,9 @@ class Leases:
                                      'cannot get unique_component_uuid from {} - exception {}'
                                      .format(self, e))
         
-    def _is_valid(self, login):
+    def _currently_valid(self, login):
         # must have run fetch() before calling this
-        return any([lease.is_valid(login, self.unique_component_name)
+        return any([lease.currently_valid(login, self.unique_component_name)
                     for lease in self.leases])
 
     # this can be used with a fake message queue, it's synchroneous
@@ -276,7 +302,7 @@ class Leases:
                     return '**'
                 if lease.broken:
                     return 'BB'
-                if lease.is_valid(self.login, self.unique_component_name):
+                if lease.currently_valid(self.login, self.unique_component_name):
                     return '^^'
                 return '..'
             for i, lease in enumerate(self.leases):
@@ -384,7 +410,7 @@ class Leases:
     # xxx would make sense to check the owner is known as well
     # at least in /home/
     @asyncio.coroutine
-    def _create_lease(self, owner, input_from, input_until):
+    def _add_lease(self, owner, input_from, input_until):
         if owner != 'root':
             if not os.path.exists("/home/{}".format(owner)):
                 print("user {} not found under /home - giving up".format(owner))
@@ -409,11 +435,19 @@ class Leases:
         # it is easy to update self.leases, let's do it instead of refetching
         try:
             js = json.loads(text)
-            resource = js['resource_response']['resource']
-            self.leases.append(Lease(resource))
-            print("OK")
+            if 'exception' in js:
+                print("Could not add lease: ", js['exception']['reason'])
+            else:
+                resource = js['resource_response']['resource']
+                if not self.is_accepted(resource):
+                    print("Could not add lease: conflicting timeslot")
+                else:
+                    self.leases.append(Lease(resource))
+                    self.sort_leases()
+                    print("OK")
             return text
         except:
+            print('Error', "Cannot add lease - js={}".format(js))
             traceback.print_exc()
             pass
 
@@ -533,7 +567,7 @@ Leaving a time empty means either 'now', or 'do not change', depending on the co
                     owner = self.login
                 time_from = input("From : ")
                 time_until = input("Until : ")
-                result = yield from self._create_lease(owner, time_from, time_until)
+                result = yield from self._add_lease(owner, time_from, time_until)
                 yield from self.fetch()
             elif char == 'u':
                 rank = input("Enter lease index : ")
