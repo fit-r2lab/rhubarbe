@@ -277,7 +277,7 @@ def leases(*argv):
     if args.check:
         @asyncio.coroutine
         def check_leases():
-            ok = yield from leases.is_valid()
+            ok = yield from leases.currently_valid()
             print("Access currently {}".format("granted" if ok else "denied"))
             return 0 if ok else 1
         return(loop.run_until_complete(check_leases()))
