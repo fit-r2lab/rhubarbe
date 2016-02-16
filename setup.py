@@ -21,7 +21,11 @@ with open("COPYING") as f:
 with open("README.md") as f:
     long_description = f.read()
 
-from rhubarbe.main import supported_subcommands
+# avoid this because it may be used early and the
+# requirements are not met yet
+#from rhubarbe.main import supported_subcommands
+supported_subcommands = ['load', 'save', 'status', 'wait', 'leases',
+                         'images', 'inventory', 'config', 'monitor', 'version']
 subcommand_symlinks = [ "bin/rhubarbe-{}".format(subcommand) for subcommand in supported_subcommands ]
 if sys.argv[1] in ('sdist'):
     for subcommand in supported_subcommands:

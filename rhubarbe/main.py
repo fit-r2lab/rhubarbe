@@ -31,6 +31,7 @@ import rhubarbe.util as util
 # load ( "-i", "fedora", "12" )
 
 ####################
+# NOTE: when adding a new command, please update setup.py as well
 supported_subcommands = []
 
 def subcommand(driver):
