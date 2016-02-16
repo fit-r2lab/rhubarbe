@@ -1,3 +1,8 @@
+# 0.8.1 - 2016 Feb. 16
+
+* split the Leases class in two
+  * new class OmfSfaProxy to be re-used in r2lab.inria.fr
+
 # 0.8.0 - 2016 Feb. 16
 
 * an attempt to fix imperfect packaging
