@@ -1,3 +1,7 @@
+# 0.8.0 - 2016 Feb. 16
+
+* an attempt to fix imperfect packaging
+
 # 0.7.9 - 2016 Feb. 15
 
 * bugfix, method name change had not properly propagated 
