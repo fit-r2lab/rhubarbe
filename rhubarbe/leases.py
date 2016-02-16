@@ -235,7 +235,7 @@ class Leases:
         try:
             logger.info("Leases are being fetched..")
 
-            text = yield from self._REST_as_json('leases?status=accepted', 'GET', None)
+            text = yield from self._REST_as_json('leases', 'GET', None)
             omf_sfa_answer = json.loads(text)
             if debug:
                 logger.info("Leases details {}".format(omf_sfa_answer))
@@ -252,10 +252,16 @@ class Leases:
             # resources is in the OMF format as intact as possible
             self.resources = omf_sfa_answer['resource_response']['resources']
             logger.info("{} leases received".format(len(self.resources)))
-            # we keep only the non-broken ones; might not be the best idea ever
-            # esp. for admin, but well, this currently only is a backup/playground tool 
-            self.resources = [ resource for resource in self.resources if self.is_accepted(resource)]
-            logger.info("{} non-pending leases kept".format(len(self.resources)))
+# a lot of confusion on the status we find attached to leases
+# not sure how this happens exactly
+# but I do see leases with no component actually in the way
+# in that they prevent other leases to be created at the same time
+# so for now I turn off the code that filters out such broken leases
+# because they are sometimes relevant (and sometimes not, go figure)
+## we keep only the non-broken ones; might not be the best idea ever
+## esp. for admin, but well, this currently only is a backup/playground tool 
+#            self.resources = [ resource for resource in self.resources if self.is_accepted(resource)]
+#            logger.info("{} non-pending leases kept".format(len(self.resources)))
             # decoded as a list of Lease objects
             self.leases = [ Lease(resource) for resource in self.resources ]
             self.sort_leases()
