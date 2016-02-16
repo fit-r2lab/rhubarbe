@@ -4,7 +4,12 @@ import traceback
 import ssl
 import json
 
-from .logger import logger
+# Use the global rhubarbe logger when that makes sense
+try:
+    from .logger import logger
+except:
+    import logging
+    logger = logging.getLogger("omfsfaproxy")
 
 debug = False
 debug = True
@@ -14,7 +19,8 @@ debug = True
 class OmfSfaProxy:
     def __init__(self, hostname, port,
                  user_cert_filename, private_key_filename,
-                 unique_component_name):
+                 unique_component_name,
+                 loop = None):
         """
         hostname / port : location of the omf-sfa REST interface
         user_cert_filename : file containing the user certificate 
@@ -29,6 +35,7 @@ class OmfSfaProxy:
         self.private_key_filename = private_key_filename
         self.unique_component_name = unique_component_name
         self.unique_component_uuid = None
+        self.loop = loop if loop is not None else asyncio.get_event_loop()
 
     def __repr__(self):
         return "omf_sfa://{}:{}/".format(self.hostname, self.port)
@@ -55,13 +62,15 @@ class OmfSfaProxy:
     def get_cert_connector(self):
         if not hasattr(self, 'cert_connector'):
             context = self.ssl_context(anonymous=False)
-            self.cert_connector = aiohttp.TCPConnector(ssl_context = context)
+            self.cert_connector = aiohttp.TCPConnector(ssl_context = context,
+                                                       loop = self.loop)
         return self.cert_connector
 
     def get_anonymous_connector(self):
         if not hasattr(self, 'anonymous_connector'):
             context = self.ssl_context(anonymous=True)
-            self.anonymous_connector = aiohttp.TCPConnector(ssl_context = context)
+            self.anonymous_connector = aiohttp.TCPConnector(ssl_context = context,
+                                                            loop = self.loop)
         return self.anonymous_connector
 
     def _url(self, rest_qualifier):
