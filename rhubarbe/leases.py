@@ -7,11 +7,11 @@ import calendar
 from datetime import datetime
 import json
 import uuid
-import ssl
 import traceback
 
-from rhubarbe.logger import logger
-from rhubarbe.config import Config
+from .logger import logger
+from .config import Config
+from .omfsfaproxy import OmfSfaProxy
 
 debug = False
 debug = True
@@ -150,30 +150,36 @@ class Lease:
 class Leases:
     # the details of the omf_sfa instance where to look for leases
     def __init__(self, message_bus):
-        the_config = Config()
-        self.hostname = the_config.value('authorization', 'leases_server')
-        self.port = the_config.value('authorization', 'leases_port')
         self.message_bus = message_bus
         # don't use os.getlogin() as this gives root if under su
         self.login = pwd.getpwuid(os.getuid())[0]
-        self.unique_component_name = Config().value('authorization', 'component_name')
+        # connection to the omf-sfa server
+        omf_sfa_server = Config().value('authorization', 'leases_server')
+        omf_sfa_port = Config().value('authorization', 'leases_port')
+        unique_component_name = Config().value('authorization', 'component_name')
+        self.omf_sfa_proxy \
+            = OmfSfaProxy(omf_sfa_server, omf_sfa_port,
+                          # certificate (when not doing GET)
+                          os.path.expanduser("~/.omf/user_cert.pem"),
+                          # related keyfile (root has its private key in cert)
+                          None if self.login == 'root' else os.path.expanduser("~/.ssh/id_rsa"),
+                          # the unique node name 
+                          unique_component_name)
         ### computed later
         # a list of Lease objects
         self.leases = None
-        # output from omf-sfa
+        # output from omf-sfa - essentially less as-is
         self.resources = None
-        # uuid for the (unique) node
-        self.unique_component_uuid = None
 
     def __repr__(self):
         if self.leases is None:
-            return "<Leases from omf_sfa://{}:{} - **(UNFETCHED)**>"\
-                .format(self.hostname, self.port)
+            return "<Leases from {} - **(UNFETCHED)**>"\
+                .format(self.omf_sfa_proxy)
         else:
-#            return "<Leases from omf_sfa://{}:{} - fetched at {} - {} lease(s)>"\
-#                .format(self.hostname, self.port, self.fetch_time, len(self.leases))
-            return "<Leases from omf_sfa://{}:{} - {} lease(s)>"\
-                .format(self.hostname, self.port, len(self.leases))
+#            return "<Leases from {} - fetched at {} - {} lease(s)>"\
+#                .format(self.omf_sfa_proxy, self.fetch_time, len(self.leases))
+            return "<Leases from {} - {} lease(s)>"\
+                .format(self.omf_sfa_proxy, len(self.leases))
 
     @asyncio.coroutine
     def feedback(self, field, msg):
@@ -188,46 +194,34 @@ class Leases:
         if self.has_special_privileges():
             return True
         try:
-            yield from self.fetch()
+            yield from self.fetch_all()
             return self._currently_valid(self.login)
         except Exception as e:
             yield from self.feedback('info', "Could not fetch leases : {}".format(e))
             return False
 
     @asyncio.coroutine
-    def fetch(self):
-        todos = []
-        if self.leases is None:
-            todos.append(self._fetch_leases())
-        if self.unique_component_uuid is None:
-            todos.append(self._fetch_node_uuid())
-        yield from asyncio.gather(*todos)
-        return
+    def fetch_all(self):
+        yield from asyncio.gather(self.omf_sfa_proxy.fetch_node_uuid(),
+                                  self.fetch_leases())
 
     @asyncio.coroutine
     def refresh(self):
         self.leases = None
-        yield from self.fetch()
+        yield from self.fetch_all()
 
     def sort_leases(self):
         self.leases.sort(key=Lease.sort_key)
         
-    @staticmethod
-    def is_accepted(omf_lease):
-        """
-        expects a JSON resources description as produced by omf_sfa
+    @asyncio.coroutine
+    def fetch_leases(self):
+        if self.leases is not None:
+            return self.leases
+        yield from self._fetch_leases()
+        return self.leases
 
-        returns a bool that says whether it should be considered
-        this is because when an attempt is made to reserve a lease that is 
-        already booked otherwise, a zombie lease (with no component) is 
-        created instead
-        this lease is also marked as 'pending' but we cannot use that 
-        status because it will become 'active' over its timespan
-        This just sounds like a design flaw
-        In any case, as far as we are concerned, it all boils down to checking 
-        that the lease as a non-empty list of components
-        """
-        return len(omf_lease['components']) > 0
+    def ssl_context(self, with_cert):
+        return self.omf_sfa_proxy.ssl_context(with_cert, self.login == 'root')
 
     @asyncio.coroutine
     def _fetch_leases(self):
@@ -235,7 +229,7 @@ class Leases:
         try:
             logger.info("Leases are being fetched..")
 
-            text = yield from self._REST_as_json('leases', 'GET', None)
+            text = yield from self.omf_sfa_proxy.REST_as_json('leases', 'GET', None)
             omf_sfa_answer = json.loads(text)
             if debug:
                 logger.info("Leases details {}".format(omf_sfa_answer))
@@ -260,7 +254,7 @@ class Leases:
 # because they are sometimes relevant (and sometimes not, go figure)
 ## we keep only the non-broken ones; might not be the best idea ever
 ## esp. for admin, but well, this currently only is a backup/playground tool 
-#            self.resources = [ resource for resource in self.resources if self.is_accepted(resource)]
+#            self.resources = [ resource for resource in self.resources if OmfSfaProxy.is_accepted_lease(resource)]
 #            logger.info("{} non-pending leases kept".format(len(self.resources)))
             # decoded as a list of Lease objects
             self.leases = [ Lease(resource) for resource in self.resources ]
@@ -273,28 +267,8 @@ class Leases:
             yield from self.feedback('leases_error', 'cannot get leases from {} - exception {}'
                                      .format(self, e))
         
-    @asyncio.coroutine
-    def _fetch_node_uuid(self):
-        self.unique_component_uuid = None
-        try:
-            logger.info("for global uuid: fetching node {}".format(self.unique_component_name))
-            rest_qualifier = "nodes?name={}".format(self.unique_component_name)
-            text = yield from self._REST_as_json(rest_qualifier, 'GET', None)
-            omf_sfa_answer = json.loads(text)
-            logger.info("Node received")
-            r = omf_sfa_answer['resource_response']['resource']
-            self.unique_component_uuid = r['uuid']
-            logger.info("{} has uuid {}".format(self.unique_component_name,
-                                                self.unique_component_uuid))
-                
-        except Exception as e:
-            if debug: print("Nodes.fetch: exception {}".format(e))
-            yield from self.feedback('nodes',
-                                     'cannot get unique_component_uuid from {} - exception {}'
-                                     .format(self, e))
-        
     def _currently_valid(self, login):
-        # must have run fetch() before calling this
+        # must have run fetch_all() before calling this
         return any([lease.currently_valid(login, self.unique_component_name)
                     for lease in self.leases])
 
@@ -337,81 +311,6 @@ class Leases:
             except:
                 pass    
 
-    #################### talking to the REST API
-    @staticmethod
-    def _ssl_context(with_cert, private_key_in_cert):
-        context = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
-        context.verify_mode = ssl.CERT_NONE
-        context.check_hostname = False
-        if with_cert:
-            cert = os.path.expanduser("~/.omf/user_cert.pem")
-            keyfile = None if private_key_in_cert else os.path.expanduser("~/.ssh/id_rsa")
-            if debug: logger.info("Using cert={}, keyfile={}".format(cert, keyfile))
-            context.load_cert_chain(cert, keyfile)
-        #if debug: print('SSL context stats', context.cert_store_stats())
-        return context
-
-    def ssl_context(self, with_cert):
-        return Leases._ssl_context(with_cert, self.login == 'root')
-
-    def get_cert_connector(self):
-        if not hasattr(self, 'cert_connector'):
-            context = self.ssl_context(with_cert=True)
-            self.cert_connector = aiohttp.TCPConnector(ssl_context = context)
-        return self.cert_connector
-
-    def get_anonymous_connector(self):
-        if not hasattr(self, 'anonymous_connector'):
-            context = self.ssl_context(with_cert=False)
-            self.anonymous_connector = aiohttp.TCPConnector(ssl_context = context)
-        return self.anonymous_connector
-
-    def _url(self, rest_qualifier):
-        return "https://{}:{}/resources/{}".format(self.hostname, self.port, rest_qualifier)
-    
-    @asyncio.coroutine
-    def _REST_as_json(self, rest_qualifier, verb, request):
-        """
-        connects to https://hostname:port/resources/<rest_qualifier> (rest_qualifier typically is 'leases')
-        using verb (GET/POST/PUT/DELETE)
-        and sending 'request' encoded in json (unless it's None, in which case no data is passed)
-        """
-
-        headers = {
-            'Accept' : 'application/json',
-            'Content-Type' : 'application/json'
-            }
-        try:
-            lverb = verb.lower()
-            coro = getattr(aiohttp, lverb)
-            url = self._url(rest_qualifier)
-            # setting this to None - for GET essentially
-            data = None if not request else json.dumps(request)
-    
-            # patch : until we reconfigure omf_sfa so that can use the cert and keys
-            # so that at least we can issue GET requests
-            connector = self.get_anonymous_connector() if lverb == 'get' else self.get_cert_connector()
-
-            if debug: logger.info("Sending verb {} to {}".format(lverb, url))
-            response = yield from coro(url, connector=connector, data=data, headers=headers)
-            text = yield from response.text()
-            return text
-        except Exception as e:
-            if debug:
-                traceback.print_exc()
-        
-# original recipe was relying on curl
-#        curl = [ 'curl', '--silent', '-k' ]
-#        curl += [ '--cert', os.path.expanduser("~/.omf/user_cert.pem") ]
-#        if self.login != 'root':
-#            curl += [ '--key', os.path.expanduser("~/.ssh/id_rsa") ]
-#        curl += [ '-H', "Accept: application/json" ]
-#        curl += [ '-H', "Content-Type: application/json" ]
-#        curl += [ '-X', verb ]
-#        curl += [ '-d', json_request ]
-#        curl += [ '-i', url ]
-
-
     # xxx need to check from/until for non-overlap first
     # xxx would make sense to check the owner is known as well
     # at least in /home/
@@ -430,14 +329,16 @@ class Leases:
         if not t_until:
             print("invalid time until: {}".format(input_until))
             return
+        # just making sure
+        node_uuid = yield from self.omf_sfa_proxy.fetch_node_uuid()
         lease_request = {
             'name' : str(uuid.uuid1()),
             'valid_from' : t_from,
             'valid_until' : t_until,
             'account_attributes' : { 'name' : owner },
-            'components' : [ {'uuid' : self.unique_component_uuid} ],
+            'components' : [ {'uuid' : node_uuid } ],
             }
-        text = yield from self._REST_as_json('leases', 'POST', lease_request)
+        text = yield from self.omf_sfa_proxy.REST_as_json('leases', 'POST', lease_request)
         # it is easy to update self.leases, let's do it instead of refetching
         try:
             js = json.loads(text)
@@ -445,7 +346,7 @@ class Leases:
                 print("Could not add lease: ", js['exception']['reason'])
             else:
                 resource = js['resource_response']['resource']
-                if not self.is_accepted(resource):
+                if not OmfSfaProxy.is_accepted_lease(resource):
                     print("Could not add lease: conflicting timeslot")
                 else:
                     self.leases.append(Lease(resource))
@@ -490,7 +391,7 @@ class Leases:
             request['valid_from'] = t_from
         if input_until is not None:
             request['valid_until'] = t_until
-        text = yield from self._REST_as_json('leases', 'PUT', request)
+        text = yield from self.omf_sfa_proxy.REST_as_json('leases', 'PUT', request)
         # xxx we could use this result to update self.leases instead of fetching it again
         try:
             js = json.loads(text)
@@ -511,7 +412,7 @@ class Leases:
             return
         lease_uuid = the_lease.uuid
         request = {'uuid' : lease_uuid}
-        text = yield from self._REST_as_json('leases', 'DELETE', request)
+        text = yield from self.omf_sfa_proxy.REST_as_json('leases', 'DELETE', request)
         # xxx we could use this result to update self.leases instead of fetching it again
         try:
             js = json.loads(text)
@@ -525,7 +426,7 @@ class Leases:
 
     @asyncio.coroutine
     def main(self, interactive):
-        yield from self.fetch()
+        yield from self.fetch_all()
         self.print()
         if not interactive:
             return 0
@@ -574,17 +475,17 @@ Leaving a time empty means either 'now', or 'do not change', depending on the co
                 time_from = input("From : ")
                 time_until = input("Until : ")
                 result = yield from self._add_lease(owner, time_from, time_until)
-                yield from self.fetch()
+                yield from self.fetch_all()
             elif char == 'u':
                 rank = input("Enter lease index : ")
                 time_from = input("From : ")
                 time_until = input("Until : ")
                 result = yield from self._update_lease(rank, time_from, time_until)
-                yield from self.fetch()
+                yield from self.fetch_all()
             elif char == 'd':
                 rank = input("Enter lease index : ")
                 result = yield from self._delete_lease(rank)
-                yield from self.fetch()
+                yield from self.fetch_all()
             elif char == 'r':
                 yield from self.refresh()
                 self.print()
