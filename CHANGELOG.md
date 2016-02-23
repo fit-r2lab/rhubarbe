@@ -1,3 +1,8 @@
+# 0.8.2 - 2016 Feb. 23
+
+* any message sent on the 'chan-leases-request' backchannel puts
+  the lease-acquisition phase on fast-track
+
 # 0.8.1 - 2016 Feb. 16
 
 * split the Leases class in two
