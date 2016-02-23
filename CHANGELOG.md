@@ -1,3 +1,9 @@
+# 0.8.3 - 2016 Feb. 23
+
+* monitor & synchroneous wait:
+  * wait less (now a configurable amount, default 1ms)
+  * but more often (each 'leases_step')
+
 # 0.8.2 - 2016 Feb. 23
 
 * any message sent on the 'chan-leases-request' backchannel puts
