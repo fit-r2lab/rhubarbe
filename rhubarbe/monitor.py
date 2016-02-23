@@ -77,9 +77,6 @@ class ReconnectableSocketIO:
         try:
             self.socketio.emit(channel, message,
                                ReconnectableSocketIO.callback)
-            # give a chance to socketio events to trigger
-            # don't wait for too long
-            self.socketio.wait(seconds=0.01)
         except:
             # make sure we reconnect later on
             self.socketio = None
@@ -87,6 +84,9 @@ class ReconnectableSocketIO:
             logger.warn("Dropped message {} - channel {} on {}"
                         .format(label, channel, self))
             
+    def wait(self, wait):
+        self.socketio.wait(wait)
+
     @staticmethod
     def callback(*args, **kwds):
         logger.info('on socketIO response args={} kwds={}'.format(args, kwds))
@@ -327,12 +327,13 @@ class MonitorNode:
 from .leases import Lease, Leases
 
 class MonitorLeases:
-    def __init__(self, message_bus, reconnectable, channel, cycle, step, debug):
+    def __init__(self, message_bus, reconnectable, channel, cycle, step, wait, debug):
         self.message_bus = message_bus
         self.reconnectable = reconnectable
         self.channel = channel
         self.cycle = float(cycle)
         self.step = float(step)
+        self.wait = float(wait)
         self.debug = debug
 
     def on_back_channel(self, *args):
@@ -351,6 +352,9 @@ class MonitorLeases:
             while not self.fast_track and time.time() < trigger:
                 #print("sleeping {}".format(self.step))
                 yield from asyncio.sleep(self.step)
+                # give a chance to socketio events to trigger
+                self.reconnectable.wait(self.wait)
+                
             if self.debug: logger.info("acquiring")
             try:
                 yield from leases.refresh()
@@ -390,10 +394,11 @@ class Monitor:
         # the leases part
         cycle = the_config.value('monitor', 'cycle_leases')
         step = the_config.value('monitor', 'step_leases')
+        wait = the_config.value('monitor', 'wait_leases')
         channel = the_config.value('monitor', 'sidecar_channel_leases')
         self.monitor_leases = MonitorLeases(
             message_bus, reconnectable, channel, cycle,
-            step=step, debug=debug)
+            step=step, wait=wait, debug=debug)
 
     def on_channel(self, channel, *args):
         if channel == back_channel:

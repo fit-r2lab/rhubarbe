@@ -14,17 +14,17 @@ function locate_pid() {
 }
 
 function start() {
-    while getopts ":c:" opt; do
+    while getopts "dc:" opt; do
 	case $opt in
+	    d)
+		debug="--debug" ;;
 	    c)
 		cycle="--cycle $OPTARG";;
-	    v)
-		verbose="--verbose" ;;
 	esac
     done
     shift $((OPTIND-1))
 
-    rhubarbe-monitor -a &
+    rhubarbe-monitor -a $debug $cycle &
 }
 
 function stop() {
