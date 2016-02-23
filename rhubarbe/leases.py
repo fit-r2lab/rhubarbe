@@ -239,6 +239,7 @@ class Leases:
             if 'exception' in omf_sfa_answer and \
                omf_sfa_answer['exception']['reason'] == 'No resources matching the request.':
                 self.leases = []
+                self.resources = []
                 self.fetch_time = time.strftime("%Y-%m-%d @ %H:%M")
                 return
             if 'error' in omf_sfa_answer:

@@ -3,6 +3,12 @@ import re
 import json
 import asyncio
 # to connect to sidecar
+# at first I would have preferred an asyncio-friendly library
+# for talking socket.io; however I could not find one, and
+# websockets dod not offer something like 'emit' out of the box
+# so, we're still using this synchroneous one
+# using .on to arm callbacks, and occasionally calling wait
+# to give a chance for the callback to trigger
 from socketIO_client import SocketIO, LoggingNamespace
 
 from rhubarbe.config import Config
@@ -11,6 +17,10 @@ from rhubarbe.config import Config
 from rhubarbe.logger import monitor_logger as logger
 from rhubarbe.node import Node
 from rhubarbe.ssh import SshProxy
+
+###
+# the channel that allows to fuse the leases acquisition cycle
+back_channel = "chan-leases-request"
 
 ##########
 class ReconnectableSocketIO:
@@ -25,6 +35,7 @@ class ReconnectableSocketIO:
         self.hostname = hostname
         self.port = port
         self.debug = debug
+        # internal stuff
         self.socketio = None
 
     def __repr__(self):
@@ -39,9 +50,17 @@ class ReconnectableSocketIO:
         try:
             logger.info("{}ing to {}".format(action, self))
             self.socketio = SocketIO(self.hostname, self.port, LoggingNamespace)
+            channel = back_channel
+            def closure(*args):
+                return self.on_channel(channel, *args)
+            self.socketio.on(channel, closure)
         except:
             logger.warn("Connection lost to {}".format(self))
             self.socketio = None
+
+    def on_channel(self, channel, *args):
+        # not supposed to run - should be redefined
+        logger.warning("ReconnectableSocketIO.on_channel, channel={}, args={}".format(channel, args))
 
     def emit_info(self, channel, info):
         if self.debug:
@@ -58,6 +77,9 @@ class ReconnectableSocketIO:
         try:
             self.socketio.emit(channel, message,
                                ReconnectableSocketIO.callback)
+            # give a chance to socketio events to trigger
+            # don't wait for too long
+            self.socketio.wait(seconds=0.01)
         except:
             # make sure we reconnect later on
             self.socketio = None
@@ -68,6 +90,24 @@ class ReconnectableSocketIO:
     @staticmethod
     def callback(*args, **kwds):
         logger.info('on socketIO response args={} kwds={}'.format(args, kwds))
+
+class ReconnectableSocketIOMonitor(ReconnectableSocketIO):
+    """
+    A ReconnectableSocketIO 
+    with a back link to a Monitor object, 
+    that can receive the 'on_channel' method
+    """
+
+    def __init__(self, monitor, *args, **kwds):
+        self.monitor = monitor
+        ReconnectableSocketIO.__init__(self, *args, **kwds)
+
+    def on_channel(self, channel, *args):
+        """
+        triggers on_channel back on monitor object
+        """
+        #print("ReconnectableSocketIOMonitor.on_channel, channel={}, args={}".format(channel, args))
+        self.monitor.on_channel(channel, *args)
 
 # translate info into a single char for logging
 def one_char_summary(info):
@@ -287,17 +327,31 @@ class MonitorNode:
 from .leases import Lease, Leases
 
 class MonitorLeases:
-    def __init__(self, message_bus, reconnectable, channel, cycle, debug):
+    def __init__(self, message_bus, reconnectable, channel, cycle, step, debug):
         self.message_bus = message_bus
         self.reconnectable = reconnectable
         self.channel = channel
-        self.cycle = int(cycle)
+        self.cycle = float(cycle)
+        self.step = float(step)
         self.debug = debug
+
+    def on_back_channel(self, *args):
+        # when anything is received on the backchannel, we just go to fast track
+        logger.info("MonitorLeases.on_back_channel, args={}".format(args))
+        self.fast_track = True
 
     @asyncio.coroutine
     def run_forever(self):
         leases = Leases(self.message_bus)
         while True:
+            #print("entering")
+            self.fast_track = False
+            trigger = time.time() + self.cycle
+            # check for back_channel every 15 ms
+            while not self.fast_track and time.time() < trigger:
+                #print("sleeping {}".format(self.step))
+                yield from asyncio.sleep(self.step)
+            if self.debug: logger.info("acquiring")
             try:
                 yield from leases.refresh()
                 omf_leases = leases.resources
@@ -307,10 +361,10 @@ class MonitorLeases:
                     yield from self.message_bus.put({'info': omf_leases})
             except Exception as e:
                 logger.exception("monitor could not get leases")
-            yield from asyncio.sleep(self.cycle)
             
 class Monitor:
-    def __init__(self, cmc_names, message_bus, cycle, report_wlan, debug=False):
+    def __init__(self, cmc_names, message_bus, cycle, report_wlan=True,
+                 sidecar_hostname=None, sidecar_port=None, debug=False):
         self.cycle = cycle
         self.report_wlan = report_wlan
         self.debug = debug
@@ -322,9 +376,9 @@ class Monitor:
         self.log_period = float(the_config.value('monitor', 'log_period'))
 
         # socket IO pipe
-        hostname = the_config.value('monitor', 'sidecar_hostname')
-        port = int(the_config.value('monitor', 'sidecar_port'))
-        reconnectable = ReconnectableSocketIO(hostname, port, debug)
+        hostname = sidecar_hostname or the_config.value('monitor', 'sidecar_hostname')
+        port = int(sidecar_port or the_config.value('monitor', 'sidecar_port'))
+        reconnectable = ReconnectableSocketIOMonitor(self, hostname, port, debug)
 
         # the nodes part
         channel = the_config.value('monitor', 'sidecar_channel_status')
@@ -335,9 +389,17 @@ class Monitor:
 
         # the leases part
         cycle = the_config.value('monitor', 'cycle_leases')
+        step = the_config.value('monitor', 'step_leases')
         channel = the_config.value('monitor', 'sidecar_channel_leases')
         self.monitor_leases = MonitorLeases(
-            message_bus, reconnectable, channel, cycle, debug=debug)
+            message_bus, reconnectable, channel, cycle,
+            step=step, debug=debug)
+
+    def on_channel(self, channel, *args):
+        if channel == back_channel:
+            self.monitor_leases.on_back_channel(*args)
+        else:
+            logger.warning("received data {} on unexpected channel {}".format(channel))
 
     # xxx no way to select/disable the 2 components (nodes and leases) for now
     @asyncio.coroutine
