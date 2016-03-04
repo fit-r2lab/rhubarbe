@@ -145,13 +145,12 @@ def save(*argv):
     return saver.main(reset = args.reset, timeout=args.timeout)
 
 ####################
-@subcommand
-def status(*argv):
+def cmc_verb(verb, *argv):
     usage = """
-    Retrieve the CMC-status of selected nodes (i.e. on or off)
-    """
+    Send verb '{verb}' to the CMC interface of selected nodes
+    """.format(verb=verb)
     the_config = Config()
-    default_timeout = the_config.value('nodes', 'status_default_timeout')
+    default_timeout = the_config.value('nodes', 'cmc_default_timeout')
     
     parser = ArgumentParser(usage=usage)
     parser.add_argument("-t", "--timeout", action='store', default=default_timeout, type=float,
@@ -169,26 +168,50 @@ def status(*argv):
 
     loop = asyncio.get_event_loop()
     nodes = [ Node(cmc_name, message_bus) for cmc_name in selector.cmc_names() ]
-    coros = [ node.get_status() for node in nodes ]
+    if verb == 'status':
+        coros = [ node.get_status() for node in nodes ]
+    elif verb == 'on':
+        coros = [ node.turn_on() for node in nodes ]
+    elif verb == 'off':
+        coros = [ node.turn_off() for node in nodes ]
+    elif verb == 'reset':
+        coros = [ node.do_reset() for node in nodes ]
+    elif verb == 'info':
+        coros = [ node.get_info() for node in nodes ]
     
     tasks = util.self_manage(asyncio.gather(*coros))
     wrapper = asyncio.wait_for(tasks, timeout = args.timeout)
     try:
         loop.run_until_complete(wrapper)
         for node in nodes:
-            print("{}:{}".format(node.cmc_name, node.status))
+            result = getattr(node, verb)
+            for line in result.split("\n"):
+                if line:
+                    print("{}:{}".format(node.cmc_name, line))
         return 0
     except KeyboardInterrupt as e:
-        print("rhubarbe-status : keyboard interrupt - exiting")
+        print("rhubarbe-cmc : keyboard interrupt - exiting")
         tasks.cancel()
         loop.run_forever()
         tasks.exception()
         return 1
     except asyncio.TimeoutError as e:
-        print("rhubarbe-status : timeout expired after {}s".format(args.timeout))
+        print("rhubarbe-cmc : timeout expired after {}s".format(args.timeout))
         return 1
     finally:
         loop.close()
+
+#####
+@subcommand
+def status(*argv):   return cmc_verb('status', *argv)
+@subcommand
+def on(*argv):   return cmc_verb('on', *argv)
+@subcommand
+def off(*argv):   return cmc_verb('off', *argv)
+@subcommand
+def reset(*argv):   return cmc_verb('reset', *argv)
+@subcommand
+def info(*argv):   return cmc_verb('info', *argv)
 
 ####################
 @subcommand

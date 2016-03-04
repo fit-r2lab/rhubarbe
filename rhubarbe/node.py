@@ -48,23 +48,60 @@ class Node:
     @asyncio.coroutine
     def get_status(self):
         """
-        updates self.status
+        returns self.status
         either 'on' or 'off', or None if something wrong is going on
         """
-        url = "http://{}/status".format(self.cmc_name)
+        yield from self._get_cmc_verb('status')
+
+    @asyncio.coroutine
+    def turn_on(self):
+        """
+        turn node on; expected result would be 'ok' if it goes fine
+        """
+        yield from self._get_cmc_verb('on')
+
+    @asyncio.coroutine
+    def turn_off(self):
+        """
+        turn node on; expected result would be 'ok' if it goes fine
+        """
+        yield from self._get_cmc_verb('off')
+
+    @asyncio.coroutine
+    def do_reset(self):
+        """
+        turn node on; expected result would be 'ok' if it goes fine
+        """
+        yield from self._get_cmc_verb('reset')
+
+    @asyncio.coroutine
+    def get_info(self):
+        """
+        turn node on; expected result would be 'ok' if it goes fine
+        """
+        yield from self._get_cmc_verb('info', strip_result=False)
+
+    @asyncio.coroutine
+    def _get_cmc_verb(self, verb, strip_result=True):
+        """
+        verb typically is 'status', 'on', 'off' or 'info'
+        """
+        url = "http://{}/{}".format(self.cmc_name, verb)
         try:
             client_response = yield from aiohttp.get(url)
         except Exception as e:
-            self.status = None
-            return self.status
+            setattr(self, verb, None)
+            return None
         try:
             text = yield from client_response.text()
-            self.status = text.strip()
+            if strip_result:
+                text = text.strip()
+            setattr(self, verb, text)
         except Exception as e:
             import traceback
             traceback.print_exc()
-            self.status = None
-        return self.status
+            setattr(self, verb, None)
+        return getattr(self, verb)
 
     ####################
     # what status to expect after a message is sent
