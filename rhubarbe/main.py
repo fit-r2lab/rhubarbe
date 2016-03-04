@@ -40,6 +40,87 @@ def subcommand(driver):
 
 ####################
 @subcommand
+def nodes(*argv):
+    usage = """
+    Just display the hostnames of selected nodes
+    """
+    parser = ArgumentParser(usage=usage)
+    add_selector_arguments(parser)
+    args = parser.parse_args(argv)
+    selector = selected_selector(args)
+    print(" ".join(selector.node_names()))
+    
+####################
+def cmc_verb(verb, *argv):
+    usage = """
+    Send verb '{verb}' to the CMC interface of selected nodes
+    """.format(verb=verb)
+    the_config = Config()
+    default_timeout = the_config.value('nodes', 'cmc_default_timeout')
+    
+    parser = ArgumentParser(usage=usage)
+    parser.add_argument("-t", "--timeout", action='store', default=default_timeout, type=float,
+                        help="Specify global timeout for the whole process, default={}"
+                              .format(default_timeout))
+    add_selector_arguments(parser)
+    args = parser.parse_args(argv)
+
+    selector = selected_selector(args)
+    message_bus = asyncio.Queue()
+    
+    from rhubarbe.logger import logger
+    message_bus.put_nowait({'selected_nodes' : selector})
+    logger.info("timeout is {}".format(args.timeout))
+
+    loop = asyncio.get_event_loop()
+    nodes = [ Node(cmc_name, message_bus) for cmc_name in selector.cmc_names() ]
+    if verb == 'status':
+        coros = [ node.get_status() for node in nodes ]
+    elif verb == 'on':
+        coros = [ node.turn_on() for node in nodes ]
+    elif verb == 'off':
+        coros = [ node.turn_off() for node in nodes ]
+    elif verb == 'reset':
+        coros = [ node.do_reset() for node in nodes ]
+    elif verb == 'info':
+        coros = [ node.get_info() for node in nodes ]
+    
+    tasks = util.self_manage(asyncio.gather(*coros))
+    wrapper = asyncio.wait_for(tasks, timeout = args.timeout)
+    try:
+        loop.run_until_complete(wrapper)
+        for node in nodes:
+            result = getattr(node, verb)
+            for line in result.split("\n"):
+                if line:
+                    print("{}:{}".format(node.cmc_name, line))
+        return 0
+    except KeyboardInterrupt as e:
+        print("rhubarbe-cmc : keyboard interrupt - exiting")
+        tasks.cancel()
+        loop.run_forever()
+        tasks.exception()
+        return 1
+    except asyncio.TimeoutError as e:
+        print("rhubarbe-cmc : timeout expired after {}s".format(args.timeout))
+        return 1
+    finally:
+        loop.close()
+
+#####
+@subcommand
+def status(*argv):   return cmc_verb('status', *argv)
+@subcommand
+def on(*argv):   return cmc_verb('on', *argv)
+@subcommand
+def off(*argv):   return cmc_verb('off', *argv)
+@subcommand
+def reset(*argv):   return cmc_verb('reset', *argv)
+@subcommand
+def info(*argv):   return cmc_verb('info', *argv)
+
+####################
+@subcommand
 def load(*argv):
     usage = """
     Load an image on selected nodes in parallel
@@ -145,75 +226,6 @@ def save(*argv):
     return saver.main(reset = args.reset, timeout=args.timeout)
 
 ####################
-def cmc_verb(verb, *argv):
-    usage = """
-    Send verb '{verb}' to the CMC interface of selected nodes
-    """.format(verb=verb)
-    the_config = Config()
-    default_timeout = the_config.value('nodes', 'cmc_default_timeout')
-    
-    parser = ArgumentParser(usage=usage)
-    parser.add_argument("-t", "--timeout", action='store', default=default_timeout, type=float,
-                        help="Specify global timeout for the whole process, default={}"
-                              .format(default_timeout))
-    add_selector_arguments(parser)
-    args = parser.parse_args(argv)
-
-    selector = selected_selector(args)
-    message_bus = asyncio.Queue()
-    
-    from rhubarbe.logger import logger
-    message_bus.put_nowait({'selected_nodes' : selector})
-    logger.info("timeout is {}".format(args.timeout))
-
-    loop = asyncio.get_event_loop()
-    nodes = [ Node(cmc_name, message_bus) for cmc_name in selector.cmc_names() ]
-    if verb == 'status':
-        coros = [ node.get_status() for node in nodes ]
-    elif verb == 'on':
-        coros = [ node.turn_on() for node in nodes ]
-    elif verb == 'off':
-        coros = [ node.turn_off() for node in nodes ]
-    elif verb == 'reset':
-        coros = [ node.do_reset() for node in nodes ]
-    elif verb == 'info':
-        coros = [ node.get_info() for node in nodes ]
-    
-    tasks = util.self_manage(asyncio.gather(*coros))
-    wrapper = asyncio.wait_for(tasks, timeout = args.timeout)
-    try:
-        loop.run_until_complete(wrapper)
-        for node in nodes:
-            result = getattr(node, verb)
-            for line in result.split("\n"):
-                if line:
-                    print("{}:{}".format(node.cmc_name, line))
-        return 0
-    except KeyboardInterrupt as e:
-        print("rhubarbe-cmc : keyboard interrupt - exiting")
-        tasks.cancel()
-        loop.run_forever()
-        tasks.exception()
-        return 1
-    except asyncio.TimeoutError as e:
-        print("rhubarbe-cmc : timeout expired after {}s".format(args.timeout))
-        return 1
-    finally:
-        loop.close()
-
-#####
-@subcommand
-def status(*argv):   return cmc_verb('status', *argv)
-@subcommand
-def on(*argv):   return cmc_verb('on', *argv)
-@subcommand
-def off(*argv):   return cmc_verb('off', *argv)
-@subcommand
-def reset(*argv):   return cmc_verb('reset', *argv)
-@subcommand
-def info(*argv):   return cmc_verb('info', *argv)
-
-####################
 @subcommand
 def wait(*argv):
     usage = """
@@ -282,78 +294,6 @@ def wait(*argv):
             print("{}:{}".format(ssh.node, ssh.status))
         loop.close()
         
-####################
-@subcommand
-def leases(*argv):
-    usage = """
-    Unless otherwise specified, displays current leases
-    """
-    parser = ArgumentParser(usage=usage)
-    parser.add_argument('-c', '--check', action='store_true', default=False,
-                        help="Check if you currently have a lease")
-    parser.add_argument('-i', '--interactive', action='store_true', default=False,
-                        help="Interactively prompt for commands (create, update, delete)")
-    args = parser.parse_args(argv)
-    from rhubarbe.leases import Leases
-    message_bus = asyncio.Queue()
-    leases = Leases(message_bus)
-    loop = asyncio.get_event_loop()
-    if args.check:
-        @asyncio.coroutine
-        def check_leases():
-            ok = yield from leases.currently_valid()
-            print("Access currently {}".format("granted" if ok else "denied"))
-            return 0 if ok else 1
-        return(loop.run_until_complete(check_leases()))
-    else:
-        loop.run_until_complete(leases.main(args.interactive))
-        loop.close()
-        return 0
-
-####################
-@subcommand
-def images(*argv):
-    usage = """
-    Display available images
-    """
-    parser = ArgumentParser(usage=usage)
-    parser.add_argument("-s", "--sort", dest='sort_by', action='store', default='size',
-                        choices=('date', 'size'),
-                        help="sort by date or by size")
-    parser.add_argument("-r", "--reverse", action='store_true', default=False,
-                        help="reverse sort")
-    the_imagesrepo = ImagesRepo()
-    args = parser.parse_args(argv)
-    the_imagesrepo.display(args.sort_by, args.reverse)
-    return 0
-
-####################
-@subcommand
-def inventory(*argv):
-    usage = """
-    Display inventory
-    """
-    parser = ArgumentParser(usage=usage)
-    args = parser.parse_args(argv)
-    the_inventory = Inventory()
-    the_inventory.display(verbose=True)
-    return 0
-
-####################
-@subcommand
-def config(*argv):
-    usage = """
-    Display global configuration
-    """
-    parser = ArgumentParser(usage=usage)
-    parser.add_argument("sections", nargs='*', 
-                        type=str,
-                        help="config section(s) to display")
-    args = parser.parse_args(argv)
-    the_config = Config()
-    the_config.display(args.sections)
-    return 0
-
 ####################
 @subcommand
 def monitor(*argv):
@@ -435,6 +375,78 @@ def monitor(*argv):
     finally:
         loop.close()
     
+
+####################
+@subcommand
+def leases(*argv):
+    usage = """
+    Unless otherwise specified, displays current leases
+    """
+    parser = ArgumentParser(usage=usage)
+    parser.add_argument('-c', '--check', action='store_true', default=False,
+                        help="Check if you currently have a lease")
+    parser.add_argument('-i', '--interactive', action='store_true', default=False,
+                        help="Interactively prompt for commands (create, update, delete)")
+    args = parser.parse_args(argv)
+    from rhubarbe.leases import Leases
+    message_bus = asyncio.Queue()
+    leases = Leases(message_bus)
+    loop = asyncio.get_event_loop()
+    if args.check:
+        @asyncio.coroutine
+        def check_leases():
+            ok = yield from leases.currently_valid()
+            print("Access currently {}".format("granted" if ok else "denied"))
+            return 0 if ok else 1
+        return(loop.run_until_complete(check_leases()))
+    else:
+        loop.run_until_complete(leases.main(args.interactive))
+        loop.close()
+        return 0
+
+####################
+@subcommand
+def images(*argv):
+    usage = """
+    Display available images
+    """
+    parser = ArgumentParser(usage=usage)
+    parser.add_argument("-s", "--sort", dest='sort_by', action='store', default='size',
+                        choices=('date', 'size'),
+                        help="sort by date or by size")
+    parser.add_argument("-r", "--reverse", action='store_true', default=False,
+                        help="reverse sort")
+    the_imagesrepo = ImagesRepo()
+    args = parser.parse_args(argv)
+    the_imagesrepo.display(args.sort_by, args.reverse)
+    return 0
+
+####################
+@subcommand
+def inventory(*argv):
+    usage = """
+    Display inventory
+    """
+    parser = ArgumentParser(usage=usage)
+    args = parser.parse_args(argv)
+    the_inventory = Inventory()
+    the_inventory.display(verbose=True)
+    return 0
+
+####################
+@subcommand
+def config(*argv):
+    usage = """
+    Display global configuration
+    """
+    parser = ArgumentParser(usage=usage)
+    parser.add_argument("sections", nargs='*', 
+                        type=str,
+                        help="config section(s) to display")
+    args = parser.parse_args(argv)
+    the_config = Config()
+    the_config.display(args.sections)
+    return 0
 
 ####################
 @subcommand
