@@ -1,3 +1,9 @@
+# 0.8.4 - 2016 Mar. 4
+
+* new subcommands on, off, reset and info
+* new subcommand nodes, so in particular
+* rhubarbe nodes -a allows to see the list of all nodes declared in rhubarbe.conf
+
 # 0.8.3 - 2016 Feb. 23
 
 * monitor & synchroneous wait:
