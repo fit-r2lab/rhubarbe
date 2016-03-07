@@ -1,3 +1,7 @@
+# 0.8.5 - 2016 Mar. 7
+
+* bugfixes - was badly broken
+
 # 0.8.4 - 2016 Mar. 4
 
 * new subcommands on, off, reset and info
