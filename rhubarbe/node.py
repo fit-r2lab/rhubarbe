@@ -51,35 +51,40 @@ class Node:
         returns self.status
         either 'on' or 'off', or None if something wrong is going on
         """
-        yield from self._get_cmc_verb('status')
+        result = yield from self._get_cmc_verb('status')
+        return result
 
     @asyncio.coroutine
     def turn_on(self):
         """
         turn node on; expected result would be 'ok' if it goes fine
         """
-        yield from self._get_cmc_verb('on')
+        result = yield from self._get_cmc_verb('on')
+        return result
 
     @asyncio.coroutine
     def turn_off(self):
         """
         turn node on; expected result would be 'ok' if it goes fine
         """
-        yield from self._get_cmc_verb('off')
+        result = yield from self._get_cmc_verb('off')
+        return result
 
     @asyncio.coroutine
     def do_reset(self):
         """
         turn node on; expected result would be 'ok' if it goes fine
         """
-        yield from self._get_cmc_verb('reset')
+        result = yield from self._get_cmc_verb('reset')
+        return result
 
     @asyncio.coroutine
     def get_info(self):
         """
         turn node on; expected result would be 'ok' if it goes fine
         """
-        yield from self._get_cmc_verb('info', strip_result=False)
+        result = yield from self._get_cmc_verb('info', strip_result=False)
+        return result
 
     @asyncio.coroutine
     def _get_cmc_verb(self, verb, strip_result=True):
