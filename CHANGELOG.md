@@ -1,3 +1,7 @@
+# 0.8.6 - 2016 Mar. 7
+
+* ditto again
+
 # 0.8.5 - 2016 Mar. 7
 
 * bugfixes - was badly broken
