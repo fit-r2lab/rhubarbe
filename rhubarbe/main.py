@@ -91,6 +91,8 @@ def cmc_verb(verb, *argv):
         loop.run_until_complete(wrapper)
         for node in nodes:
             result = getattr(node, verb)
+            # protection just in case
+            if result is None: result = ""
             for line in result.split("\n"):
                 if line:
                     print("{}:{}".format(node.cmc_name, line))
