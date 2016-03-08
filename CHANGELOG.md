@@ -1,3 +1,8 @@
+# 0.8.8 - 2016 Mar. 8
+
+* bugfix - when pingable but not ssh-able, we forgot to turn off control_ssh
+  this in turn resurrects the mid-size green blog in livemap
+
 # 0.8.7 - 2016 Mar. 8
 
 * tweaks timers so that the back-channel traffic can be handled
