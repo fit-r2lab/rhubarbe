@@ -362,7 +362,7 @@ class MonitorLeases:
                 self.reconnectable.emit_info(self.channel, omf_leases)
                 logger.info("advertising {} leases".format(len(omf_leases)))
                 if self.debug:
-                    yield from self.message_bus.put({'info': omf_leases})
+                    logger.info("Leases details: {}".format(omf_leases))
             except Exception as e:
                 logger.exception("monitor could not get leases")
             
