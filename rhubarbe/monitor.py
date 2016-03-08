@@ -372,30 +372,29 @@ class Monitor:
         self.cycle = cycle
         self.report_wlan = report_wlan
         self.debug = debug
-        the_config = Config()
 
         # get miscell config
-        self.ping_timeout = float(the_config.value('networking', 'ping_timeout'))
-        self.ssh_timeout = float(the_config.value('networking', 'ssh_timeout'))
-        self.log_period = float(the_config.value('monitor', 'log_period'))
+        self.ping_timeout = float(Config().value('networking', 'ping_timeout'))
+        self.ssh_timeout = float(Config().value('networking', 'ssh_timeout'))
+        self.log_period = float(Config().value('monitor', 'log_period'))
 
         # socket IO pipe
-        hostname = sidecar_hostname or the_config.value('monitor', 'sidecar_hostname')
-        port = int(sidecar_port or the_config.value('monitor', 'sidecar_port'))
+        hostname = sidecar_hostname or Config().value('monitor', 'sidecar_hostname')
+        port = int(sidecar_port or Config().value('monitor', 'sidecar_port'))
         reconnectable = ReconnectableSocketIOMonitor(self, hostname, port, debug)
 
         # the nodes part
-        channel = the_config.value('monitor', 'sidecar_channel_status')
+        channel = Config().value('monitor', 'sidecar_channel_status')
         nodes = [ Node (cmc_name, message_bus) for cmc_name in cmc_names ]
         self.monitor_nodes = [
             MonitorNode (node, reconnectable, channel, debug=debug, report_wlan = self.report_wlan)
             for node in nodes]
 
         # the leases part
-        cycle = the_config.value('monitor', 'cycle_leases')
-        step = the_config.value('monitor', 'step_leases')
-        wait = the_config.value('monitor', 'wait_leases')
-        channel = the_config.value('monitor', 'sidecar_channel_leases')
+        cycle = Config().value('monitor', 'cycle_leases')
+        step = Config().value('monitor', 'step_leases')
+        wait = Config().value('monitor', 'wait_leases')
+        channel = Config().value('monitor', 'sidecar_channel_leases')
         self.monitor_leases = MonitorLeases(
             message_bus, reconnectable, channel, cycle,
             step=step, wait=wait, debug=debug)
@@ -430,8 +429,7 @@ if __name__ == '__main__':
     from node import Node
     rebootnames = sys.argv[1:]
     message_bus = asyncio.Queue()
-    the_config = Config()
-    cycle = the_config.value('monitor', 'cycle')
+    cycle = Config().value('monitor', 'cycle')
     monitor = Monitor(rebootnames, message_bus, cycle=2, report_wlan=True)
     loop = asyncio.get_event_loop()
     loop.run_until_complete(asyncio.gather(monitor.run(), monitor.report()))
