@@ -86,7 +86,11 @@ class ReconnectableSocketIO:
                         .format(label, channel, self))
             
     def wait(self, wait):
-        self.socketio.wait(wait)
+        if self.socketio:
+            try:
+                self.socketio.wait(wait)
+            except:
+                pass
 
     @staticmethod
     def callback(*args, **kwds):
