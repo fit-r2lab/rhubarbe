@@ -20,7 +20,8 @@ from rhubarbe.ssh import SshProxy
 
 ###
 # the channel that allows to fuse the leases acquisition cycle
-back_channel = "chan-leases-request"
+# not too clean of course...
+back_channel = Config().value('monitor', 'sidecar_channel_leases_request')
 
 ##########
 class ReconnectableSocketIO:
