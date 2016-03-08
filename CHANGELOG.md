@@ -1,3 +1,9 @@
+# 0.8.7 - 2016 Mar. 8
+
+* tweaks timers so that the back-channel traffic can be handled
+  other changes are made to liveleases so that we should get fewer
+  such messages
+
 # 0.8.6 - 2016 Mar. 7
 
 * ditto again
