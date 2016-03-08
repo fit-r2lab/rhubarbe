@@ -301,7 +301,6 @@ class MonitorNode:
                 pass
         else:
             self.set_info({'control_ssh': 'off'})
-            logger.info("TURNED OFF ->", self.info)
         if self.debug: logger.info("entering pass3, info={}".format(self.info))
         # pass3 : node is ON but could not ssh
         # check for ping
