@@ -1,3 +1,7 @@
+# 0.8.9 - 2016 Mar. 16
+
+* bugfix - rhubarbe leases was broken
+
 # 0.8.8 - 2016 Mar. 8
 
 * bugfix - when pingable but not ssh-able, we forgot to turn off control_ssh
