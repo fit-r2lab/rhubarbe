@@ -156,7 +156,7 @@ class Leases:
         # connection to the omf-sfa server
         omf_sfa_server = Config().value('authorization', 'leases_server')
         omf_sfa_port = Config().value('authorization', 'leases_port')
-        unique_component_name = Config().value('authorization', 'component_name')
+        self.unique_component_name = Config().value('authorization', 'component_name')
         self.omf_sfa_proxy \
             = OmfSfaProxy(omf_sfa_server, omf_sfa_port,
                           # certificate (when not doing GET)
@@ -164,7 +164,7 @@ class Leases:
                           # related keyfile (root has its private key in cert)
                           None if self.login == 'root' else os.path.expanduser("~/.ssh/id_rsa"),
                           # the unique node name 
-                          unique_component_name)
+                          self.unique_component_name)
         ### computed later
         # a list of Lease objects
         self.leases = None
