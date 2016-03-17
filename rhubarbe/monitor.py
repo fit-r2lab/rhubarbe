@@ -180,7 +180,7 @@ class MonitorNode:
     ubuntu_matcher = re.compile("DISTRIB_RELEASE=(?P<ubuntu_version>[0-9.]+)")
     fedora_matcher = re.compile("Fedora release (?P<fedora_version>\d+)")
     gnuradio_matcher = re.compile("\AGNURADIO:(?P<gnuradio_version>[0-9\.]+)\Z")
-    rxtx_matcher = re.compile("==> /sys/class/net/(?P<device>wlan[0-9])/statistics/(?P<rxtx>[rt]x)_bytes <==")
+    rxtx_matcher = re.compile("==> /sys/class/net/wlan(?P<wlan_no>[0-9])/statistics/(?P<rxtx>[rt]x)_bytes <==")
     number_matcher = re.compile("\A[0-9]+\Z")
 
     def parse_ssh_output(self, stdout, padding_dict):
@@ -207,7 +207,7 @@ class MonitorNode:
             match = self.rxtx_matcher.match(line)
             if match:
                 # use a tuple as the hash
-                rxtx_key = (match.group('device'), match.group('rxtx'))
+                rxtx_key = (match.group('wlan_no'), match.group('rxtx'))
                 continue
             match = self.number_matcher.match(line)
             if match and rxtx_key:
@@ -221,14 +221,21 @@ class MonitorNode:
         now = time.time()
         wlan_info_dict = {}
         for rxtx_key, bytes in rxtx_dict.items():
-            device, rxtx = rxtx_key
+            wlan_no, rxtx = rxtx_key
+            # rather dirty hack for images that use wlan2 and wlan3
+            # expose in wlan0 or wlan1 depending on parity of actual device
+            try:
+                wlan_no = int(wlan_no)
+                wlan_no = wlan_no % 2
+            except:
+                pass
             if self.debug:
-                logger.info("node={self.node} collected {bytes} for device {device} in {rxtx}"
+                logger.info("node={self.node} collected {bytes} for device wlan{wlan_no} in {rxtx}"
                             .format(**locals()))
             # do we have something on this measurement ?
             if rxtx_key in self.history:
                 previous_bytes, previous_time = self.history[rxtx_key]
-                info_key = "{device}_{rxtx}_rate".format(**locals())
+                info_key = "wlan_{wlan_no}_{rxtx}_rate".format(**locals())
                 new_rate = 8.*(bytes - previous_bytes) / (now - previous_time)
                 wlan_info_dict[info_key] = new_rate
                 if self.debug:
