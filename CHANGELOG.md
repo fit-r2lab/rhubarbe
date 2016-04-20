@@ -1,3 +1,7 @@
+# 0.9.1 - 2016 Apr 20
+
+* add config flag user_auto_prefixes to locate users
+
 # 0.9.0 - 2016 Mar 17
 
 * reports all even wlans as wlan0 and odd as wlan1
