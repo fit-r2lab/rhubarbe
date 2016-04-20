@@ -313,12 +313,21 @@ class Leases:
                 pass    
 
     # xxx need to check from/until for non-overlap first
-    # xxx would make sense to check the owner is known as well
-    # at least in /home/
+
+    def locate_check_user(self, user):
+        prefixes_string = Config().value('authorization', 'user_auto_prefixes')
+        candidates = [ user ]
+        candidates += [ "{}.{}".format(prefix, user) for prefix in prefixes_string.strip().split() ]
+        for candidate in candidates:
+            if os.path.exists("/home/{}".format(candidate)):
+                return candidate
+        return None
+        
     @asyncio.coroutine
     def _add_lease(self, owner, input_from, input_until):
         if owner != 'root':
-            if not os.path.exists("/home/{}".format(owner)):
+            owner = self.locate_check_user(owner)
+            if not owner:
                 print("user {} not found under /home - giving up".format(owner))
                 logger.error("Unknown user {}".format(owner))
                 return
