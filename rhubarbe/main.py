@@ -416,10 +416,14 @@ def images(*argv):
     parser.add_argument("-s", "--sort", dest='sort_by', action='store', default='size',
                         choices=('date', 'size'),
                         help="sort by date or by size")
+    parser.add_argument("-d", "--date", dest='sort_date', action='store_true', default=None,
+                        help="shortcut for -s date")
     parser.add_argument("-r", "--reverse", action='store_true', default=False,
                         help="reverse sort")
     the_imagesrepo = ImagesRepo()
     args = parser.parse_args(argv)
+    if args.sort_date:
+        args.sort_by = 'date'
     the_imagesrepo.display(args.sort_by, args.reverse)
     return 0
 
