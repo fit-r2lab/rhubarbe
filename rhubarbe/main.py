@@ -419,6 +419,10 @@ def images(*argv):
                         help="sort by date")
     parser.add_argument("-r", "--reverse", action='store_true', default=False,
                         help="reverse sort")
+    parser.add_argument("-v", "--verbose", action='store_true', default=False,
+                        help="show all files, don't trim real files when they have a symlink")
+    parser.add_argument("focus", nargs="*", type=str,
+                        help="if provided, only images that contain one of these strings are displayed")
     the_imagesrepo = ImagesRepo()
     args = parser.parse_args(argv)
     if args.sort_size is not None:
@@ -427,7 +431,8 @@ def images(*argv):
         args.sort_by = 'date'
     else:
         args.sort_by = 'size'
-    the_imagesrepo.display(args.sort_by, args.reverse)
+    # if focus is an empty list, then eveything is shown
+    the_imagesrepo.display(args.focus, args.verbose, args.sort_by, args.reverse)
     return 0
 
 ####################

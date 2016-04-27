@@ -69,8 +69,14 @@ class ImagesRepo(metaclass = Singleton):
                 return format.format(value=value, symbol=symbol)
         return format.format(symbol=symbols[0], value=n)
 
-    def display(self, sort_by='date', reverse=False, human_readable=True):
-        # try to show available images in some sensible way
+    def display(self, focus, verbose=False, sort_by='date', reverse=False, human_readable=True):
+        # show available images in some sensible way
+        #
+        # focus: a list of re patterns; if empty, everything is displayed
+        #        otherwise only files that match that name are displayed (with their symlinks though)
+        # sort_by, reverse: how to sort
+        # human_readable: boolean
+        # 
         # rationale being that we sometimes use internal names, that are not really relevant
         # so here's one idea
         # (1) scan all files and gather them by clusters that point at the same file
@@ -80,6 +86,8 @@ class ImagesRepo(metaclass = Singleton):
         # if there's at least one symlink then we don't show the real files at all
         # (3) show results
         print("==================== Images repository {}".format(self.repo))
+        if focus:
+            print("==== images matching any of", " ".join(focus))
 
         # gather one info per file, with
         # a key (inode, mtime, size) (same key = same file),
@@ -90,35 +98,59 @@ class ImagesRepo(metaclass = Singleton):
         for path in glob.glob("{}/*.ndz".format(self.repo)):
             prefix = os.path.basename(path).replace(".ndz", "")
             stat = os.stat(path)
-            key = (stat.st_size, stat.st_mtime, stat.st_ino, )
-            info = {'key': key, 'prefix': prefix, 'isalias': os.path.islink(path), 'relevant':True}
+            stat_tuple = (stat.st_size, stat.st_mtime, stat.st_ino, )
+            info = {'stat_tuple': stat_tuple, 'prefix': prefix, 'isalias': os.path.islink(path), 'relevant':True}
             infos.append(info)
-        # gather by same file (same key)
+        # gather by same file (same stat_tuple)
         clusters = {}
         for info in infos:
-            key = info['key']
-            clusters.setdefault(key, [])
-            clusters[key].append(info)
+            stat_tuple = info['stat_tuple']
+            clusters.setdefault(stat_tuple, [])
+            clusters[stat_tuple].append(info)
+
+        # sort infos in one cluster, so that real files show up first
+        sort_info = lambda info: info['isalias']
+        for cluster in clusters.values():
+            cluster.sort(key=sort_info)
+
         # sort clusters
         cluster_items = list(clusters.items())
         # k_v is a tuple with a key and a list of infos
         # k_v[0] is a key
         if sort_by == 'size':
-            key_function = key=lambda k_v: k_v[0][0]
+            sort_clusters = lambda k_v: k_v[0][0]
         else:
-            key_function = key=lambda k_v: k_v[0][1]
-        cluster_items.sort(key=key_function, reverse=reverse)
-        for key, cluster in cluster_items:
+            sort_clusters = lambda k_v: k_v[0][1]
+        cluster_items.sort(key=sort_clusters, reverse=reverse)
+
+        # is a given cluster filtered by focus
+        def in_focus(cluster, focus):
+            # an empty focus means to show all
+            if not focus:
+                return True
+            # in this context a cluster is just a list of infos
+            for info in cluster:
+                for filter in focus:
+                    # rough : no regexp, just find the filter or not
+                    if info['prefix'].find(filter) >= 0:
+#                        print("found match of {} in {}".format(filter, info['prefix']))
+                        return True
+                
+        for stat_tuple, cluster in cluster_items:
+            # skip the cluster if not in focus
+            if not in_focus(cluster, focus):
+                continue
             # do we have at least one symlink ?
-            if any([info['isalias'] for info in cluster]):
-                for i in cluster:
-                    if not i['isalias']:
-                        i['relevant'] = False
+            if not verbose:
+                if any([info['isalias'] for info in cluster]):
+                    for i in cluster:
+                        if not i['isalias']:
+                            i['relevant'] = False
             shown = False
             for info in cluster:
                 if not info['relevant']:
                     continue
-                (size, mtime, inode) = info['key']
+                (size, mtime, inode) = info['stat_tuple']
                 print_size = size if not human_readable \
                              else ImagesRepo.bytes2human(size)
                 date = time.strftime("%Y-%m-%d %H:%M", time.localtime(mtime))

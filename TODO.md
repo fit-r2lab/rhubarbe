@@ -1,6 +1,4 @@
 # images
 
-* improvement: before saving an image, store some stamp in `/rimage.id`
-* improvement: 
-  * an option to display `saving` images or not, in which case some parsing could be welcome
-  * and/or an option to filter images based on names
+* improvement: before saving an image, store some stamp in `/rhubarbe-image.id`
+* improvement: for filtering out `saving` images: filters starting with e.g. `~` - although this is dangerous - mean skip these matches instead of keeping them 
