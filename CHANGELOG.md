@@ -1,3 +1,7 @@
+# 0.9.2 - 2016 Apr 27
+
+* improvements in rhubarbe images: can filter on names, plus minor tweaks
+
 # 0.9.1 - 2016 Apr 20
 
 * add config flag user_auto_prefixes to locate users
