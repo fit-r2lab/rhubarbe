@@ -63,7 +63,7 @@ class ImagesRepo(metaclass = Singleton):
             if n >= prefix[symbol]:
                 value = float(n) / prefix[symbol]
                 return format.format(value=value, symbol=symbol)
-        return format % dict(symbol=symbols[0], value=n)
+        return format.format(symbol=symbols[0], value=n)
 
     def display(self, sort_by='date', reverse=False, human_readable=True):
         # try to show available images in some sensible way
