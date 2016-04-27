@@ -6,6 +6,10 @@ import time
 from rhubarbe.config import Config
 from rhubarbe.singleton import Singleton
 
+# use __ instead of == because = ruins bash completion
+saving_sep = '__'
+saving_time_format = "%Y-%m-%d@%H-%M"
+
 class ImagesRepo(metaclass = Singleton):
     def __init__(self):
         the_config = Config()
@@ -35,10 +39,10 @@ class ImagesRepo(metaclass = Singleton):
         * behaviour depends on actual id (root stores in global repo, regular users store in '.')
         * name always contains nodename and date
         """
-        parts = ['saving', nodename, time.strftime("%Y-%m-%d@%H:%M")]
+        parts = ['saving', nodename, time.strftime(saving_time_format)]
         if name_from_cli:
             parts.append(name_from_cli)
-        base = '=='.join(parts) + self.suffix
+        base = saving_sep.join(parts) + self.suffix
         if os.getuid() == 0:
             return os.path.join(self.repo, base)
         else:
