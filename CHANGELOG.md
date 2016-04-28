@@ -1,3 +1,7 @@
+# 0.9.3 - 2016 Apr 28
+
+* can load local image without specifying abs. path
+
 # 0.9.2 - 2016 Apr 27
 
 * improvements in rhubarbe images: can filter on names, plus minor tweaks
