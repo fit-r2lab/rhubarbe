@@ -22,15 +22,17 @@ class ImagesRepo(metaclass = Singleton):
         return os.path.join(self.repo, self.name)
 
     def add_extension(self, file):
-        for f in (file, file + self.suffix):
-            if os.path.exists(f):
-                return f
+        return file + self.suffix
 
     def locate(self, image):
-        return \
-          self.add_extension(image) \
-           if os.path.isabs(image) \
-           else self.add_extension(os.path.join(self.repo, image))
+        # absolute path : just use image
+        candidates = [ image, self.add_extension(image) ]
+        if not os.path.isabs(image):
+            repo_image = os.path.join(self.repo, image)
+            candidates += [ repo_image, self.add_extension(repo_image) ]
+        for candidate in candidates:
+            if os.path.exists(candidate):
+                return candidate
 
     def where_to_save(self, nodename, name_from_cli):
         """
