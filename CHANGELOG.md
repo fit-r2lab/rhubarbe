@@ -1,3 +1,7 @@
+# 0.9.4 - 2016 May 9
+
+* support for usrpon, usrpoff and usrpstatus
+
 # 0.9.3 - 2016 Apr 28
 
 * can load local image without specifying abs. path
