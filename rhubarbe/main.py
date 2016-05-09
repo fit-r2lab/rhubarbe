@@ -84,6 +84,12 @@ def cmc_verb(verb, *argv):
         coros = [ node.do_reset() for node in nodes ]
     elif verb == 'info':
         coros = [ node.get_info() for node in nodes ]
+    elif verb == 'usrpstatus':
+        coros = [ node.get_usrpstatus() for node in nodes ]
+    elif verb == 'usrpon':
+        coros = [ node.turn_usrpon() for node in nodes ]
+    elif verb == 'usrpoff':
+        coros = [ node.turn_usrpoff() for node in nodes ]
     
     tasks = util.self_manage(asyncio.gather(*coros))
     wrapper = asyncio.wait_for(tasks, timeout = args.timeout)
@@ -120,6 +126,12 @@ def off(*argv):   return cmc_verb('off', *argv)
 def reset(*argv):   return cmc_verb('reset', *argv)
 @subcommand
 def info(*argv):   return cmc_verb('info', *argv)
+@subcommand
+def usrpstatus(*argv):   return cmc_verb('usrpstatus', *argv)
+@subcommand
+def usrpon(*argv):   return cmc_verb('usrpon', *argv)
+@subcommand
+def usrpoff(*argv):   return cmc_verb('usrpoff', *argv)
 
 ####################
 @subcommand

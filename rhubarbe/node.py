@@ -87,6 +87,31 @@ class Node:
         return result
 
     @asyncio.coroutine
+    def get_usrpstatus(self):
+        """
+        returns self.usrpstatus
+        either 'on' or 'off', or None if something wrong is going on
+        """
+        result = yield from self._get_cmc_verb('usrpstatus')
+        return result
+
+    @asyncio.coroutine
+    def turn_usrpon(self):
+        """
+        turn on node's USRP; expected result would be 'ok' if it goes fine
+        """
+        result = yield from self._get_cmc_verb('usrpon')
+        return result
+
+    @asyncio.coroutine
+    def turn_usrpoff(self):
+        """
+        turn off node's USRP; expected result would be 'ok' if it goes fine
+        """
+        result = yield from self._get_cmc_verb('usrpoff')
+        return result
+
+    @asyncio.coroutine
     def _get_cmc_verb(self, verb, strip_result=True):
         """
         verb typically is 'status', 'on', 'off' or 'info'
