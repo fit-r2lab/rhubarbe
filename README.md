@@ -4,17 +4,17 @@
 
     pip3 install rhubarbe
 
-This is connected to an authorization system; most of the functions are rather intrusive, and require the user to have obtained a lease (reservation), at the onelab portal, applicable to the current time and day, before the tool can be used. Note that the `root` user is unconditionnally granted permission.
+This is connected to an authorization system; most of the functions are rather intrusive, and require the user to have obtained a lease (reservation), applicable to the current time and day, before the tool can be used. Note that the `root` user is unconditionnally granted permission.
 
-To load your `fedora-21` image on 18 nodes simultaneously:
+To load your `fedora-23` image on 18 nodes simultaneously:
     
-    rhubarbe load -i fedora-21 1-18 &
+    rhubarbe load -i fedora-23 1-18 &
    
-You can safely load another batch of nodes at the same time, maybe with a smaller bandwidth
+You can safely load another batch of nodes at the same time, maybe with a different bandwidth
    
-    rhubarbe load -i ubuntu-1510 -b 200 19-36 &
+    rhubarbe load -i ubuntu-16.04 -b 200 19-36 &
     
-To save the image of node 10, do this
+To save the image of node 10, just do this
 
     rhubarbe save 10
 
