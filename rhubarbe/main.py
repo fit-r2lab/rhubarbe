@@ -31,6 +31,23 @@ import rhubarbe.util as util
 # load ( "-i", "fedora", "12" )
 
 ####################
+reservation_required = "This function requires a valid reservation - or to be root"
+
+def check_reservation(message_bus=None, loop=None, verbose=True):
+    "return a bool indicating if we currently have the lease"
+    message_bus = message_bus or asyncio.Queue()
+    loop = loop or asyncio.get_event_loop()
+    leases = Leases(message_bus)
+    @asyncio.coroutine
+    def check_leases():
+        ok = yield from leases.currently_valid()
+        if verbose:
+            print("Access currently {}".format("granted" if ok else "denied"))
+        return ok
+    return(loop.run_until_complete(check_leases()))
+
+
+####################
 # NOTE: when adding a new command, please update setup.py as well
 supported_subcommands = []
 
@@ -51,10 +68,17 @@ def nodes(*argv):
     print(" ".join(selector.node_names()))
     
 ####################
-def cmc_verb(verb, *argv):
+def cmc_verb(verb, check_resa, *argv):
+    """
+    check_resa can be either
+    (*) enforce: refuse to send the message if the lease is not there
+    (*) warn: issue a warning when the lease is not there
+    (*) none: does not check the leases
+    """
     usage = """
-    Send verb '{verb}' to the CMC interface of selected nodes
-    """.format(verb=verb)
+    Send verb '{verb}' to the CMC interface of selected nodes""".format(verb=verb)
+    if check_resa == 'enforce':
+        usage += "\n    {resa}".format(resa=reservation_required)
     the_config = Config()
     default_timeout = the_config.value('nodes', 'cmc_default_timeout')
     
@@ -67,6 +91,12 @@ def cmc_verb(verb, *argv):
 
     selector = selected_selector(args)
     message_bus = asyncio.Queue()
+
+    if check_resa in ('warn', 'enforce'):
+        reserved = check_reservation()
+        if not reserved:
+            if check_resa == 'enforce':
+                return 1
     
     from rhubarbe.logger import logger
     message_bus.put_nowait({'selected_nodes' : selector})
@@ -117,29 +147,29 @@ def cmc_verb(verb, *argv):
 
 #####
 @subcommand
-def status(*argv):   return cmc_verb('status', *argv)
+def status(*argv):     return cmc_verb('status', 'warn', *argv)
 @subcommand
-def on(*argv):   return cmc_verb('on', *argv)
+def on(*argv):         return cmc_verb('on', 'enforce', *argv)
 @subcommand
-def off(*argv):   return cmc_verb('off', *argv)
+def off(*argv):        return cmc_verb('off', 'enforce', *argv)
 @subcommand
-def reset(*argv):   return cmc_verb('reset', *argv)
+def reset(*argv):      return cmc_verb('reset', 'enforce', *argv)
 @subcommand
-def info(*argv):   return cmc_verb('info', *argv)
+def info(*argv):       return cmc_verb('info', 'warn', *argv)
 @subcommand
-def usrpstatus(*argv):   return cmc_verb('usrpstatus', *argv)
+def usrpstatus(*argv): return cmc_verb('usrpstatus', 'warn', *argv)
 @subcommand
-def usrpon(*argv):   return cmc_verb('usrpon', *argv)
+def usrpon(*argv):     return cmc_verb('usrpon', 'enforce', *argv)
 @subcommand
-def usrpoff(*argv):   return cmc_verb('usrpoff', *argv)
+def usrpoff(*argv):    return cmc_verb('usrpoff', 'enforce', *argv)
 
 ####################
 @subcommand
 def load(*argv):
     usage = """
     Load an image on selected nodes in parallel
-    Requires a valid lease - or to be root
-    """
+    {resa}
+    """.format(resa=reservation_required)
     the_config = Config()
     the_imagesrepo = ImagesRepo()
     default_image = the_imagesrepo.default()
@@ -196,8 +226,8 @@ def load(*argv):
 def save(*argv):
     usage = """
     Save an image from a node
-    Requires a valid lease - or to be root
-    """
+    {resa}
+    """.format(resa=reservation_required)
 
     the_config = Config()
     default_timeout = the_config.value('nodes', 'save_default_timeout')
@@ -390,7 +420,6 @@ def monitor(*argv):
         loop.close()
     
 
-####################
 @subcommand
 def leases(*argv):
     usage = """
@@ -402,18 +431,13 @@ def leases(*argv):
     parser.add_argument('-i', '--interactive', action='store_true', default=False,
                         help="Interactively prompt for commands (create, update, delete)")
     args = parser.parse_args(argv)
-    from rhubarbe.leases import Leases
-    message_bus = asyncio.Queue()
-    leases = Leases(message_bus)
-    loop = asyncio.get_event_loop()
     if args.check:
-        @asyncio.coroutine
-        def check_leases():
-            ok = yield from leases.currently_valid()
-            print("Access currently {}".format("granted" if ok else "denied"))
-            return 0 if ok else 1
-        return(loop.run_until_complete(check_leases()))
+        access = check_reservation()
+        return 0 if access else 1
     else:
+        message_bus = asyncio.Queue()
+        leases = Leases(message_bus)
+        loop = asyncio.get_event_loop()
         loop.run_until_complete(leases.main(args.interactive))
         loop.close()
         return 0
