@@ -1,3 +1,7 @@
+# 0.9.5 - 2016 May 11
+
+* long overdue: on, off, reset, usrpon and usrpoff also require a reservation
+
 # 0.9.4 - 2016 May 9
 
 * support for usrpon, usrpoff and usrpstatus
