@@ -95,7 +95,7 @@ class ImageSaver:
         except asyncio.TimeoutError as e:
             self.mark_image_as_partial()
             self.display.set_goodbye("rhubarbe-save : timeout expired after {}s"
-                                     .format(self.timeout))
+                                     .format(timeout))
             return 1
         finally:
             self.nextboot_cleanup()
