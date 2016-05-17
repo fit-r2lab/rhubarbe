@@ -38,8 +38,12 @@ class Selector:
             try:
                 items = [ int(x) for x in comma.split('-')]
             except:
-                print("WARNING: arg {comma} should denote a node range - IGNORED".format(**locals()))
-                continue
+                # safer to exit abruptly; common mistake is
+                # rload imagename 1 2 3
+                # if we just ignore this situation, the wrong sentence
+                # leads to a totally different behaviour
+                print("ERROR: arg {comma} should denote a node range".format(**locals()))
+                raise Exception("Misformed range {comma}".format(comma=comma))
             if len(items) >= 4:
                 print("Ignored arg {comma}".format(**locals()))
                 continue
