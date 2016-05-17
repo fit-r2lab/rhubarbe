@@ -2,6 +2,7 @@ import os
 import os.path
 import glob
 import time
+import re
 
 from rhubarbe.config import Config
 from rhubarbe.singleton import Singleton
@@ -24,10 +25,10 @@ class ImagesRepo(metaclass = Singleton):
     def add_extension(self, file):
         return file + self.suffix
 
-    def locate(self, image):
+    def locate(self, image, look_in_global=True):
         # absolute path : just use image
         candidates = [ image, self.add_extension(image) ]
-        if not os.path.isabs(image):
+        if look_in_global and not os.path.isabs(image):
             repo_image = os.path.join(self.repo, image)
             candidates += [ repo_image, self.add_extension(repo_image) ]
         for candidate in candidates:
@@ -101,7 +102,8 @@ class ImagesRepo(metaclass = Singleton):
             prefix = os.path.basename(path).replace(".ndz", "")
             stat = os.stat(path)
             stat_tuple = (stat.st_size, stat.st_mtime, stat.st_ino, )
-            info = {'stat_tuple': stat_tuple, 'prefix': prefix, 'isalias': os.path.islink(path), 'relevant':True}
+            info = {'stat_tuple': stat_tuple, 'prefix': prefix,
+                    'isalias': os.path.islink(path), 'relevant':True}
             infos.append(info)
         # gather by same file (same stat_tuple)
         clusters = {}
@@ -135,7 +137,8 @@ class ImagesRepo(metaclass = Singleton):
                 for filter in focus:
                     # rough : no regexp, just find the filter or not
                     if info['prefix'].find(filter) >= 0:
-#                        print("found match of {} in {}".format(filter, info['prefix']))
+#                        print("found match of {} in {}".
+#                              format(filter, info['prefix']))
                         return True
                 
         for stat_tuple, cluster in cluster_items:
@@ -162,3 +165,80 @@ class ImagesRepo(metaclass = Singleton):
                     shown = True
                 else:
                     print("{:>31} {:40}".format("a.k.a.", prefix))
+
+
+    # saving__fit16__2016-04-29@12-17__oai-gw-builds
+    # saving==fit16==2016-04-21@16:15==oai_epc_b210
+    def meaningful_part(self, filename):
+        basename = os.path.basename(filename)
+        basename = basename.replace(".ndz", "")
+        sep = "[-_=]{2}"
+        date = "[0-9]{4}-[0-9]{2}-[0-9]{2}@[0-9]{2}.[0-9]{2}"
+        hostname = "fit[0-9]{2}"
+        base_pattern = "saving" + sep + hostname + sep + date
+        re_base = re.compile(base_pattern + "$" )
+        named_pattern = base_pattern + sep + "(?P<meaningful>[\w\.-]+)"
+        re_named = re.compile(named_pattern + "$" )
+        match = re_named.match(basename)
+        if match:
+            return match.group('meaningful')
+        match = re_base.match(basename)
+        if match:
+            return "anonymous"
+        # otherwise return None
+        
+
+    def share(self, images, dest=None):
+        """
+        A utility to install one or several images in the shared repo
+
+        parameters:
+        * images: a list of image names (not searched in global repo) to transfer
+        * dest: a name for the installed image - only if a single image is provided
+        
+        * multiple images
+        destination name is based on origin name, 
+        with the extra saving__*blabla removed
+
+        * single image
+        likewise, except if dest is provided
+
+        * identity
+        root is allowed to override destination, not regular users
+
+        # return 0 if all goes well, 1 otherwise
+        """
+
+        ### check args
+        if len(images) > 1 and dest:
+            print("destination can be specified only with one image")
+            return 1
+
+        ### first pass
+        # compute a list of tuples (origin, dest)
+        moves = []
+        if images:
+            print("WARNING: share is an experimental feature reserved to root")
+            r, e, s = os.getresuid()
+            if r != 0 or e != 0 or s != 0:
+                print("r={}, e={}, s={}".format(r, e, s))
+                return
+        for image in images:
+            origin = self.locate(image, look_in_global=False)
+            if not origin:
+                print("Could not locate image {} - ignored"
+                      .format(image))
+                continue
+            if dest:
+                destination = dest
+            else:
+                meaningful = self.meaningful_part(origin)
+                if not meaningful:
+                    print("""Could not guess meaningful part in {}
+give one with -d""".format(origin))
+                    continue
+                destination = meaningful
+            destination = os.path.join(self.repo, destination + ".ndz")
+            print("mv {} {}".format(origin, destination))
+        
+        return 0

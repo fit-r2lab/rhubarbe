@@ -459,8 +459,8 @@ def images(*argv):
                         help="show all files, don't trim real files when they have a symlink")
     parser.add_argument("focus", nargs="*", type=str,
                         help="if provided, only images that contain one of these strings are displayed")
-    the_imagesrepo = ImagesRepo()
     args = parser.parse_args(argv)
+    the_imagesrepo = ImagesRepo()
     if args.sort_size is not None:
         args.sort_by = 'size'
     elif args.sort_date is not None:
@@ -470,6 +470,27 @@ def images(*argv):
     # if focus is an empty list, then eveything is shown
     the_imagesrepo.display(args.focus, args.verbose, args.sort_by, args.reverse)
     return 0
+
+####################
+@subcommand
+def share(*argv):
+    usage = """
+    Install locally-stored images in the shared repo
+    Destination name is derived from the last part of filename,
+      i.e. trailing part after saving__<date>__
+    When only one image is provided it is possible to specify 
+      another destination name with -o
+    """
+    the_config = Config()
+
+    parser = ArgumentParser(usage=usage)
+    parser.add_argument("-o", "--new-name", dest='dest', action='store', default=None,
+                        help="image name (ignored with more than one image)")
+    parser.add_argument("images", nargs="+", type=str)
+    args = parser.parse_args(argv)
+    
+    the_imagesrepo = ImagesRepo()
+    return the_imagesrepo.share(args.images, args.dest)
 
 ####################
 @subcommand
