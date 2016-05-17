@@ -1,3 +1,9 @@
+# 0.9.6 - 2016 May 17
+
+* bugfix for when saving an image triggers the global timeout
+* ship experimental feature share
+* forgetting -i in e.g. rload 12 ubuntu results in early failure
+
 # 0.9.5 - 2016 May 11
 
 * long overdue: on, off, reset, usrpon and usrpoff also require a reservation
