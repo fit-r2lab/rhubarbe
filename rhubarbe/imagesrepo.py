@@ -188,7 +188,7 @@ class ImagesRepo(metaclass = Singleton):
         # otherwise return None
         
 
-    def share(self, images, dest=None):
+    def share(self, images, dest, dry_run):
         """
         A utility to install one or several images in the shared repo
 
@@ -214,19 +214,19 @@ class ImagesRepo(metaclass = Singleton):
             print("destination can be specified only with one image")
             return 1
 
+        # surprisingly, even when running under sudo we have all 3 set to 0
+        r, e, s = os.getresuid()
+        is_root = r==0 and e==0 and s==0
+
+        # compute dry_run if not set on the command line
+        if dry_run is None:
+            dry_run = False if is_root else True
+        
         ### first pass
         # compute a list of tuples (origin, dest)
         moves = []
-        if images:
-            print("WARNING: share is an experimental feature reserved to root/sudo")
-            r, e, s = os.getresuid()
-            print("r={}, e={}, s={}".format(r, e, s))
-            if r != 0 or e != 0 or s != 0:
-                return
         for image in images:
-            # should be s/t like this, but for now everyone looks like root
-            # look_in_global = os.getlogin() == 'root'
-            origin = self.locate_image(image, look_in_global=False)
+            origin = self.locate_image(image, look_in_global=is_root)
             if not origin:
                 print("Could not locate image {} - ignored"
                       .format(image))
@@ -236,11 +236,23 @@ class ImagesRepo(metaclass = Singleton):
             else:
                 meaningful = self.meaningful_part(origin)
                 if not meaningful:
-                    print("""Could not guess meaningful part in {}
-give one with -d""".format(origin))
+                    print("Could not guess meaningful part in {}\n"
+                          "give one with -d""".format(origin))
                     continue
                 destination = meaningful
             destination = os.path.join(self.repo, destination + ".ndz")
-            print("mv {} {}".format(origin, destination))
+            if os.path.exists(destination):
+                print("Destination {} already exists - ignored".format(destination))
+                continue
+            moves.append( (origin, destination) )
+
+        if dry_run:
+            print("-------------------- DRY RUN")
+        for origin, destination in moves:
+            if dry_run:
+                print("mv {} {}".format(origin, destination))
+            else:
+                print("Moving {} -> {}".format(origin, destination))
+                os.rename(origin, destination)
         
         return 0

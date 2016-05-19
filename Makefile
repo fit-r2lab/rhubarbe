@@ -70,7 +70,7 @@ endif
 # installing in /tmp/rhubarbe-sync
 
 sync:
-	@echo 'WARNING: need to run bin/rhubarbe from ~/rhubarbe-sync'
+	@echo 'export PYTHONPATH=/tmp/rhubarbe-sync; alias r=/tmp/rhubarbe-sync/bin/rhubarbe'
 	rsync -av --relative $$(git ls-files) root@$(DEST):/tmp/rhubarbe-sync/
 
 both: bemol faraday

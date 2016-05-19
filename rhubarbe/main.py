@@ -489,18 +489,23 @@ def share(*argv):
     When only one image is provided it is possible to specify 
       another destination name with -o
 
-    Requires to be run through 'sudo rhubarbe-share'
+    If your account is enabled in /etc/sudoers.d/rhubarbe-share, 
+    the command will actually perform the mv operation,
+Requires to be run through 'sudo rhubarbe-share'
     """
     the_config = Config()
 
     parser = ArgumentParser(usage=usage)
     parser.add_argument("-o", "--new-name", dest='dest', action='store', default=None,
                         help="image name (ignored with more than one image)")
+    # default=None so that imagesrepo.share can compute a default
+    parser.add_argument("-n", "--dry-run", default=None, action='store_true', 
+                        help="Only show what would be done (default unless running under sudo")
     parser.add_argument("images", nargs="+", type=str)
     args = parser.parse_args(argv)
     
     the_imagesrepo = ImagesRepo()
-    return the_imagesrepo.share(args.images, args.dest)
+    return the_imagesrepo.share(args.images, args.dest, args.dry_run)
 
 ####################
 @subcommand
