@@ -1,3 +1,11 @@
+# 0.9.7 - 2016 May 19
+
+* rhubarbe save now adds a line to /etc/rhubarbe-image that
+  gives details on date, node, image name and unix account
+* rhubarbe share now available. Permissions to use needs to
+  be granted on an unix account basis in sudoers.
+  On faraday this is done in `/etc/sudoers.d/rhubarbe-share`
+
 # 0.9.6 - 2016 May 17
 
 * bugfix for when saving an image triggers the global timeout
