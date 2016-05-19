@@ -25,7 +25,7 @@ class ImagesRepo(metaclass = Singleton):
     def add_extension(self, file):
         return file + self.suffix
 
-    def locate(self, image, look_in_global=True):
+    def locate_image(self, image, look_in_global=True):
         # absolute path : just use image
         candidates = [ image, self.add_extension(image) ]
         if look_in_global and not os.path.isabs(image):
@@ -218,13 +218,15 @@ class ImagesRepo(metaclass = Singleton):
         # compute a list of tuples (origin, dest)
         moves = []
         if images:
-            print("WARNING: share is an experimental feature reserved to root")
+            print("WARNING: share is an experimental feature reserved to root/sudo")
             r, e, s = os.getresuid()
+            print("r={}, e={}, s={}".format(r, e, s))
             if r != 0 or e != 0 or s != 0:
-                print("r={}, e={}, s={}".format(r, e, s))
                 return
         for image in images:
-            origin = self.locate(image, look_in_global=False)
+            # should be s/t like this, but for now everyone looks like root
+            # look_in_global = os.getlogin() == 'root'
+            origin = self.locate_image(image, look_in_global=False)
             if not origin:
                 print("Could not locate image {} - ignored"
                       .format(image))

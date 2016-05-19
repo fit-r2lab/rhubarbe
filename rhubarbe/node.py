@@ -274,10 +274,10 @@ class Node:
                                      'skipping final reset')
 
     @asyncio.coroutine
-    def run_imagezip(self, port, reset):
+    def run_imagezip(self, port, reset, radical):
         yield from self.wait_for_telnet('imagezip')
         self.manage_nextboot_symlink('cleanup')
-        yield from self.imagezip.run(port)
+        yield from self.imagezip.run(port, radical, self.control_hostname())
         if reset:
             yield from self.ensure_reset()
         else:

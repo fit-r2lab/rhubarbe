@@ -37,6 +37,7 @@ class FrisbeeParser(telnetlib3.TerminalShell):
 
     def parse_line(self):
         line = self.bytes_line.decode().strip()
+        logger.debug("line from frisbee:" + line)
         #
         m = self.matcher_new_style_progress.match(line)
         if m:

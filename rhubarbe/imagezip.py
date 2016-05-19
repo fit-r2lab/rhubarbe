@@ -1,3 +1,5 @@
+import os
+import time
 import re
 import asyncio
 import telnetlib3
@@ -29,6 +31,7 @@ class ImageZipParser(telnetlib3.TerminalShell):
     # parse imagezip output ????
     def parse_line(self):
         line = self.bytes_line.decode().strip()
+        logger.debug("line from imagezip:" + line)
         #
         # we don't parse anything here because there does not seem to be a way
         # to estimate some total first off, and later get percentages
@@ -60,22 +63,40 @@ class ImageZip(TelnetProxy):
         self._running = False
 
     @asyncio.coroutine
-    def run(self, port):
+    def run(self, port, radical, nodename):
         the_config = Config()
         server_ip = the_config.local_control_ip()
         imagezip = the_config.value('frisbee', 'imagezip')
         netcat = the_config.value('frisbee', 'netcat')
+        # typically /dev/sda
         hdd = the_config.value('frisbee', 'hard_drive')
-        self.command = \
+        # typically /dev/sda1
+        root_partition = the_config.value('frisbee', 'root_partition')
+        command = ""
+        if root_partition and root_partition.lower() != 'none':
+            # Managing the /etc/rhubarbe-image stamp
+            # typically /mnt
+            mount_point = the_config.value('frisbee', 'mount_point')
+            date = time.strftime("%Y-%m-%d@%H:%M", time.localtime())
+            who = os.getlogin()
+            # create mount point if needed
+            format = '[ -d {mount_point} ] || mkdir {mount_point}; '
+            # mount it, and only if successful ...
+            format += 'mount {root_partition} {mount_point} && '
+            # add to the stamp, and umount - beware of {{ and }} as these are formats
+            format += '{{ echo "{date} - node {nodename} - image {radical} - by {who}"'
+            format += ' >> {mount_point}/etc/rhubarbe-image ; umount {mount_point}; }} ; '
+            # replace {} 
+            command += format.format(**locals())
+        command += \
           "{imagezip} -o -z1 {hdd} - | {netcat} {server_ip} {port}".format(**locals())
 
-        logger.info("on {} : running command {}".format(self.control_ip, self.command))
+        logger.info("on {} : running command {}".format(self.control_ip, command))
         yield from self.feedback('frisbee_status', "starting imagezip on {}".format(self.control_ip))
         
         EOF = chr(4)
         EOL = '\n'
         # print out exit status so the parser can catch it and expose it
-        command = self.command
         command = command + "; echo FRISBEE-STATUS=$?"
         # make sure the command is sent (EOL) and that the session terminates afterwards (exit + EOF)
         command = command + "; exit" + EOL + EOF

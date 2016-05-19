@@ -205,10 +205,10 @@ def load(*argv):
     # send feedback
     message_bus.put_nowait({'selected_nodes' : selector})
     from rhubarbe.logger import logger
-    logger.info("timeout is {}".format(args.timeout))
-    logger.info("bandwidth is {}".format(args.bandwidth))
+    logger.info("timeout is {}s".format(args.timeout))
+    logger.info("bandwidth is {} Mibps".format(args.bandwidth))
 
-    actual_image = the_imagesrepo.locate(args.image)
+    actual_image = the_imagesrepo.locate_image(args.image)
     if not actual_image:
         print("Image file {} not found - emergency exit".format(args.image))
         exit(1)
@@ -226,6 +226,9 @@ def load(*argv):
 def save(*argv):
     usage = """
     Save an image from a node
+    Mandatory radical needs to be provided with --output
+      This info, together with nodename and date, is stored 
+      on resulting image in /etc/rhubarbe-image
     {resa}
     """.format(resa=reservation_required)
 
@@ -233,8 +236,8 @@ def save(*argv):
     default_timeout = the_config.value('nodes', 'save_default_timeout')
 
     parser = ArgumentParser(usage=usage)
-    parser.add_argument("-o", "--output", action='store', default=None,
-                        help="Specify output name for image")
+    parser.add_argument("-o", "--output", action='store', dest='radical', default=None,
+                        help="Mandatory radical to name resulting image")
     parser.add_argument("-t", "--timeout", action='store', default=default_timeout, type=float,
                         help="Specify global timeout for the whole process, default={}"
                               .format(default_timeout))
@@ -245,6 +248,11 @@ def save(*argv):
                         """)
     parser.add_argument("node")
     args = parser.parse_args(argv)
+
+    # make -o mandatory
+    if not args.radical:
+        parser.print_help()
+        exit(1)
 
     message_bus = asyncio.Queue()
 
@@ -258,14 +266,14 @@ def save(*argv):
     nodename = node.control_hostname()
     
     the_imagesrepo = ImagesRepo()
-    actual_image = the_imagesrepo.where_to_save(nodename, args.output)
+    actual_image = the_imagesrepo.where_to_save(nodename, args.radical)
     message_bus.put_nowait({'info' : "Saving image {}".format(actual_image)})
 # turn off curses mode that has no added value here
 # the progressbar won't show too well anyway
 #    display_class = Display if not args.curses else DisplayCurses
     display_class = Display
     display = display_class([node], message_bus)
-    saver = ImageSaver(node, image=actual_image,
+    saver = ImageSaver(node, image=actual_image, radical=args.radical,
                        message_bus=message_bus, display = display)
     return saver.main(reset = args.reset, timeout=args.timeout)
 
@@ -475,11 +483,13 @@ def images(*argv):
 @subcommand
 def share(*argv):
     usage = """
-    Install locally-stored images in the shared repo
-    Destination name is derived from the last part of filename,
+    Install privately-stored images into the global images repo
+    Destination name is derived from the radical provided at save-time
       i.e. trailing part after saving__<date>__
     When only one image is provided it is possible to specify 
       another destination name with -o
+
+    Requires to be run through 'sudo rhubarbe-share'
     """
     the_config = Config()
 
