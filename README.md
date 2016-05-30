@@ -6,6 +6,7 @@
 
 This is connected to an authorization system; most of the functions are rather intrusive, and require the user to have obtained a lease (reservation), applicable to the current time and day, before the tool can be used. Note that the `root` user is unconditionnally granted permission.
 
+## Image loading
 To load your `fedora-23` image on 18 nodes simultaneously:
     
     rhubarbe load -i fedora-23 1-18 &
@@ -13,15 +14,44 @@ To load your `fedora-23` image on 18 nodes simultaneously:
 You can safely load another batch of nodes at the same time, maybe with a different bandwidth
    
     rhubarbe load -i ubuntu-16.04 -b 200 19-36 &
+
+## Controlling nodes
+To turn nodes on, or off, or to reset (send `Ctrl-Alt-Del`) a set of nodes, use the following commands. 
+
+    # turn on nodes 1 to 5
+    rhubarbe on 1-5
+    # turn off node 6
+    rhubarbe off 6
+    # reset node 7 (needs to be already on)
+    rhubarbe reset 7
+    # see if node 8 is on or off
+    rhubarbe status 8
+
+## Controlling USRP extensions
+Nodes that have a USRP hardware can have the USRP extension handled in a similar way
+
+    # turn on the USRP extension on node 11
+    rhubarbe usrpon 11
+    # turn off the USRP extension on node 12
+    rhubarbe usrpoff 12
+    # get status of the USRP extension on node 13
+    rhubarbe usrpstatus 13
     
+## Waiting for a node
+
+To wait for nodes 1, 3, 5, 7 and 9 to be reachable through ssh :
+
+    rhubarbe wait 1-9-2
+
+## Image saving    
 To save the image of node 10, just do this
 
-    rhubarbe save 10
+    rhubarbe save 10 -o image-name
     
- or rather, if you'd like to specify a name and comment for the resulting image
+ or rather, if you'd like to specify a comment for bookkeeping :
  
      rhubarbe save 10 -o image-name -c 'this will end up in /etc/rhubarbe-image right in the image'
-
+     
 # Purpose
 
 This is a tentative rewriting of the `omf6 load` and other similar commands, in python3 using `asyncio`. This results in a very efficient, single-thread, yet asynchroneous solution. The following features are currently available:
@@ -211,5 +241,3 @@ we would have written instead in pure python-3.5 this
     # new syntax since python-3.5
     async def foo():
         await bar()
-
-
