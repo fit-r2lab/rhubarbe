@@ -7,15 +7,30 @@ import re
 from rhubarbe.config import Config
 from rhubarbe.singleton import Singleton
 
+debug = False
+
 # use __ instead of == because = ruins bash completion
+saving_keyword = 'saving'
 saving_sep = '__'
 saving_time_format = "%Y-%m-%d@%H-%M"
+
+sep_re_pattern = "[-_=]{2}"
+date_re_pattern = "[0-9]{4}-[0-9]{2}-[0-9]{2}@[0-9]{2}.[0-9]{2}"
+# this will be fed into .format() - needs double {{ and }}
+hostname_re_pattern_f = "{regularname}[0-9]{{2}}"
+
+sep_glob_pattern = "[-_=]" * 2
+date_glob_pattern = "[0-9-@]" * 16
+hostname_glob_pattern_f = "{regularname}[0-9][0-9]"
+
 
 class ImagesRepo(metaclass = Singleton):
     def __init__(self):
         the_config = Config()
         self.repo = the_config.value('frisbee', 'images_dir')
         self.name = the_config.value('frisbee', 'default_image')
+        # for building hostname patterns
+        self.regularname = the_config.value('testbed', 'regularname')
 
     suffix = ".ndz"
 
@@ -28,12 +43,29 @@ class ImagesRepo(metaclass = Singleton):
     def locate_image(self, image, look_in_global=True):
         # absolute path : just use image
         candidates = [ image, self.add_extension(image) ]
+        glob_pattern = saving_keyword + saving_sep + \
+                       hostname_glob_pattern_f.format(regularname = self.regularname) + \
+                       saving_sep + date_glob_pattern + saving_sep + image
+        if debug:
+            print("glob_pattern", glob_pattern)
+        patterns = [ glob_pattern, self.add_extension(glob_pattern) ]
         if look_in_global and not os.path.isabs(image):
             repo_image = os.path.join(self.repo, image)
             candidates += [ repo_image, self.add_extension(repo_image) ]
+            repo_pattern = os.path.join(self.repo, glob_pattern)
+            patterns += [ repo_pattern, self.add_extension(repo_pattern) ]
         for candidate in candidates:
             if os.path.exists(candidate):
                 return candidate
+        for pattern in patterns:
+            found = glob.glob(pattern)
+            if found:
+                if len(found) > 1:
+                    print("WARNING - found several matches for {}".format(image))
+                    for f in found:
+                        print("match:", f)
+                return found[0]
+        
 
     def where_to_save(self, nodename, name_from_cli):
         """
@@ -42,7 +74,7 @@ class ImagesRepo(metaclass = Singleton):
         * behaviour depends on actual id (root stores in global repo, regular users store in '.')
         * name always contains nodename and date
         """
-        parts = ['saving', nodename, time.strftime(saving_time_format)]
+        parts = [saving_keyword, nodename, time.strftime(saving_time_format)]
         if name_from_cli:
             parts.append(name_from_cli)
         base = saving_sep.join(parts) + self.suffix
@@ -169,19 +201,20 @@ class ImagesRepo(metaclass = Singleton):
 
     # saving__fit16__2016-04-29@12-17__oai-gw-builds
     # saving==fit16==2016-04-21@16:15==oai_epc_b210
-    def meaningful_part(self, filename):
+    def radical_part(self, filename):
         basename = os.path.basename(filename)
         basename = basename.replace(".ndz", "")
-        sep = "[-_=]{2}"
-        date = "[0-9]{4}-[0-9]{2}-[0-9]{2}@[0-9]{2}.[0-9]{2}"
-        hostname = "fit[0-9]{2}"
-        base_pattern = "saving" + sep + hostname + sep + date
+        base_pattern = saving_keyword + sep_re_pattern + \
+                       hostname_re_pattern_f.format(regularname = self.regularname) + \
+                       sep_re_pattern + date_re_pattern
         re_base = re.compile(base_pattern + "$" )
-        named_pattern = base_pattern + sep + "(?P<meaningful>[\w\.-]+)"
+        named_pattern = base_pattern + sep_re_pattern + "(?P<radical>[+\w\.-]+)"
+        if debug:
+            print("named pattern =", named_pattern)
         re_named = re.compile(named_pattern + "$" )
         match = re_named.match(basename)
         if match:
-            return match.group('meaningful')
+            return match.group('radical')
         match = re_base.match(basename)
         if match:
             return "anonymous"
@@ -234,12 +267,12 @@ class ImagesRepo(metaclass = Singleton):
             if dest:
                 destination = dest
             else:
-                meaningful = self.meaningful_part(origin)
-                if not meaningful:
-                    print("Could not guess meaningful part in {}\n"
+                radical = self.radical_part(origin)
+                if not radical:
+                    print("Could not guess radical part in {}\n"
                           "give one with -d""".format(origin))
                     continue
-                destination = meaningful
+                destination = radical
             destination = os.path.join(self.repo, destination + ".ndz")
             if os.path.exists(destination):
                 print("Destination {} already exists - ignored".format(destination))
