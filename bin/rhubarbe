@@ -32,7 +32,7 @@ def main():
         subcommand = sys.argv[1]
         args = sys.argv[2:]
         if subcommand not in supported:
-            print("Unknown subcommand {} - use on of {{{}}}"
+            print("Unknown subcommand {} - use one among {{{}}}"
                   .format(subcommand, ",".join(supported)))
             exit(1)
     # do it

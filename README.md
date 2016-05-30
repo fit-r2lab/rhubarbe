@@ -17,6 +17,10 @@ You can safely load another batch of nodes at the same time, maybe with a differ
 To save the image of node 10, just do this
 
     rhubarbe save 10
+    
+ or rather, if you'd like to specify a name and comment for the resulting image
+ 
+     rhubarbe save 10 -o image-name -c 'this will end up in /etc/rhubarbe-image right in the image'
 
 # Purpose
 
@@ -53,7 +57,7 @@ Finally, `rhubarbe monitor` is a monitoring tool that can be used to feed a `soc
 The python entry point is named `rhubarbe` but it should be called with an additional subcommand.
 
     root@bemol ~ # rhubarbe
-    rhubarbe needs a subcommand in {load,save,status,wait,leases,images,inventory,config,monitor,version}
+    Unknown subcommand help - use one among {nodes,status,on,off,reset,info,usrpstatus,usrpon,usrpoff,load,save,wait,monitor,leases,images,share,inventory,config,version}
 
 	root@bemol ~ # rhubarbe load --help
 
@@ -208,49 +212,4 @@ we would have written instead in pure python-3.5 this
     async def foo():
         await bar()
 
-
-# TODO
-
-## P1 : known bugs for production
-
-* test, test, test...
- 
-## for deployment (P2)
-
-* rename the token exposed to portal.onelab as `37nodes@r2lab`
-
-* regular users cannot use their certificate to do write (PUT, UPDATE) actions
-  * wait for Aris's feedback on this bug
-
-* fix issues with empty leases being displayed in the onelab portal
-  * Loic
-
-* connect the 'unavailable' tag in sidecar with omf_sfa
-
-## nice to have (P3)
-
-* *not even sure* `rhubarbe tell --on/--off/--reset` ?    
-
-* *I'd rather fix the real issue in the CMC code* robustify ensure_reset ? (fit04)
-    if a node is still answering ping right after it was reset, then it is exhibiting the oblivion issue, so it needs to be turned off; maybe repeatedly so.
-
-* *not even sure* refactor how mains are done; some have a monitor and some others not
-
-* *not even sure* should wait have a telnet mode (-n/--telnet) as well ? 
-
-## cosmetic - known bugs (P4)
-
-* merge `wait` and `status` in a more general `select` tool
-  * --status: show current output of `status`
-  * --export: show selected nodes within a `export NODES='blabla'` (for the `nodes` alias)
-  * -0/-1: select nodes that are on or off
-  * -a: all nodes
-  * --wait: select nodes that are ssh-reachable within the timeout
-
-* *not even sure* do we need to tweak Node so that a control_hostname could be used as an argument to create a Node ? 
-* *not sure* implement some way to store the logs from frisbee and imagezip somewhere
-* *not sure* should we not log all the messages on the feedback/bus onto logger as well ?
-* *not quite useful* curses react to window resize
-  * getch() to return curses.KEY_RESIZE in such a case
-  * window.nodelay(1) allows to make getch() non-blocking
 

@@ -63,7 +63,7 @@ class ImageZip(TelnetProxy):
         self._running = False
 
     @asyncio.coroutine
-    def run(self, port, radical, nodename):
+    def run(self, port, nodename, radical, comment):
         the_config = Config()
         server_ip = the_config.local_control_ip()
         imagezip = the_config.value('frisbee', 'imagezip')
@@ -85,6 +85,8 @@ class ImageZip(TelnetProxy):
             format += 'mount {root_partition} {mount_point} && '
             # add to the stamp, and umount - beware of {{ and }} as these are formats
             format += '{{ echo "{date} - node {nodename} - image {radical} - by {who}"'
+            if comment:
+                format += '" - {}"'.format(comment)
             format += ' >> {mount_point}/etc/rhubarbe-image ; umount {mount_point}; }} ; '
             # replace {} 
             command += format.format(**locals())

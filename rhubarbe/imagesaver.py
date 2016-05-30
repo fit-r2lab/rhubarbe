@@ -7,12 +7,13 @@ from rhubarbe.config import Config
 import rhubarbe.util as util
 
 class ImageSaver:
-    def __init__(self, node, image, radical, message_bus, display):
+    def __init__(self, node, image, radical, message_bus, display, comment):
         self.node = node
         self.image = image
         self.radical = radical
         self.message_bus = message_bus
         self.display = display
+        self.comment = comment
         #
         self.collector = None
 
@@ -52,7 +53,7 @@ class ImageSaver:
         # start_frisbeed will return the ip+port to use 
         yield from self.feedback('info', "Saving image from {}".format(self.node))
         port = yield from self.start_collector()
-        yield from self.node.run_imagezip(port, reset, self.radical)
+        yield from self.node.run_imagezip(port, reset, self.radical, self.comment)
         # we can now kill the server
         self.collector.stop_nowait()
 

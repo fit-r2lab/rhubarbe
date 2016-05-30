@@ -241,7 +241,8 @@ def save(*argv):
     parser.add_argument("-t", "--timeout", action='store', default=default_timeout, type=float,
                         help="Specify global timeout for the whole process, default={}"
                               .format(default_timeout))
-#    parser.add_argument("-c", "--curses", action='store_true', default=False)
+    parser.add_argument("-c", "--comment", dest='comment', default=None,
+                        help="one-liner comment to insert in /etc/rhubarbe-image together")
     parser.add_argument("-n", "--no-reset", dest='reset', action='store_false', default=True,
                         help = """use this with nodes that are already running a frisbee image.
                         They won't get reset, neither before or after the frisbee session
@@ -274,7 +275,8 @@ def save(*argv):
     display_class = Display
     display = display_class([node], message_bus)
     saver = ImageSaver(node, image=actual_image, radical=args.radical,
-                       message_bus=message_bus, display = display)
+                       message_bus=message_bus, display = display,
+                       comment=args.comment)
     return saver.main(reset = args.reset, timeout=args.timeout)
 
 ####################
