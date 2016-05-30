@@ -1,3 +1,9 @@
+# 0.9.8 - 2016 May 30
+
+* images named in saving* can be referred to as their mere radical
+* rsave accepts a --comment option for making /etc/rhubarbe-image
+  more helpful
+
 # 0.9.7 - 2016 May 19
 
 * rhubarbe save now adds a line to /etc/rhubarbe-image that
