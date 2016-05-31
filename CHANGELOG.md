@@ -1,3 +1,8 @@
+# 0.9.9 - 2016 May 31
+
+* monitor to probe for /etc/rhubarbe-image an to expose last found name in
+  the new 'imagename' field of its JSON output
+
 # 0.9.8 - 2016 May 30
 
 * images named in saving* can be referred to as their mere radical
