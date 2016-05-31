@@ -168,7 +168,7 @@ class MonitorNode:
         """
         Send info to sidecar
         """
-        print(self.info)
+        #print(self.info)
         self.reconnectable.emit_info(self.channel, self.info)
         
     def set_info_and_report(self, *overrides):
