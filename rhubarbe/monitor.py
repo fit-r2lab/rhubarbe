@@ -168,6 +168,7 @@ class MonitorNode:
         """
         Send info to sidecar
         """
+        print(self.info)
         self.reconnectable.emit_info(self.channel, self.info)
         
     def set_info_and_report(self, *overrides):
@@ -180,14 +181,20 @@ class MonitorNode:
     ubuntu_matcher = re.compile("DISTRIB_RELEASE=(?P<ubuntu_version>[0-9.]+)")
     fedora_matcher = re.compile("Fedora release (?P<fedora_version>\d+)")
     gnuradio_matcher = re.compile("\AGNURADIO:(?P<gnuradio_version>[0-9\.]+)\Z")
+    # 2016-05-28@08:20 - node fit38 - image oai-enb-base2 - by root
+    rhubarbe_image_matcher = re.compile("\A/etc/rhubarbe-image:" + \
+                                        #"(?P<date>[-@:0-9]+) - node (?P<hostname>\w+) - image (?P<imagename>[\w-]+)"
+                                        ".* - image (?P<imagename>[\w-]+)"
+                                        )
     rxtx_matcher = re.compile("==> /sys/class/net/wlan(?P<wlan_no>[0-9])/statistics/(?P<rxtx>[rt]x)_bytes <==")
     number_matcher = re.compile("\A[0-9]+\Z")
 
-    def parse_ssh_output(self, stdout, padding_dict):
+    def parse_ssh_probe_output(self, stdout, padding_dict):
         flavour = "other"
         extension = ""
         rxtx_dict = {}
         rxtx_key = None
+        imagename = ""
         for line in stdout.split("\n"):
             match = self.ubuntu_matcher.match(line)
             if match:
@@ -203,6 +210,10 @@ class MonitorNode:
             if match:
                 version = match.group('gnuradio_version')
                 extension += "-gnuradio-{version}".format(**locals())
+                continue
+            match = self.rhubarbe_image_matcher.match(line)
+            if match:
+                imagename = match.group('imagename')
                 continue
             match = self.rxtx_matcher.match(line)
             if match:
@@ -247,7 +258,8 @@ class MonitorNode:
             self.history[rxtx_key] = (bytes, now)
         # xxx would make sense to clean up history for measurements that
         # we were not able to collect at this cycle
-        self.set_info({'os_release' : os_release}, padding_dict, wlan_info_dict)
+        self.set_info({'os_release' : os_release, 'imagename' : imagename },
+                      padding_dict, wlan_info_dict)
 
     @asyncio.coroutine
     def probe(self, ping_timeout, ssh_timeout):
@@ -280,6 +292,8 @@ class MonitorNode:
         remote_commands = [
             "cat /etc/lsb-release /etc/fedora-release /etc/gnuradio-release 2> /dev/null | grep -i release",
             "echo -n GNURADIO: ; gnuradio-config-info --version 2> /dev/null || echo none",
+            # this trick allows to have the filename on each output line
+            "grep . /etc/rhubarbe-image /dev/null",
             ]
         if self.report_wlan:
             remote_commands.append(
@@ -296,7 +310,7 @@ class MonitorNode:
             try:
                 command = ";".join(remote_commands)
                 output = yield from ssh.run(command)
-                self.parse_ssh_output(output, padding_dict)
+                self.parse_ssh_probe_output(output, padding_dict)
                 # required as otherwise we leak openfiles
                 try:
                     yield from ssh.close()
