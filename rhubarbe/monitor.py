@@ -183,8 +183,8 @@ class MonitorNode:
     gnuradio_matcher = re.compile("\AGNURADIO:(?P<gnuradio_version>[0-9\.]+)\Z")
     # 2016-05-28@08:20 - node fit38 - image oai-enb-base2 - by root
     rhubarbe_image_matcher = re.compile("\A/etc/rhubarbe-image:" + \
-                                        #"(?P<date>[-@:0-9]+) - node (?P<hostname>\w+) - image (?P<imagename>[\w-]+)"
-                                        ".* - image (?P<imagename>[\w-]+)"
+                                        #"(?P<date>[-@:0-9]+) - node (?P<hostname>\w+) - image (?P<image_radical>[\w-]+)"
+                                        ".* - image (?P<image_radical>[\w-]+)"
                                         )
     rxtx_matcher = re.compile("==> /sys/class/net/wlan(?P<wlan_no>[0-9])/statistics/(?P<rxtx>[rt]x)_bytes <==")
     number_matcher = re.compile("\A[0-9]+\Z")
@@ -194,7 +194,7 @@ class MonitorNode:
         extension = ""
         rxtx_dict = {}
         rxtx_key = None
-        imagename = ""
+        image_radical = ""
         for line in stdout.split("\n"):
             match = self.ubuntu_matcher.match(line)
             if match:
@@ -213,7 +213,7 @@ class MonitorNode:
                 continue
             match = self.rhubarbe_image_matcher.match(line)
             if match:
-                imagename = match.group('imagename')
+                image_radical = match.group('image_radical')
                 continue
             match = self.rxtx_matcher.match(line)
             if match:
@@ -258,7 +258,7 @@ class MonitorNode:
             self.history[rxtx_key] = (bytes, now)
         # xxx would make sense to clean up history for measurements that
         # we were not able to collect at this cycle
-        self.set_info({'os_release' : os_release, 'imagename' : imagename },
+        self.set_info({'os_release' : os_release, 'image_radical' : image_radical },
                       padding_dict, wlan_info_dict)
 
     @asyncio.coroutine

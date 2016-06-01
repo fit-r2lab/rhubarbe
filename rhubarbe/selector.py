@@ -38,8 +38,8 @@ class Selector:
             try:
                 items = [ int(x) for x in comma.split('-')]
             except:
-                # safer to exit abruptly; common mistake is
-                # rload imagename 1 2 3
+                # safer to exit abruptly; common mistake is to forget -i, like in
+                # rload image-radical 1 2 3
                 # if we just ignore this situation, the wrong sentence
                 # leads to a totally different behaviour
                 print("ERROR: arg {comma} should denote a node range".format(**locals()))
