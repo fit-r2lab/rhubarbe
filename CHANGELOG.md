@@ -1,3 +1,8 @@
+# 0.9.10 - 2016 June 1
+
+* rename JSON field 'imagename' into 'image_radical' for naming consistency
+  before this propagates too far
+
 # 0.9.9 - 2016 May 31
 
 * monitor to probe for /etc/rhubarbe-image an to expose last found name in
