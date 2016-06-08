@@ -25,7 +25,7 @@ class OmfSfaProxy:
         hostname / port : location of the omf-sfa REST interface
         user_cert_filename : file containing the user certificate 
           typically "~/.omf/user_cert.pem"
-        private_key_filename : filename, or None if privte key is in user_cert
+        private_key_filename : filename, or None if private key is in user_cert
           typically "~/.ssh/id_rsa" except for root
         unique_component_name : the name of the unique node (e.g. '37nodes')
         """
@@ -54,8 +54,15 @@ class OmfSfaProxy:
             cert = self.user_cert_filename
             # passing None to load_cert_chain means the private key should be in certificate
             keyfile = self.private_key_filename if self.private_key_filename else None
-            if debug: logger.info("Using cert={}, keyfile={}".format(cert, keyfile))
-            context.load_cert_chain(cert, keyfile)
+            if debug:
+                logger.info("Using cert={}, keyfile={}".format(cert, keyfile))
+            try:
+                context.load_cert_chain(cert, keyfile)
+            except FileNotFoundError:
+                if keyfile is None:
+                    raise FileNotFoundError("{} could not be found".format(cert))
+                else:
+                    raise FileNotFoundError("One of {} and {} could not be found".format(cert, keyfile))
         #if debug: print('SSL context stats', context.cert_store_stats())
         return context
 
@@ -98,16 +105,17 @@ class OmfSfaProxy:
     
             # patch : until we reconfigure omf_sfa so that can use the cert and keys
             # so that at least we can issue GET requests
-            connector = self.get_anonymous_connector() if lverb == 'get' else self.get_cert_connector()
+            connector = self.get_anonymous_connector() \
+                        if lverb == 'get' else self.get_cert_connector()
 
-            if debug: logger.info("Sending verb {} to {}".format(lverb, url))
+            if debug:
+                logger.info("Sending verb {} to {}".format(lverb, url))
             response = yield from coro(url, connector=connector, data=data, headers=headers)
             text = yield from response.text()
             return text
         except Exception as e:
-            logger.exception("REST_as_json")
-            if debug:
-                traceback.print_exc()
+            logger.exception("***** exception in REST_as_json")
+            return json.dumps(str(e))
         
 # original recipe was relying on curl
 #        curl = [ 'curl', '--silent', '-k' ]
