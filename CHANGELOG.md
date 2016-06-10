@@ -1,3 +1,8 @@
+# 0.9.11 - 2016 June 10
+
+* fix image name as parsed by monitor
+* more robust omfsfaproxy
+
 # 0.9.10 - 2016 June 1
 
 * rename JSON field 'imagename' into 'image_radical' for naming consistency
