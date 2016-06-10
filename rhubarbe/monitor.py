@@ -183,7 +183,7 @@ class MonitorNode:
     gnuradio_matcher = re.compile("\AGNURADIO:(?P<gnuradio_version>[0-9\.]+)\Z")
     # 2016-05-28@08:20 - node fit38 - image oai-enb-base2 - by root
     rhubarbe_image_matcher = re.compile("\A/etc/rhubarbe-image:" + \
-                                        #"(?P<date>[-@:0-9]+) - node (?P<hostname>\w+) - image (?P<image_radical>[\w-]+)"
+                                        #"(?P<date>[-@:0-9]+) - node (?P<hostname>\w+) - image (?P<image_radical>[-\w.+]+)"
                                         ".* - image (?P<image_radical>[\w-]+)"
                                         )
     rxtx_matcher = re.compile("==> /sys/class/net/wlan(?P<wlan_no>[0-9])/statistics/(?P<rxtx>[rt]x)_bytes <==")
