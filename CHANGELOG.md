@@ -1,3 +1,8 @@
+# 0.9.12 - 2016 Sep 5
+
+* use exclusively python-3.5 asyncio syntax
+* i.e. no more `yield from` nor `@asyncio.coroutine`
+
 # 0.9.11 - 2016 June 10
 
 * fix image name as parsed by monitor
