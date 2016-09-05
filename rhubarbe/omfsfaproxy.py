@@ -84,8 +84,7 @@ class OmfSfaProxy:
         return "https://{}:{}/resources/{}"\
             .format(self.hostname, self.port, rest_qualifier)
     
-    @asyncio.coroutine
-    def REST_as_json(self, rest_qualifier, http_verb, request):
+    async def REST_as_json(self, rest_qualifier, http_verb, request):
         """
         connects to https://hostname:port/resources/<rest_qualifier> (rest_qualifier typically is 'leases')
         using http_verb (GET/POST/PUT/DELETE)
@@ -128,8 +127,7 @@ class OmfSfaProxy:
 #        curl += [ '-d', json_request ]
 #        curl += [ '-i', url ]
 
-    @asyncio.coroutine
-    def _fetch_node_uuid(self):
+    async def _fetch_node_uuid(self):
         self.unique_component_uuid = None
         try:
             logger.info("for global uuid: fetching node {}".format(self.unique_component_name))
@@ -146,8 +144,7 @@ class OmfSfaProxy:
             if debug: print("Nodes.fetch: exception {}".format(e))
             logger.exception("cannot get unique_component_uuid from {}".format(self))
         
-    @asyncio.coroutine
-    def fetch_node_uuid(self):
+    async def fetch_node_uuid(self):
         if self.unique_component_uuid:
             return self.unique_component_uuid
         yield from self._fetch_node_uuid()

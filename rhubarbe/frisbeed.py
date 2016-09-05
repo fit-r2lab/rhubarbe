@@ -10,15 +10,13 @@ class Frisbeed:
         self.bandwidth = bandwidth
         self.message_bus = message_bus
     
-    @asyncio.coroutine
-    def feedback(self, field, msg):
+    async def feedback(self, field, msg):
         yield from self.message_bus.put({field: msg})
 
     def feedback_nowait(self, field, msg):
         self.message_bus.put_nowait({field: msg})
 
-    @asyncio.coroutine
-    def start(self):
+    async def start(self):
         """
         Start a frisbeed instance
         returns a tuple multicast_address, port_number
@@ -67,8 +65,7 @@ class Frisbeed:
         raise Exception("Could not start frisbee server")
 
 
-#    @asyncio.coroutine
-#    def stop(self):
+#    async def stop(self):
 #        self.stop_nowait()
         
     def stop_nowait(self):

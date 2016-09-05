@@ -17,13 +17,11 @@ class ImageSaver:
         #
         self.collector = None
 
-    @asyncio.coroutine
-    def feedback(self, field, msg):
+    async def feedback(self, field, msg):
         yield from self.message_bus.put({field: msg})
 
     # this is exactly as imageloader
-    @asyncio.coroutine
-    def stage1(self):
+    async def stage1(self):
         the_config = Config()
         idle = int(the_config.value('nodes', 'idle_after_reset'))
         yield from self.node.reboot_on_frisbee(idle)
@@ -36,14 +34,12 @@ class ImageSaver:
         """
         self.node.manage_nextboot_symlink('harddrive')
 
-    @asyncio.coroutine
-    def start_collector(self):
+    async def start_collector(self):
         self.collector = Collector(self.image, self.message_bus)
         port = yield from self.collector.start()
         return port
 
-    @asyncio.coroutine
-    def stage2(self, reset):
+    async def stage2(self, reset):
         """
         run collector (a netcat server)
         then wait for the node to be telnet-friendly,
@@ -57,8 +53,7 @@ class ImageSaver:
         # we can now kill the server
         self.collector.stop_nowait()
 
-    @asyncio.coroutine
-    def run(self, reset):
+    async def run(self, reset):
         leases = Leases(self.message_bus)
         yield from self.feedback('authorization','checking for a valid lease')
         valid = yield from leases.currently_valid()

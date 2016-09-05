@@ -41,29 +41,24 @@ class ImageZipParser(telnetlib3.TerminalShell):
         # for i in range(10): self.feedback('tick', '')
         
 class ImageZip(TelnetProxy):
-    @asyncio.coroutine
-    def connect(self):
+    async def connect(self):
         yield from self._try_to_connect(shell=ImageZipParser)
 
-    @asyncio.coroutine
-    def wait(self):
+    async def wait(self):
         yield from self._wait_until_connect(shell=ImageZipParser)
 
-    @asyncio.coroutine
-    def ticker(self):
+    async def ticker(self):
         while self._running:
             yield from self.feedback('tick', '')
             yield from asyncio.sleep(0.1)
 
-    @asyncio.coroutine
-    def wait_protocol_and_stop_ticker(self):
+    async def wait_protocol_and_stop_ticker(self):
         yield from self._protocol.waiter_closed
         # hack so we can finish the progressbar
         yield from self.feedback('tick', 'END')
         self._running = False
 
-    @asyncio.coroutine
-    def run(self, port, nodename, radical, comment):
+    async def run(self, port, nodename, radical, comment):
         the_config = Config()
         server_ip = the_config.local_control_ip()
         imagezip = the_config.value('frisbee', 'imagezip')

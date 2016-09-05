@@ -181,16 +181,14 @@ class Leases:
             return "<Leases from {} - {} lease(s)>"\
                 .format(self.omf_sfa_proxy, len(self.leases))
 
-    @asyncio.coroutine
-    def feedback(self, field, msg):
+    async def feedback(self, field, msg):
         yield from self.message_bus.put({field: msg})
 
     def has_special_privileges(self):
         # the condition on login is mostly for tests
         return self.login == 'root' and os.getuid() == 0
 
-    @asyncio.coroutine
-    def currently_valid(self):
+    async def currently_valid(self):
         if self.has_special_privileges():
             return True
         try:
@@ -200,21 +198,18 @@ class Leases:
             yield from self.feedback('info', "Could not fetch leases : {}".format(e))
             return False
 
-    @asyncio.coroutine
-    def fetch_all(self):
+    async def fetch_all(self):
         yield from asyncio.gather(self.omf_sfa_proxy.fetch_node_uuid(),
                                   self.fetch_leases())
 
-    @asyncio.coroutine
-    def refresh(self):
+    async def refresh(self):
         self.leases = None
         yield from self.fetch_all()
 
     def sort_leases(self):
         self.leases.sort(key=Lease.sort_key)
         
-    @asyncio.coroutine
-    def fetch_leases(self):
+    async def fetch_leases(self):
         if self.leases is not None:
             return self.leases
         yield from self._fetch_leases()
@@ -223,8 +218,7 @@ class Leases:
     def ssl_context(self, with_cert):
         return self.omf_sfa_proxy.ssl_context(with_cert, self.login == 'root')
 
-    @asyncio.coroutine
-    def _fetch_leases(self):
+    async def _fetch_leases(self):
         self.leases = None
         try:
             logger.info("Leases are being fetched..")
@@ -323,8 +317,7 @@ class Leases:
                 return candidate
         return None
         
-    @asyncio.coroutine
-    def _add_lease(self, owner, input_from, input_until):
+    async def _add_lease(self, owner, input_from, input_until):
         if owner != 'root':
             owner = self.locate_check_user(owner)
             if not owner:
@@ -375,8 +368,7 @@ class Leases:
         except:
             pass
         
-    @asyncio.coroutine
-    def _update_lease(self, lease_rank, input_from=None, input_until=None):
+    async def _update_lease(self, lease_rank, input_from=None, input_until=None):
         if input_from is None and input_until is None:
             logger.info("update_lease : nothing to do")
             return
@@ -413,8 +405,7 @@ class Leases:
             traceback.print_exc()
             pass
 
-    @asyncio.coroutine
-    def _delete_lease(self, lease_rank):
+    async def _delete_lease(self, lease_rank):
         # lease_rank could be a rank as displayed by self.print()
         the_lease = self.get_lease_by_rank(lease_rank)
         if not the_lease:
@@ -434,8 +425,7 @@ class Leases:
             traceback.print_exc()
             pass
 
-    @asyncio.coroutine
-    def main(self, interactive):
+    async def main(self, interactive):
         yield from self.fetch_all()
         self.print()
         if not interactive:
@@ -447,8 +437,7 @@ class Leases:
             print("Bye")
             return 1
 
-    @asyncio.coroutine
-    def interactive(self):
+    async def interactive(self):
         help_message = """
 Enter one of the letters inside [], and answer the questions
 

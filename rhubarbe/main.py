@@ -38,8 +38,7 @@ def check_reservation(message_bus=None, loop=None, verbose=True):
     message_bus = message_bus or asyncio.Queue()
     loop = loop or asyncio.get_event_loop()
     leases = Leases(message_bus)
-    @asyncio.coroutine
-    def check_leases():
+    async def check_leases():
         ok = yield from leases.currently_valid()
         if verbose:
             print("Access currently {}".format("granted" if ok else "denied"))
@@ -322,8 +321,7 @@ def wait(*argv):
     display_class = Display
     display = display_class(nodes, message_bus)
 
-    @asyncio.coroutine
-    def run():
+    async def run():
         yield from asyncio.gather(*coros)
         yield from display.stop()
 
@@ -404,8 +402,7 @@ def monitor(*argv):
         loop.add_signal_handler(getattr(signal, signame),
                                 functools.partial(exiting, signame))
 
-    @asyncio.coroutine
-    def run():
+    async def run():
         # run both the core and the log loop in parallel
         yield from asyncio.gather(monitor.run(), monitor.log())
         yield from display.stop()

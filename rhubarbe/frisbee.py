@@ -77,16 +77,13 @@ class FrisbeeParser(telnetlib3.TerminalShell):
             self.feedback('frisbee_retcod', status)
             
 class Frisbee(TelnetProxy):
-    @asyncio.coroutine
-    def connect(self):
+    async def connect(self):
         yield from self._try_to_connect(shell=FrisbeeParser)
 
-    @asyncio.coroutine
-    def wait(self):
+    async def wait(self):
         yield from self._wait_until_connect(shell=FrisbeeParser)
 
-    @asyncio.coroutine
-    def run(self, multicast_ip, port):
+    async def run(self, multicast_ip, port):
         control_ip = self.control_ip
         the_config = Config()
         client = the_config.value('frisbee', 'client')

@@ -261,8 +261,7 @@ class MonitorNode:
         self.set_info({'os_release' : os_release, 'image_radical' : image_radical },
                       padding_dict, wlan_info_dict)
 
-    @asyncio.coroutine
-    def probe(self, ping_timeout, ssh_timeout):
+    async def probe(self, ping_timeout, ssh_timeout):
         """
         The logic for getting one node's info and send it to sidecar
         """
@@ -342,8 +341,7 @@ class MonitorNode:
             self.set_info_and_report({'control_ping' : 'off'})
             return
 
-    @asyncio.coroutine
-    def probe_forever(self, cycle, ping_timeout, ssh_timeout):
+    async def probe_forever(self, cycle, ping_timeout, ssh_timeout):
         """
         runs forever, wait <cycle> seconds between 2 runs of probe()
         """
@@ -369,8 +367,7 @@ class MonitorLeases:
         logger.info("MonitorLeases.on_back_channel, args={}".format(args))
         self.fast_track = True
 
-    @asyncio.coroutine
-    def run_forever(self):
+    async def run_forever(self):
         leases = Leases(self.message_bus)
         while True:
             #print("entering")
@@ -434,8 +431,7 @@ class Monitor:
             logger.warning("received data {} on unexpected channel {}".format(channel))
 
     # xxx no way to select/disable the 2 components (nodes and leases) for now
-    @asyncio.coroutine
-    def run(self):
+    async def run(self):
         return asyncio.gather(
             self.monitor_leases.run_forever(),
             *[monitor_node.probe_forever(self.cycle,
@@ -444,8 +440,7 @@ class Monitor:
               for monitor_node in self.monitor_nodes]
         )
 
-    @asyncio.coroutine
-    def log(self):
+    async def log(self):
         while True:
             line = "".join([one_char_summary(mnode.info) for mnode in self.monitor_nodes])
             logger.info(line)

@@ -54,8 +54,7 @@ class Display:
                 self._display_node_by_ip[ip] = DisplayNode(node.control_hostname(), rank)
                 return self._display_node_by_ip[ip]
 
-    @asyncio.coroutine
-    def run(self):
+    async def run(self):
         self.start_hook()
         self._start_time = time.time()
         
@@ -69,8 +68,7 @@ class Display:
             if 'task_done' in dir(self.message_bus):
                 self.message_bus.task_done()
 
-    @asyncio.coroutine
-    def stop(self):
+    async def stop(self):
         # soft stop
         yield from self.message_bus.put("END-DISPLAY")
 

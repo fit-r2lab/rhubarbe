@@ -45,8 +45,7 @@ class Node:
         the_inventory = Inventory()
         return the_inventory.attached_hostname_info(self.cmc_name, 'control', 'hostname')
 
-    @asyncio.coroutine
-    def get_status(self):
+    async def get_status(self):
         """
         returns self.status
         either 'on' or 'off', or None if something wrong is going on
@@ -54,40 +53,35 @@ class Node:
         result = yield from self._get_cmc_verb('status')
         return result
 
-    @asyncio.coroutine
-    def turn_on(self):
+    async def turn_on(self):
         """
         turn node on; expected result would be 'ok' if it goes fine
         """
         result = yield from self._get_cmc_verb('on')
         return result
 
-    @asyncio.coroutine
-    def turn_off(self):
+    async def turn_off(self):
         """
         turn node on; expected result would be 'ok' if it goes fine
         """
         result = yield from self._get_cmc_verb('off')
         return result
 
-    @asyncio.coroutine
-    def do_reset(self):
+    async def do_reset(self):
         """
         turn node on; expected result would be 'ok' if it goes fine
         """
         result = yield from self._get_cmc_verb('reset')
         return result
 
-    @asyncio.coroutine
-    def get_info(self):
+    async def get_info(self):
         """
         turn node on; expected result would be 'ok' if it goes fine
         """
         result = yield from self._get_cmc_verb('info', strip_result=False)
         return result
 
-    @asyncio.coroutine
-    def get_usrpstatus(self):
+    async def get_usrpstatus(self):
         """
         returns self.usrpstatus
         either 'on' or 'off', or None if something wrong is going on
@@ -95,24 +89,21 @@ class Node:
         result = yield from self._get_cmc_verb('usrpstatus')
         return result
 
-    @asyncio.coroutine
-    def turn_usrpon(self):
+    async def turn_usrpon(self):
         """
         turn on node's USRP; expected result would be 'ok' if it goes fine
         """
         result = yield from self._get_cmc_verb('usrpon')
         return result
 
-    @asyncio.coroutine
-    def turn_usrpoff(self):
+    async def turn_usrpoff(self):
         """
         turn off node's USRP; expected result would be 'ok' if it goes fine
         """
         result = yield from self._get_cmc_verb('usrpoff')
         return result
 
-    @asyncio.coroutine
-    def _get_cmc_verb(self, verb, strip_result=True):
+    async def _get_cmc_verb(self, verb, strip_result=True):
         """
         verb typically is 'status', 'on', 'off' or 'info'
         """
@@ -141,8 +132,7 @@ class Node:
         'off' : 'off'
     }
         
-    @asyncio.coroutine
-    def send_action(self, message="on", check = False, check_delay=1.):
+    async def send_action(self, message="on", check = False, check_delay=1.):
         """
         Actually send action message like 'on', 'off' or 'reset'
         if check is True, waits for check_delay seconds before checking again that
@@ -186,13 +176,11 @@ class Node:
     ####################
     message_to_reset_map = { 'on' : 'reset', 'off' : 'on' }
 
-    @asyncio.coroutine
-    def feedback(self, field, message):
+    async def feedback(self, field, message):
         yield from self.message_bus.put(
             {'ip': self.control_ip_address(), field: message})
 
-    @asyncio.coroutine
-    def ensure_reset(self):
+    async def ensure_reset(self):
         if self.status is None:
             yield from self.get_status()
         if self.status not in self.message_to_reset_map:
@@ -243,8 +231,7 @@ class Node:
             logger.critical("manage_nextboot_symlink : unknown action {}".format(action))
 
     ##########
-    @asyncio.coroutine
-    def wait_for_telnet(self, service):
+    async def wait_for_telnet(self, service):
         ip = self.control_ip_address()
         if service == 'frisbee':
             self.frisbee = Frisbee(ip, self.message_bus)
@@ -254,16 +241,14 @@ class Node:
             yield from self.imagezip.wait()
             pass
         
-    @asyncio.coroutine
-    def reboot_on_frisbee(self, idle):
+    async def reboot_on_frisbee(self, idle):
         self.manage_nextboot_symlink('frisbee')
         yield from self.ensure_reset()
         yield from self.feedback('reboot',
                                  "idling for {}s".format(idle))
         yield from asyncio.sleep(idle)
 
-    @asyncio.coroutine
-    def run_frisbee(self, ip , port, reset):
+    async def run_frisbee(self, ip , port, reset):
         yield from self.wait_for_telnet('frisbee')
         self.manage_nextboot_symlink('cleanup')
         yield from self.frisbee.run(ip, port)
@@ -273,8 +258,7 @@ class Node:
             yield from self.feedback('reboot',
                                      'skipping final reset')
 
-    @asyncio.coroutine
-    def run_imagezip(self, port, reset, radical, comment):
+    async def run_imagezip(self, port, reset, radical, comment):
         yield from self.wait_for_telnet('imagezip')
         self.manage_nextboot_symlink('cleanup')
         yield from self.imagezip.run(port, self.control_hostname(), radical, comment)

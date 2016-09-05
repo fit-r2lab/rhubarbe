@@ -17,24 +17,20 @@ class ImageLoader:
         #
         self.frisbeed = None
 
-    @asyncio.coroutine
-    def feedback(self, field, msg):
+    async def feedback(self, field, msg):
         yield from self.message_bus.put({field: msg})
 
-    @asyncio.coroutine
-    def stage1(self):
+    async def stage1(self):
         the_config = Config()
         idle = int(the_config.value('nodes', 'idle_after_reset'))
         yield from asyncio.gather(*[node.reboot_on_frisbee(idle) for node in self.nodes])
 
-    @asyncio.coroutine
-    def start_frisbeed(self):
+    async def start_frisbeed(self):
         self.frisbeed = Frisbeed(self.image, self.bandwidth, self.message_bus)
         ip_port = yield from self.frisbeed.start()
         return ip_port
 
-    @asyncio.coroutine
-    def stage2(self, reset):
+    async def stage2(self, reset):
         """
         wait for all nodes to be telnet-friendly
         then run frisbee in all of them
@@ -54,8 +50,7 @@ class ImageLoader:
         """
         [node.manage_nextboot_symlink('harddrive') for node in self.nodes]
 
-    @asyncio.coroutine
-    def run(self, reset):
+    async def run(self, reset):
         leases = Leases(self.message_bus)
         yield from self.feedback('authorization','checking for a valid lease')
         valid = yield from leases.currently_valid()

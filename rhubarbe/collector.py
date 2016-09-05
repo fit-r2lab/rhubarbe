@@ -10,15 +10,13 @@ class Collector:
         #
         self.subprocess = None
     
-    @asyncio.coroutine
-    def feedback(self, field, msg):
+    async def feedback(self, field, msg):
         yield from self.message_bus.put({field: msg})
 
     def feedback_nowait(self, field, msg):
         self.message_bus.put_nowait({field: msg})
 
-    @asyncio.coroutine
-    def start(self):
+    async def start(self):
         """
         Start a collector instance; returns a port_number
         """
@@ -55,8 +53,7 @@ class Collector:
         logger.critical("Could not find a free port to start collector")
         raise Exception("Could not start collector server")
 
-#    @asyncio.coroutine
-#    def stop(self):
+#    async def stop(self):
 #        self.stop_nowait()
         
     def stop_nowait(self):

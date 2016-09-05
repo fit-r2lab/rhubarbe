@@ -55,12 +55,10 @@ class TelnetProxy:
         # xxx for now we don't check that frisbee is installed and the expected version
         return self._protocol is not None
 
-    @asyncio.coroutine
-    def feedback(self, field, msg):
+    async def feedback(self, field, msg):
         yield from self.message_bus.put({'ip': self.control_ip, field: msg})
 
-    @asyncio.coroutine
-    def _try_to_connect(self, shell=telnetlib3.TerminalShell):
+    async def _try_to_connect(self, shell=telnetlib3.TerminalShell):
         
         # a little closure to capture our ip and expose it to the parser
         def client_factory():
@@ -85,8 +83,7 @@ class TelnetProxy:
             logger.info("telnet connect: unexpected exception {}".format(e))
             self._transport, self._protocol = None, None
 
-    @asyncio.coroutine
-    def _wait_until_connect(self, shell=telnetlib3.TerminalShell):
+    async def _wait_until_connect(self, shell=telnetlib3.TerminalShell):
         """
         wait for the telnet server to come up
         this has no native timeout mechanism

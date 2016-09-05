@@ -58,8 +58,7 @@ class SshProxy:
     def __repr__(self):
         return "SshProxy {}".format(self.node.hostname)
     
-    @asyncio.coroutine
-    def connect(self):
+    async def connect(self):
         try:
             # for private keys
             # also pass here client_keys = [some_list]
@@ -74,8 +73,7 @@ class SshProxy:
             self.conn, self.client = None, None
             return False
 
-    @asyncio.coroutine
-    def run(self, command):
+    async def run(self, command):
         """
         Run a command
         """
@@ -95,13 +93,11 @@ class SshProxy:
 
     # >>> asyncio.iscoroutine(asyncssh.SSHClientConnection.close)
     # False
-    @asyncio.coroutine
-    def close(self):
+    async def close(self):
         if self.conn is not None:
             self.conn.close()
 
-    @asyncio.coroutine
-    def wait_for(self, backoff):
+    async def wait_for(self, backoff):
         """
         Wait until the ssh service is usable 
         """
@@ -123,8 +119,7 @@ class SshProxy:
             yield from asyncio.sleep(random_backoff)
 
 # mostly test-oriented
-@asyncio.coroutine
-def probe(h, message_bus):
+async def probe(h, message_bus):
     node = Node(h, message_bus)
     proxy = SshProxy(node)
     c = yield from proxy.connect()

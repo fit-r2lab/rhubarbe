@@ -225,19 +225,7 @@ This is an admittedly specific policy for R2Lab, as opposed to other OMF-based d
 
 # A word on the `asyncio` module
 
-We use python 3.4's `asyncio` library. python3.4 can be taken as granted on the ubuntus we use on both `faraday` and `bemol`. 
+As of September 2016, we only use the syntax of 3.5's asyncio, based on `async def` and `await`.
 
-**Note** the syntax for writing asynchroneous code has changed in 3.5 and now relies on `async` and `await`. So it would have been nice to assume `python3.5` instead of `3.4`. However as of this writing (Nov. 2015), python3.5 is not yet available on ubuntu-LTS-14.04 that we use, and I'd rather not install that from sources.
+We use python 3.4's `asyncio` library. python3.4 can be taken as granted on the ubuntus we use on both `faraday` and `bemol`. This is consistent with python-3.5 being part of both Fedora-24 and Ubuntu-16.04
 
-In practical terms this means that whenever we use 
-
-    # python-3.4 syntax (the old one)
-    @asyncio.coroutine
-    def foo():
-        yield from bar()
-    
-we would have written instead in pure python-3.5 this
-
-    # new syntax since python-3.5
-    async def foo():
-        await bar()
