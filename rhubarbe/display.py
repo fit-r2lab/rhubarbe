@@ -59,7 +59,7 @@ class Display:
         self._start_time = time.time()
         
         while self._alive:
-            message = yield from self.message_bus.get()
+            message = await self.message_bus.get()
             if message == 'END-DISPLAY':
                 self._alive = False
                 break
@@ -70,7 +70,7 @@ class Display:
 
     async def stop(self):
         # soft stop
-        yield from self.message_bus.put("END-DISPLAY")
+        await self.message_bus.put("END-DISPLAY")
 
 #    def stop_nowait(self):
 #        if self._alive:

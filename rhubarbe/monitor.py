@@ -273,7 +273,7 @@ class MonitorNode:
             'control_ssh' : 'off',
             # don't overwrite os_release though
         }
-        status = yield from self.node.get_status()
+        status = await self.node.get_status()
         if status is None:
             self.set_info_and_report({'cmc_on_off' : 'fail'}, padding_dict)
             return
@@ -301,18 +301,18 @@ class MonitorNode:
         ssh = SshProxy(self.node)
         if self.debug: logger.info("trying to ssh-connect")
         try:
-            connected = yield from asyncio.wait_for(ssh.connect(), timeout=ssh_timeout)
+            connected = await asyncio.wait_for(ssh.connect(), timeout=ssh_timeout)
         except asyncio.TimeoutError as e:
             connected = False
         if self.debug: logger.info("connected={}".format(connected))
         if connected:
             try:
                 command = ";".join(remote_commands)
-                output = yield from ssh.run(command)
+                output = await ssh.run(command)
                 self.parse_ssh_probe_output(output, padding_dict)
                 # required as otherwise we leak openfiles
                 try:
-                    yield from ssh.close()
+                    await ssh.close()
                 except:
                     pass
                 self.report_info()
@@ -330,11 +330,11 @@ class MonitorNode:
         control = self.node.control_hostname()
         command = [ "ping", "-c", "1", "-t", "1", control ]
         try:
-            subprocess = yield from asyncio.create_subprocess_exec(
+            subprocess = await asyncio.create_subprocess_exec(
                 *command,
                 stdout = asyncio.subprocess.DEVNULL,
                 stderr = asyncio.subprocess.DEVNULL)
-            retcod = yield from asyncio.wait_for(subprocess.wait(), timeout=ping_timeout)
+            retcod = await asyncio.wait_for(subprocess.wait(), timeout=ping_timeout)
             self.set_info_and_report({'control_ping' : 'on'})
             return
         except asyncio.TimeoutError as e:
@@ -346,8 +346,8 @@ class MonitorNode:
         runs forever, wait <cycle> seconds between 2 runs of probe()
         """
         while True:
-            yield from self.probe(ping_timeout, ssh_timeout)
-            yield from asyncio.sleep(cycle)
+            await self.probe(ping_timeout, ssh_timeout)
+            await asyncio.sleep(cycle)
             
 
 from .leases import Lease, Leases
@@ -376,13 +376,13 @@ class MonitorLeases:
             # check for back_channel every 15 ms
             while not self.fast_track and time.time() < trigger:
                 #print("sleeping {}".format(self.step))
-                yield from asyncio.sleep(self.step)
+                await asyncio.sleep(self.step)
                 # give a chance to socketio events to trigger
                 self.reconnectable.wait(self.wait)
                 
             if self.debug: logger.info("acquiring")
             try:
-                yield from leases.refresh()
+                await leases.refresh()
                 omf_leases = leases.resources
                 self.reconnectable.emit_info(self.channel, omf_leases)
                 logger.info("advertising {} leases".format(len(omf_leases)))
@@ -444,7 +444,7 @@ class Monitor:
         while True:
             line = "".join([one_char_summary(mnode.info) for mnode in self.monitor_nodes])
             logger.info(line)
-            yield from asyncio.sleep(self.log_period)
+            await asyncio.sleep(self.log_period)
             
 
 if __name__ == '__main__':

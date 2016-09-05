@@ -11,7 +11,7 @@ class Frisbeed:
         self.message_bus = message_bus
     
     async def feedback(self, field, msg):
-        yield from self.message_bus.put({field: msg})
+        await self.message_bus.put({field: msg})
 
     def feedback_nowait(self, field, msg):
         self.message_bus.put_nowait({field: msg})
@@ -44,18 +44,18 @@ class Frisbeed:
             command = command_common + [
                 "-m", multicast_group, "-p", multicast_port,
                 ]
-            self.subprocess = yield from asyncio.create_subprocess_exec(
+            self.subprocess = await asyncio.create_subprocess_exec(
                 *command,
                 stdout = asyncio.subprocess.PIPE,
                 stderr = asyncio.subprocess.STDOUT
                 )
-            yield from asyncio.sleep(1)
+            await asyncio.sleep(1)
             # after such a short time, frisbeed should not have returned yet
             # if is has, we try our luck on another couple (ip, port)
             command_line = " ".join(command)
             if self.subprocess.returncode is None:
                 logger.info("frisbeed started: {}".format(command_line))
-                yield from self.feedback('info', "frisbee server started - bw = {} bps".format(bandwidth))
+                await self.feedback('info', "frisbee server started - bw = {} bps".format(bandwidth))
                 self.multicast_group = multicast_group
                 self.multicast_port = multicast_port
                 return multicast_group, multicast_port

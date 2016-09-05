@@ -63,12 +63,12 @@ class SshProxy:
             # for private keys
             # also pass here client_keys = [some_list]
             # see http://asyncssh.readthedocs.org/en/latest/api.html#specifyingprivatekeys
-            self.conn, self.client = yield from asyncssh.create_connection(
+            self.conn, self.client = await asyncssh.create_connection(
                 MySSHClient, self.hostname, username=self.username, known_hosts=None
                 )
             return True
         except (OSError, asyncssh.Error) as e:
-            #yield from self.node.feedback('ssh_status', 'connect failed')
+            #await self.node.feedback('ssh_status', 'connect failed')
             # print('MYssh failed: {}'.format(e))
             self.conn, self.client = None, None
             return False
@@ -85,8 +85,8 @@ class SshProxy:
 
         #print(5*'-', "running on ", self.hostname, ':', command)
         try:
-            chan, session = yield from self.conn.create_session(clientsession_closure, command)
-            yield from chan.wait_closed()
+            chan, session = await self.conn.create_session(clientsession_closure, command)
+            await chan.wait_closed()
             return session.data
         except:
             return
@@ -104,32 +104,32 @@ class SshProxy:
         self.status = False
         while True:
             if self.verbose:
-                yield from self.node.feedback('ssh_status', "trying to connect")
-            self.status = yield from self.connect()
+                await self.node.feedback('ssh_status', "trying to connect")
+            self.status = await self.connect()
             if self.status:
                 if self.verbose:
-                    yield from self.node.feedback('ssh_status', "connection OK")
-                yield from self.close()
+                    await self.node.feedback('ssh_status', "connection OK")
+                await self.close()
                 return self.status
             random_backoff = (0.5+random.random())*backoff
             if self.verbose:
-                yield from self.node.feedback(
+                await self.node.feedback(
                     'ssh_status',
                     "cannot connect, backing off for {:.3}s".format(random_backoff))
-            yield from asyncio.sleep(random_backoff)
+            await asyncio.sleep(random_backoff)
 
 # mostly test-oriented
 async def probe(h, message_bus):
     node = Node(h, message_bus)
     proxy = SshProxy(node)
-    c = yield from proxy.connect()
+    c = await proxy.connect()
     if not c:
         return False
-    out1 = yield from proxy.run('cat /etc/lsb-release /etc/fedora-release 2> /dev/null')
+    out1 = await proxy.run('cat /etc/lsb-release /etc/fedora-release 2> /dev/null')
     print("command1 returned {}".format(out1))
-    out2 = yield from proxy.run('hostname')
+    out2 = await proxy.run('hostname')
     print("command2 returned {}".format(out2))
-    yield from proxy.close()
+    await proxy.close()
     return True
 
 if __name__ == '__main__':        

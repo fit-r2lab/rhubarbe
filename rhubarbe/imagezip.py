@@ -42,20 +42,20 @@ class ImageZipParser(telnetlib3.TerminalShell):
         
 class ImageZip(TelnetProxy):
     async def connect(self):
-        yield from self._try_to_connect(shell=ImageZipParser)
+        await self._try_to_connect(shell=ImageZipParser)
 
     async def wait(self):
-        yield from self._wait_until_connect(shell=ImageZipParser)
+        await self._wait_until_connect(shell=ImageZipParser)
 
     async def ticker(self):
         while self._running:
-            yield from self.feedback('tick', '')
-            yield from asyncio.sleep(0.1)
+            await self.feedback('tick', '')
+            await asyncio.sleep(0.1)
 
     async def wait_protocol_and_stop_ticker(self):
-        yield from self._protocol.waiter_closed
+        await self._protocol.waiter_closed
         # hack so we can finish the progressbar
-        yield from self.feedback('tick', 'END')
+        await self.feedback('tick', 'END')
         self._running = False
 
     async def run(self, port, nodename, radical, comment):
@@ -89,7 +89,7 @@ class ImageZip(TelnetProxy):
           "{imagezip} -o -z1 {hdd} - | {netcat} {server_ip} {port}".format(**locals())
 
         logger.info("on {} : running command {}".format(self.control_ip, command))
-        yield from self.feedback('frisbee_status', "starting imagezip on {}".format(self.control_ip))
+        await self.feedback('frisbee_status', "starting imagezip on {}".format(self.control_ip))
         
         EOF = chr(4)
         EOL = '\n'
@@ -101,4 +101,4 @@ class ImageZip(TelnetProxy):
 
         # wait for telnet to terminate
         self._running = True
-        yield from asyncio.gather(self.ticker(), self.wait_protocol_and_stop_ticker())
+        await asyncio.gather(self.ticker(), self.wait_protocol_and_stop_ticker())

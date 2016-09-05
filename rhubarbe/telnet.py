@@ -56,7 +56,7 @@ class TelnetProxy:
         return self._protocol is not None
 
     async def feedback(self, field, msg):
-        yield from self.message_bus.put({'ip': self.control_ip, field: msg})
+        await self.message_bus.put({'ip': self.control_ip, field: msg})
 
     async def _try_to_connect(self, shell=telnetlib3.TerminalShell):
         
@@ -64,18 +64,18 @@ class TelnetProxy:
         def client_factory():
             return TelnetClient(proxy = self, encoding='utf-8', shell=shell)
 
-        yield from self.feedback('frisbee_status', "trying to telnet..")
+        await self.feedback('frisbee_status', "trying to telnet..")
         logger.info("Trying to telnet to {}".format(self.control_ip))
         loop = asyncio.get_event_loop()
         try:
             self._transport, self._protocol = \
-              yield from asyncio.wait_for(
+              await asyncio.wait_for(
                   loop.create_connection(client_factory, self.control_ip, self.port),
                   self.timeout)
             logger.info("{}: telnet connected".format(self.control_ip))
             return True
         except asyncio.TimeoutError as e:
-            yield from self.feedback('frisbee_status', "timed out..")
+            await self.feedback('frisbee_status', "timed out..")
             self._transport, self._protocol = None, None            
         except Exception as e:
 #            import traceback
@@ -89,12 +89,12 @@ class TelnetProxy:
         this has no native timeout mechanism
         """
         while True:
-             yield from self._try_to_connect(shell)
+             await self._try_to_connect(shell)
              if self.is_ready():
                  return True
              else:
                  backoff = self.backoff*(0.5 + random.random())
-                 yield from self.feedback(
+                 await self.feedback(
                      'frisbee_status',
                      "backing off for {:.3}s".format(backoff))
-                 yield from asyncio.sleep(backoff)
+                 await asyncio.sleep(backoff)

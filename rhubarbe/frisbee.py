@@ -78,10 +78,10 @@ class FrisbeeParser(telnetlib3.TerminalShell):
             
 class Frisbee(TelnetProxy):
     async def connect(self):
-        yield from self._try_to_connect(shell=FrisbeeParser)
+        await self._try_to_connect(shell=FrisbeeParser)
 
     async def wait(self):
-        yield from self._wait_until_connect(shell=FrisbeeParser)
+        await self._wait_until_connect(shell=FrisbeeParser)
 
     async def run(self, multicast_ip, port):
         control_ip = self.control_ip
@@ -92,7 +92,7 @@ class Frisbee(TelnetProxy):
           "{client} -i {control_ip} -m {multicast_ip} -p {port} {hdd}".format(**locals())
 
         logger.info("on {} : running command {}".format(self.control_ip, self.command))
-        yield from self.feedback('frisbee_status', "starting frisbee client")
+        await self.feedback('frisbee_status', "starting frisbee client")
         
         EOF = chr(4)
         EOL = '\n'
@@ -104,4 +104,4 @@ class Frisbee(TelnetProxy):
         self._protocol.stream.write(self._protocol.shell.encode(command))
 
         # wait for telnet to terminate
-        yield from self._protocol.waiter_closed
+        await self._protocol.waiter_closed

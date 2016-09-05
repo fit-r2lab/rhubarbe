@@ -11,7 +11,7 @@ class Collector:
         self.subprocess = None
     
     async def feedback(self, field, msg):
-        yield from self.message_bus.put({field: msg})
+        await self.message_bus.put({field: msg})
 
     def feedback_nowait(self, field, msg):
         self.message_bus.put_nowait({field: msg})
@@ -38,14 +38,14 @@ class Collector:
             port = str(eval(pat_port.replace('*', pat)))
             command = command_format.format(port=port)
             self.subprocess = \
-              yield from asyncio.create_subprocess_shell(command)
-            yield from asyncio.sleep(1)
+              await asyncio.create_subprocess_shell(command)
+            await asyncio.sleep(1)
             # after such a short time, frisbeed should not have returned yet
             # if is has, we try our luck on another couple (ip, port)
             command_line = command
             if self.subprocess.returncode is None:
                 logger.info("collector started: {}".format(command_line))
-                yield from self.feedback('info', "collector started on {}".format(self.image))
+                await self.feedback('info', "collector started on {}".format(self.image))
                 self.port = port
                 return port
             else:

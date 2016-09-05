@@ -18,16 +18,16 @@ class ImageLoader:
         self.frisbeed = None
 
     async def feedback(self, field, msg):
-        yield from self.message_bus.put({field: msg})
+        await self.message_bus.put({field: msg})
 
     async def stage1(self):
         the_config = Config()
         idle = int(the_config.value('nodes', 'idle_after_reset'))
-        yield from asyncio.gather(*[node.reboot_on_frisbee(idle) for node in self.nodes])
+        await asyncio.gather(*[node.reboot_on_frisbee(idle) for node in self.nodes])
 
     async def start_frisbeed(self):
         self.frisbeed = Frisbeed(self.image, self.bandwidth, self.message_bus)
-        ip_port = yield from self.frisbeed.start()
+        ip_port = await self.frisbeed.start()
         return ip_port
 
     async def stage2(self, reset):
@@ -37,8 +37,8 @@ class ImageLoader:
         and reset the nodes afterwards, unless told otherwise
         """
         # start_frisbeed will return the ip+port to use 
-        ip, port = yield from self.start_frisbeed()
-        yield from asyncio.gather(*[node.run_frisbee(ip, port, reset) for node in self.nodes])
+        ip, port = await self.start_frisbeed()
+        await asyncio.gather(*[node.run_frisbee(ip, port, reset) for node in self.nodes])
         # we can now kill the server
         self.frisbeed.stop_nowait()
 
@@ -52,16 +52,16 @@ class ImageLoader:
 
     async def run(self, reset):
         leases = Leases(self.message_bus)
-        yield from self.feedback('authorization','checking for a valid lease')
-        valid = yield from leases.currently_valid()
+        await self.feedback('authorization','checking for a valid lease')
+        valid = await leases.currently_valid()
         if not valid:
-            yield from self.feedback('authorization',
+            await self.feedback('authorization',
                                      "Access refused : you have no lease on the testbed at this time")
         else:
-            yield from self.feedback('authorization','access granted')
-            yield from (self.stage1() if reset else self.feedback('info', "Skipping stage1"))
-            yield from (self.stage2(reset))
-        yield from self.display.stop()
+            await self.feedback('authorization','access granted')
+            await (self.stage1() if reset else self.feedback('info', "Skipping stage1"))
+            await (self.stage2(reset))
+        await self.display.stop()
 
     # from http://stackoverflow.com/questions/30765606/whats-the-correct-way-to-clean-up-after-an-interrupted-event-loop
     def main(self, reset, timeout):

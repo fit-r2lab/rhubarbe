@@ -182,7 +182,7 @@ class Leases:
                 .format(self.omf_sfa_proxy, len(self.leases))
 
     async def feedback(self, field, msg):
-        yield from self.message_bus.put({field: msg})
+        await self.message_bus.put({field: msg})
 
     def has_special_privileges(self):
         # the condition on login is mostly for tests
@@ -192,19 +192,19 @@ class Leases:
         if self.has_special_privileges():
             return True
         try:
-            yield from self.fetch_all()
+            await self.fetch_all()
             return self._currently_valid(self.login)
         except Exception as e:
-            yield from self.feedback('info', "Could not fetch leases : {}".format(e))
+            await self.feedback('info', "Could not fetch leases : {}".format(e))
             return False
 
     async def fetch_all(self):
-        yield from asyncio.gather(self.omf_sfa_proxy.fetch_node_uuid(),
+        await asyncio.gather(self.omf_sfa_proxy.fetch_node_uuid(),
                                   self.fetch_leases())
 
     async def refresh(self):
         self.leases = None
-        yield from self.fetch_all()
+        await self.fetch_all()
 
     def sort_leases(self):
         self.leases.sort(key=Lease.sort_key)
@@ -212,7 +212,7 @@ class Leases:
     async def fetch_leases(self):
         if self.leases is not None:
             return self.leases
-        yield from self._fetch_leases()
+        await self._fetch_leases()
         return self.leases
 
     def ssl_context(self, with_cert):
@@ -223,7 +223,7 @@ class Leases:
         try:
             logger.info("Leases are being fetched..")
 
-            text = yield from self.omf_sfa_proxy.REST_as_json('leases', 'GET', None)
+            text = await self.omf_sfa_proxy.REST_as_json('leases', 'GET', None)
             omf_sfa_answer = json.loads(text)
             if debug:
                 logger.info("Leases details {}".format(omf_sfa_answer))
@@ -259,7 +259,7 @@ class Leases:
         except Exception as e:
             if debug: print("Leases.fetch: exception {}".format(e))
             traceback.print_exc()
-            yield from self.feedback('leases_error', 'cannot get leases from {} - exception {}'
+            await self.feedback('leases_error', 'cannot get leases from {} - exception {}'
                                      .format(self, e))
         
     def _currently_valid(self, login):
@@ -333,7 +333,7 @@ class Leases:
             print("invalid time until: {}".format(input_until))
             return
         # just making sure
-        node_uuid = yield from self.omf_sfa_proxy.fetch_node_uuid()
+        node_uuid = await self.omf_sfa_proxy.fetch_node_uuid()
         lease_request = {
             'name' : str(uuid.uuid1()),
             'valid_from' : t_from,
@@ -341,7 +341,7 @@ class Leases:
             'account_attributes' : { 'name' : owner },
             'components' : [ {'uuid' : node_uuid } ],
             }
-        text = yield from self.omf_sfa_proxy.REST_as_json('leases', 'POST', lease_request)
+        text = await self.omf_sfa_proxy.REST_as_json('leases', 'POST', lease_request)
         # it is easy to update self.leases, let's do it instead of refetching
         try:
             js = json.loads(text)
@@ -393,7 +393,7 @@ class Leases:
             request['valid_from'] = t_from
         if input_until is not None:
             request['valid_until'] = t_until
-        text = yield from self.omf_sfa_proxy.REST_as_json('leases', 'PUT', request)
+        text = await self.omf_sfa_proxy.REST_as_json('leases', 'PUT', request)
         # xxx we could use this result to update self.leases instead of fetching it again
         try:
             js = json.loads(text)
@@ -413,7 +413,7 @@ class Leases:
             return
         lease_uuid = the_lease.uuid
         request = {'uuid' : lease_uuid}
-        text = yield from self.omf_sfa_proxy.REST_as_json('leases', 'DELETE', request)
+        text = await self.omf_sfa_proxy.REST_as_json('leases', 'DELETE', request)
         # xxx we could use this result to update self.leases instead of fetching it again
         try:
             js = json.loads(text)
@@ -426,12 +426,12 @@ class Leases:
             pass
 
     async def main(self, interactive):
-        yield from self.fetch_all()
+        await self.fetch_all()
         self.print()
         if not interactive:
             return 0
         try:
-            result = yield from self.interactive()
+            result = await self.interactive()
             return result
         except (KeyboardInterrupt, EOFError) as e:
             print("Bye")
@@ -473,20 +473,20 @@ Leaving a time empty means either 'now', or 'do not change', depending on the co
                     owner = self.login
                 time_from = input("From : ")
                 time_until = input("Until : ")
-                result = yield from self._add_lease(owner, time_from, time_until)
-                yield from self.fetch_all()
+                result = await self._add_lease(owner, time_from, time_until)
+                await self.fetch_all()
             elif char == 'u':
                 rank = input("Enter lease index : ")
                 time_from = input("From : ")
                 time_until = input("Until : ")
-                result = yield from self._update_lease(rank, time_from, time_until)
-                yield from self.fetch_all()
+                result = await self._update_lease(rank, time_from, time_until)
+                await self.fetch_all()
             elif char == 'd':
                 rank = input("Enter lease index : ")
-                result = yield from self._delete_lease(rank)
-                yield from self.fetch_all()
+                result = await self._delete_lease(rank)
+                await self.fetch_all()
             elif char == 'r':
-                yield from self.refresh()
+                await self.refresh()
                 self.print()
             elif char == 'h':
                 print(help_message)

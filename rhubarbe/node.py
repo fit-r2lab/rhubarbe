@@ -50,35 +50,35 @@ class Node:
         returns self.status
         either 'on' or 'off', or None if something wrong is going on
         """
-        result = yield from self._get_cmc_verb('status')
+        result = await self._get_cmc_verb('status')
         return result
 
     async def turn_on(self):
         """
         turn node on; expected result would be 'ok' if it goes fine
         """
-        result = yield from self._get_cmc_verb('on')
+        result = await self._get_cmc_verb('on')
         return result
 
     async def turn_off(self):
         """
         turn node on; expected result would be 'ok' if it goes fine
         """
-        result = yield from self._get_cmc_verb('off')
+        result = await self._get_cmc_verb('off')
         return result
 
     async def do_reset(self):
         """
         turn node on; expected result would be 'ok' if it goes fine
         """
-        result = yield from self._get_cmc_verb('reset')
+        result = await self._get_cmc_verb('reset')
         return result
 
     async def get_info(self):
         """
         turn node on; expected result would be 'ok' if it goes fine
         """
-        result = yield from self._get_cmc_verb('info', strip_result=False)
+        result = await self._get_cmc_verb('info', strip_result=False)
         return result
 
     async def get_usrpstatus(self):
@@ -86,21 +86,21 @@ class Node:
         returns self.usrpstatus
         either 'on' or 'off', or None if something wrong is going on
         """
-        result = yield from self._get_cmc_verb('usrpstatus')
+        result = await self._get_cmc_verb('usrpstatus')
         return result
 
     async def turn_usrpon(self):
         """
         turn on node's USRP; expected result would be 'ok' if it goes fine
         """
-        result = yield from self._get_cmc_verb('usrpon')
+        result = await self._get_cmc_verb('usrpon')
         return result
 
     async def turn_usrpoff(self):
         """
         turn off node's USRP; expected result would be 'ok' if it goes fine
         """
-        result = yield from self._get_cmc_verb('usrpoff')
+        result = await self._get_cmc_verb('usrpoff')
         return result
 
     async def _get_cmc_verb(self, verb, strip_result=True):
@@ -109,12 +109,12 @@ class Node:
         """
         url = "http://{}/{}".format(self.cmc_name, verb)
         try:
-            client_response = yield from aiohttp.get(url)
+            client_response = await aiohttp.get(url)
         except Exception as e:
             setattr(self, verb, None)
             return None
         try:
-            text = yield from client_response.text()
+            text = await client_response.text()
             if strip_result:
                 text = text.strip()
             setattr(self, verb, text)
@@ -152,13 +152,13 @@ class Node:
         """
         url = "http://{}/{}".format(self.cmc_name, message)
         try:
-            client_response = yield from aiohttp.get(url)
+            client_response = await aiohttp.get(url)
         except Exception as e:
             self.action = None
             return self
 
         try:
-            text = yield from client_response.text()
+            text = await client_response.text()
             ok = text.strip() == 'ok'
         except Exception as e:
             self.action = None
@@ -168,8 +168,8 @@ class Node:
             self.action = ok
             return self
         else:
-            yield from asyncio.sleep(check_delay)
-            yield from self.get_status()
+            await asyncio.sleep(check_delay)
+            await self.get_status()
             self.action = self.status == self.expected_map[message]
             return self
 
@@ -177,22 +177,22 @@ class Node:
     message_to_reset_map = { 'on' : 'reset', 'off' : 'on' }
 
     async def feedback(self, field, message):
-        yield from self.message_bus.put(
+        await self.message_bus.put(
             {'ip': self.control_ip_address(), field: message})
 
     async def ensure_reset(self):
         if self.status is None:
-            yield from self.get_status()
+            await self.get_status()
         if self.status not in self.message_to_reset_map:
-            yield from self.feedback('reboot',
+            await self.feedback('reboot',
                                      "Cannot get status at {}".format(self.cmc_name))
         message_to_send = self.message_to_reset_map[self.status]
-        yield from self.feedback('reboot',
+        await self.feedback('reboot',
                                  "Sending message '{}' to CMC {}"
                                  .format(message_to_send, self.cmc_name))
-        yield from self.send_action(message_to_send, check=True)
+        await self.send_action(message_to_send, check=True)
         if not self.action:
-            yield from self.feedback('reboot',
+            await self.feedback('reboot',
                                      "Failed to send message {} to CMC {}"
                                      .format(message_to_send, self.cmc_name))
 
@@ -235,35 +235,35 @@ class Node:
         ip = self.control_ip_address()
         if service == 'frisbee':
             self.frisbee = Frisbee(ip, self.message_bus)
-            yield from self.frisbee.wait()
+            await self.frisbee.wait()
         elif service == 'imagezip':
             self.imagezip = ImageZip(ip, self.message_bus)
-            yield from self.imagezip.wait()
+            await self.imagezip.wait()
             pass
         
     async def reboot_on_frisbee(self, idle):
         self.manage_nextboot_symlink('frisbee')
-        yield from self.ensure_reset()
-        yield from self.feedback('reboot',
+        await self.ensure_reset()
+        await self.feedback('reboot',
                                  "idling for {}s".format(idle))
-        yield from asyncio.sleep(idle)
+        await asyncio.sleep(idle)
 
     async def run_frisbee(self, ip , port, reset):
-        yield from self.wait_for_telnet('frisbee')
+        await self.wait_for_telnet('frisbee')
         self.manage_nextboot_symlink('cleanup')
-        yield from self.frisbee.run(ip, port)
+        await self.frisbee.run(ip, port)
         if reset:
-            yield from self.ensure_reset()
+            await self.ensure_reset()
         else:
-            yield from self.feedback('reboot',
+            await self.feedback('reboot',
                                      'skipping final reset')
 
     async def run_imagezip(self, port, reset, radical, comment):
-        yield from self.wait_for_telnet('imagezip')
+        await self.wait_for_telnet('imagezip')
         self.manage_nextboot_symlink('cleanup')
-        yield from self.imagezip.run(port, self.control_hostname(), radical, comment)
+        await self.imagezip.run(port, self.control_hostname(), radical, comment)
         if reset:
-            yield from self.ensure_reset()
+            await self.ensure_reset()
         else:
-            yield from self.feedback('reboot',
+            await self.feedback('reboot',
                                      'skipping final reset')

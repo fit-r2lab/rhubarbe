@@ -109,8 +109,8 @@ class OmfSfaProxy:
 
             if debug:
                 logger.info("Sending verb {} to {}".format(lverb, url))
-            response = yield from coro(url, connector=connector, data=data, headers=headers)
-            text = yield from response.text()
+            response = await coro(url, connector=connector, data=data, headers=headers)
+            text = await response.text()
             return text
         except Exception as e:
             logger.exception("***** exception in REST_as_json")
@@ -132,7 +132,7 @@ class OmfSfaProxy:
         try:
             logger.info("for global uuid: fetching node {}".format(self.unique_component_name))
             rest_qualifier = "nodes?name={}".format(self.unique_component_name)
-            text = yield from self.REST_as_json(rest_qualifier, 'GET', None)
+            text = await self.REST_as_json(rest_qualifier, 'GET', None)
             omf_sfa_answer = json.loads(text)
             logger.info("Node received")
             r = omf_sfa_answer['resource_response']['resource']
@@ -147,7 +147,7 @@ class OmfSfaProxy:
     async def fetch_node_uuid(self):
         if self.unique_component_uuid:
             return self.unique_component_uuid
-        yield from self._fetch_node_uuid()
+        await self._fetch_node_uuid()
         return self.unique_component_uuid
 
     @staticmethod

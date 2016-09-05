@@ -18,13 +18,13 @@ class ImageSaver:
         self.collector = None
 
     async def feedback(self, field, msg):
-        yield from self.message_bus.put({field: msg})
+        await self.message_bus.put({field: msg})
 
     # this is exactly as imageloader
     async def stage1(self):
         the_config = Config()
         idle = int(the_config.value('nodes', 'idle_after_reset'))
-        yield from self.node.reboot_on_frisbee(idle)
+        await self.node.reboot_on_frisbee(idle)
 
     # this is synchroneous
     def nextboot_cleanup(self):
@@ -36,7 +36,7 @@ class ImageSaver:
 
     async def start_collector(self):
         self.collector = Collector(self.image, self.message_bus)
-        port = yield from self.collector.start()
+        port = await self.collector.start()
         return port
 
     async def stage2(self, reset):
@@ -47,23 +47,23 @@ class ImageSaver:
         reset node when finished unless reset is False
         """
         # start_frisbeed will return the ip+port to use 
-        yield from self.feedback('info', "Saving image from {}".format(self.node))
-        port = yield from self.start_collector()
-        yield from self.node.run_imagezip(port, reset, self.radical, self.comment)
+        await self.feedback('info', "Saving image from {}".format(self.node))
+        port = await self.start_collector()
+        await self.node.run_imagezip(port, reset, self.radical, self.comment)
         # we can now kill the server
         self.collector.stop_nowait()
 
     async def run(self, reset):
         leases = Leases(self.message_bus)
-        yield from self.feedback('authorization','checking for a valid lease')
-        valid = yield from leases.currently_valid()
+        await self.feedback('authorization','checking for a valid lease')
+        valid = await leases.currently_valid()
         if not valid:
-            yield from self.feedback('authorization',
+            await self.feedback('authorization',
                                      "Access refused : you have no lease on the testbed at this time")
         else:
-            yield from (self.stage1() if reset else self.feedback('info', "Skipping stage1"))
-            yield from (self.stage2(reset))
-        yield from self.display.stop()
+            await (self.stage1() if reset else self.feedback('info', "Skipping stage1"))
+            await (self.stage2(reset))
+        await self.display.stop()
 
     def mark_image_as_partial(self):
         # never mind if that fails, we might call this before
