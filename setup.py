@@ -45,6 +45,7 @@ required_modules = [
     'progressbar33',
     # for monitor
     'socketIO-client',
+    'asynciojobs',
 ]
 
 setup(
