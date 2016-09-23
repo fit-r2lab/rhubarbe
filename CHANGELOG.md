@@ -1,3 +1,9 @@
+# 0.9.13 - 2016 Sep 23
+
+* revisited `rhubarbe wait` to make it use a 1s timeout when trying to ssh connect
+* in the mix, rwait now works with --curses, and has a new --silent
+* wait uses asyniojobs to nicely handle the endless display task 
+
 # 0.9.12 - 2016 Sep 5
 
 * use exclusively python-3.5 asyncio syntax
