@@ -148,6 +148,9 @@ class Display:
         if self.goodbye_message:
             print(self.goodbye_message)
         
+    def repair(self):
+        self.epilogue()
+        
     def dispatch_hook(self, message, timestamp, duration):
         text = self.message_to_text(message)
         print("{} - {}: {}".format(timestamp, duration, text))

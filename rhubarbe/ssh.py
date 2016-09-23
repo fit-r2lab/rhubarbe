@@ -58,18 +58,20 @@ class SshProxy:
     def __repr__(self):
         return "SshProxy {}".format(self.node.hostname)
     
-    async def connect(self):
+    async def connect(self, timeout=None):
         try:
             # for private keys
             # also pass here client_keys = [some_list]
             # see http://asyncssh.readthedocs.org/en/latest/api.html#specifyingprivatekeys
-            self.conn, self.client = await asyncssh.create_connection(
-                MySSHClient, self.hostname, username=self.username, known_hosts=None
-                )
+            self.conn, self.client = await asyncio.wait_for(
+                asyncssh.create_connection(
+                    MySSHClient, self.hostname, username=self.username, known_hosts=None
+                ),
+                timeout = timeout)
             return True
-        except (OSError, asyncssh.Error) as e:
+        except (OSError, asyncssh.Error, asyncio.TimeoutError) as e:
             #await self.node.feedback('ssh_status', 'connect failed')
-            # print('MYssh failed: {}'.format(e))
+            #print('SshProxy.connect failed: {}'.format(e))
             self.conn, self.client = None, None
             return False
 
@@ -97,7 +99,7 @@ class SshProxy:
         if self.conn is not None:
             self.conn.close()
 
-    async def wait_for(self, backoff):
+    async def wait_for(self, backoff, timeout=1.):
         """
         Wait until the ssh service is usable 
         """
@@ -105,13 +107,14 @@ class SshProxy:
         while True:
             if self.verbose:
                 await self.node.feedback('ssh_status', "trying to connect")
-            self.status = await self.connect()
+            self.status = await self.connect(timeout)
             if self.status:
                 if self.verbose:
                     await self.node.feedback('ssh_status', "connection OK")
                 await self.close()
                 return self.status
-            random_backoff = (0.5+random.random())*backoff
+            # random.random() is between 0. and 1. so we need something between 0.5 and 1.5
+            random_backoff = (0.5 + random.random()) * backoff
             if self.verbose:
                 await self.node.feedback(
                     'ssh_status',

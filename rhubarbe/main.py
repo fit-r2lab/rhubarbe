@@ -8,6 +8,9 @@ import asyncio
 
 from argparse import ArgumentParser
 
+from asynciojobs.engine import Engine
+from asynciojobs.job import Job
+
 from rhubarbe.config import Config
 from rhubarbe.imagesrepo import ImagesRepo
 from rhubarbe.selector import Selector, add_selector_arguments, selected_selector
@@ -185,7 +188,8 @@ def load(*argv):
     parser.add_argument("-b", "--bandwidth", action='store', default=default_bandwidth, type=int,
                         help="Set bandwidth in Mibps for frisbee uploading - default={}"
                               .format(default_bandwidth))
-    parser.add_argument("-c", "--curses", action='store_true', default=False)
+    parser.add_argument("-c", "--curses", action='store_true', default=False,
+                        help="Use curses to provide term-based animation")
     # this is more for debugging
     parser.add_argument("-n", "--no-reset", dest='reset', action='store_false', default=True,
                         help = """use this with nodes that are already running a frisbee image.
@@ -269,9 +273,7 @@ def save(*argv):
     the_imagesrepo = ImagesRepo()
     actual_image = the_imagesrepo.where_to_save(nodename, args.radical)
     message_bus.put_nowait({'info' : "Saving image {}".format(actual_image)})
-# turn off curses mode that has no added value here
-# the progressbar won't show too well anyway
-#    display_class = Display if not args.curses else DisplayCurses
+    # curses has no interest here since we focus on one node
     display_class = Display
     display = display_class([node], message_bus)
     saver = ImageSaver(node, image=actual_image, radical=args.radical,
@@ -291,18 +293,24 @@ def wait(*argv):
     default_backoff = the_config.value('networking', 'ssh_backoff')
     
     parser = ArgumentParser(usage=usage)
+    parser.add_argument("-c", "--curses", action='store_true', default=False,
+                        help="Use curses to provide term-based animation")
     parser.add_argument("-t", "--timeout", action='store', default=default_timeout, type=float,
                         help="Specify global timeout for the whole process, default={}"
                               .format(default_timeout))
     parser.add_argument("-b", "--backoff", action='store', default=default_backoff, type=float,
                         help="Specify backoff average for between attempts to ssh connect, default={}"
                               .format(default_backoff))
-# iwait/curses won't work too well - turned off for now
-#    parser.add_argument("-c", "--curses", action='store_true', default=False)
+    # really dont' write anything
+    parser.add_argument("-s", "--silent", action='store_true', default=False)
     parser.add_argument("-v", "--verbose", action='store_true', default=False)
 
     add_selector_arguments(parser)
     args = parser.parse_args(argv)
+
+    # --curses implies --verbose otherwise nothing shows up
+    if args.curses:
+        args.verbose = True
 
     selector = selected_selector(args)
     message_bus = asyncio.Queue()
@@ -310,42 +318,36 @@ def wait(*argv):
     if args.verbose:
         message_bus.put_nowait({'selected_nodes' : selector})
     from rhubarbe.logger import logger
-    logger.info("timeout is {}".format(args.timeout))
+    logger.info("wait: backoff is {} and global timeout is {}"
+                .format(args.backoff, args.timeout))
 
-    loop = asyncio.get_event_loop()
     nodes = [ Node(cmc_name, message_bus) for cmc_name in selector.cmc_names() ]
     sshs =  [ SshProxy(node, verbose=args.verbose) for node in nodes ]
-    coros = [ ssh.wait_for(args.backoff) for ssh in sshs ]
+    jobs = [ Job(ssh.wait_for(args.backoff)) for ssh in sshs ]
 
-# iwait/curses won't work too well - turned off for now
-#    display_class = Display if not args.curses else DisplayCurses
-    display_class = Display
+    display_class = Display if not args.curses else DisplayCurses
     display = display_class(nodes, message_bus)
 
-    async def run():
-        await asyncio.gather(*coros)
-        await display.stop()
-
-    t1 = util.self_manage(run())
-    t2 = util.self_manage(display.run())
-    tasks = asyncio.gather(t1, t2)
-    wrapper = asyncio.wait_for(tasks, timeout = args.timeout)
+    # have the display class run forever until the other ones are done
+    engine = Engine (Job(display.run(), forever=True), *jobs)
     try:
-        loop.run_until_complete(wrapper)
-        return 0
+        orchestration = engine.orchestrate(timeout=args.timeout)
+        if orchestration:
+            return 0
+        else:
+            if args.verbose:
+                engine.debrief()
+            return 1
     except KeyboardInterrupt as e:
         print("rhubarbe-wait : keyboard interrupt - exiting")
-        tasks.cancel()
-        loop.run_forever()
-        tasks.exception()
-        return 1
-    except asyncio.TimeoutError as e:
-        print("rhubarbe-wait : timeout expired after {}s".format(args.timeout))
+        # xxx
         return 1
     finally:
-        for ssh in sshs:
-            print("{}:{}".format(ssh.node, ssh.status))
-        loop.close()
+        display.epilogue()
+        if not args.silent:
+            for ssh in sshs:
+                print("{}:ssh {}".format(ssh.node,
+                                     "OK" if ssh.status else "KO"))
         
 ####################
 @subcommand

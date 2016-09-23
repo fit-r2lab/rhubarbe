@@ -41,6 +41,9 @@ class DisplayCurses(Display):
         self.screen.getch()
         curses.endwin()
 
+    def repair(self):
+        curses.endwin()
+
     def dispatch_hook(self, message, timestamp, duration):
         timemsg = "{} {}".format(timestamp, duration)
         text = self.message_to_text(message)
