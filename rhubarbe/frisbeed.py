@@ -55,7 +55,8 @@ class Frisbeed:
             command_line = " ".join(command)
             if self.subprocess.returncode is None:
                 logger.info("frisbeed started: {}".format(command_line))
-                await self.feedback('info', "frisbee server started - bw = {} bps".format(bandwidth))
+                await self.feedback('info', "frisbee server: image {} - bw = {} bps"
+                                    .format(os.path.basename(self.image), bandwidth))
                 self.multicast_group = multicast_group
                 self.multicast_port = multicast_port
                 return multicast_group, multicast_port
