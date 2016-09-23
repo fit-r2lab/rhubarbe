@@ -9,19 +9,15 @@
 
 * improvement: rimages ~foo : show all images that **do not** contain foo
 
+# design (P2)
 
-## monitor
+## asynciojobs
 
-* improvement: have the monitor probe for `rhubarbe-image`
+* the `wait` function was tweaked on sep 23 2016 to use asynciojobs instead of plain gather
+* this turned out to make it much easier to deal nicely with the endless display job
+* it would make sense to use the same approach for other commands some day
 
-
-## probably not doable anytime soon
-
-* regular users cannot use their certificate to do write (PUT, UPDATE) actions
-  * wait for Aris's feedback on this bug; update : no useable feedback...
-  * this is what prevents us from offering `leases` to regular users
-
-## cosmetic - known bugs (P4)
+## known bugs (P3)
 
 * merge `wait` and `status` in a more general `select` tool
   * --status: show current output of `status`
