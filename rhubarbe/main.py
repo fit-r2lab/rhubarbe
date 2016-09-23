@@ -127,7 +127,8 @@ def cmc_verb(verb, check_resa, *argv):
         for node in nodes:
             result = getattr(node, verb)
             # protection just in case
-            if result is None: result = ""
+            if result is None:
+                result = "N/A"
             for line in result.split("\n"):
                 if line:
                     print("{}:{}".format(node.cmc_name, line))
