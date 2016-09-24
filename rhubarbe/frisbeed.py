@@ -1,5 +1,7 @@
 import asyncio
 
+import os.path
+
 from rhubarbe.logger import logger
 from rhubarbe.config import Config
 
@@ -9,6 +11,17 @@ class Frisbeed:
         self.image = image
         self.bandwidth = bandwidth
         self.message_bus = message_bus
+        self.multicast_group = None
+        self.multicast_port = None
+
+    def __repr__(self):
+        text = "<frisbeed"
+        if self.multicast_group:
+            text += "@{}:{}".format(self.multicast_group, self.multicast_port)
+        text += " on {} at {} Mibps".format(os.path.basename(self.image),
+                                          self.bandwidth)
+        text += ">"
+        return text
     
     async def feedback(self, field, msg):
         await self.message_bus.put({field: msg})
@@ -19,7 +32,7 @@ class Frisbeed:
     async def start(self):
         """
         Start a frisbeed instance
-        returns a tuple multicast_address, port_number
+        returns a tuple multicast_group, port_number
         """
         the_config = Config()
         server = the_config.value('frisbee', 'server')
@@ -54,25 +67,18 @@ class Frisbeed:
             # if is has, we try our luck on another couple (ip, port)
             command_line = " ".join(command)
             if self.subprocess.returncode is None:
-                logger.info("frisbeed started: {}".format(command_line))
-                await self.feedback('info', "frisbee server: image {} - bw = {} bps"
-                                    .format(os.path.basename(self.image), bandwidth))
                 self.multicast_group = multicast_group
                 self.multicast_port = multicast_port
+                await self.feedback('info', "started {}".format(self))
                 return multicast_group, multicast_port
             else:
                 logger.warning("failed to start frisbeed with {}".format(command_line))
         logger.critical("Could not find a free IP multicast address + port to start frisbeed")
         raise Exception("Could not start frisbee server")
 
-
-#    async def stop(self):
-#        self.stop_nowait()
-        
     def stop_nowait(self):
         # make it idempotent
         if self.subprocess:
             self.subprocess.kill()
             self.subprocess = None
-            logger.info("frisbeed ({}:{}) stopped".format(self.multicast_group, self.multicast_port))
-            self.feedback_nowait('info', "frisbee server ({}:{}) stopped".format(self.multicast_group, self.multicast_port))
+            self.feedback_nowait('info', "stopped {}".format(self))
