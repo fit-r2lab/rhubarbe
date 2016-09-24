@@ -1,9 +1,10 @@
-# 0.9.14 - 2016 Sep 24
+# 0.9.15 - 2016 Sep 24
 
 * rework of rhubarbe wait 
 * rework of rhubarbe on/off/reset/status/info/usrp*
 * both are now more efficient
 * both now use an asynciojobs engine
+* don't use 0.9.15 - load was broken
 
 # 0.9.13 - 2016 Sep 23
 
