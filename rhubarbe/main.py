@@ -43,8 +43,8 @@ def check_reservation(message_bus=None, loop=None, verbose=True):
     leases = Leases(message_bus)
     async def check_leases():
         ok = await leases.currently_valid()
-        if verbose:
-            print("Access currently {}".format("granted" if ok else "denied"))
+        if verbose and not ok:
+            print("WARNING: Access currently denied")
         return ok
     return(loop.run_until_complete(check_leases()))
 
@@ -95,58 +95,48 @@ def cmc_verb(verb, check_resa, *argv):
     message_bus = asyncio.Queue()
 
     if check_resa in ('warn', 'enforce'):
-        reserved = check_reservation()
+        reserved = check_reservation(verbose=False)
         if not reserved:
             if check_resa == 'enforce':
                 return 1
     
-    from rhubarbe.logger import logger
-    message_bus.put_nowait({'selected_nodes' : selector})
-    logger.info("timeout is {}".format(args.timeout))
+    verb_to_method = { 'status' : 'get_status',
+                       'on' : 'turn_on',
+                       'off' : 'turn_off',
+                       'reset' : 'do_reset',
+                       'info' : 'get_info',
+                       'usrpstatus' : 'get_usrpstatus',
+                       'usrpon' : 'turn_usrpon',
+                       'usrpoff' : 'turn_usrpoff',
+    }
 
-    loop = asyncio.get_event_loop()
+    async def get_and_show_verb(node, verb):
+        assert verb in verb_to_method
+        # send the 'verb' method on node
+        method = getattr(node, verb_to_method[verb])
+        # bound methods must not be passed the subject !
+        await method()
+        result = getattr(node, verb)
+        result = result if result is not None else "{} N/A".format(verb)
+        for line in result.split("\n"):
+            if line:
+                print("{}:{}".format(node.cmc_name, line))
+
     nodes = [ Node(cmc_name, message_bus) for cmc_name in selector.cmc_names() ]
-    if verb == 'status':
-        coros = [ node.get_status() for node in nodes ]
-    elif verb == 'on':
-        coros = [ node.turn_on() for node in nodes ]
-    elif verb == 'off':
-        coros = [ node.turn_off() for node in nodes ]
-    elif verb == 'reset':
-        coros = [ node.do_reset() for node in nodes ]
-    elif verb == 'info':
-        coros = [ node.get_info() for node in nodes ]
-    elif verb == 'usrpstatus':
-        coros = [ node.get_usrpstatus() for node in nodes ]
-    elif verb == 'usrpon':
-        coros = [ node.turn_usrpon() for node in nodes ]
-    elif verb == 'usrpoff':
-        coros = [ node.turn_usrpoff() for node in nodes ]
-    
-    tasks = util.self_manage(asyncio.gather(*coros))
-    wrapper = asyncio.wait_for(tasks, timeout = args.timeout)
+    jobs = [ Job(get_and_show_verb(node, verb)) for node in nodes ]
+    display = Display(nodes, message_bus)
+    engine = Engine(Job(display.run(), forever=True), *jobs)
     try:
-        loop.run_until_complete(wrapper)
-        for node in nodes:
-            result = getattr(node, verb)
-            # protection just in case
-            if result is None:
-                result = "N/A"
-            for line in result.split("\n"):
-                if line:
-                    print("{}:{}".format(node.cmc_name, line))
-        return 0
+        if engine.orchestrate(timeout = args.timeout):
+            return 0
+        else:
+            return 1
     except KeyboardInterrupt as e:
-        print("rhubarbe-cmc : keyboard interrupt - exiting")
-        tasks.cancel()
-        loop.run_forever()
-        tasks.exception()
+        print("rhubarbe-{} : keyboard interrupt - exiting".format(verb))
         return 1
     except asyncio.TimeoutError as e:
         print("rhubarbe-cmc : timeout expired after {}s".format(args.timeout))
         return 1
-    finally:
-        loop.close()
 
 #####
 @subcommand
@@ -428,7 +418,6 @@ def monitor(*argv):
         return 1
     finally:
         loop.close()
-    
 
 @subcommand
 def leases(*argv):
@@ -493,7 +482,7 @@ def share(*argv):
 
     If your account is enabled in /etc/sudoers.d/rhubarbe-share, 
     the command will actually perform the mv operation,
-Requires to be run through 'sudo rhubarbe-share'
+    Requires to be run through 'sudo rhubarbe-share'
     """
     the_config = Config()
 
