@@ -1,3 +1,10 @@
+# 0.9.14 - 2016 Sep 24
+
+* rework of rhubarbe wait 
+* rework of rhubarbe on/off/reset/status/info/usrp*
+* both are now more efficient
+* both now use an asynciojobs engine
+
 # 0.9.13 - 2016 Sep 23
 
 * revisited `rhubarbe wait` to make it use a 1s timeout when trying to ssh connect
