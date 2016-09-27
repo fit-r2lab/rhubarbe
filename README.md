@@ -4,7 +4,7 @@
 
     pip3 install rhubarbe
 
-This is connected to an authorization system; most of the functions are rather intrusive, and require the user to have obtained a lease (reservation), applicable to the current time and day, before the tool can be used. Note that the `root` user is unconditionnally granted permission.
+This is connected to an authorization system; most of the functions are rather intrusive, and for this reason they require the user to have obtained a lease (reservation), applicable to the current time and day, before the tool can be used. Note that the `root` user is unconditionnally granted permission.
 
 ## Image loading
 To load your `fedora-23` image on 18 nodes simultaneously:
@@ -227,5 +227,11 @@ This is an admittedly specific policy for R2Lab, as opposed to other OMF-based d
 
 As of September 2016, we only use the syntax of 3.5's asyncio, based on `async def` and `await`.
 
-We use python 3.4's `asyncio` library. python3.4 can be taken as granted on the ubuntus we use on both `faraday` and `bemol`. This is consistent with python-3.5 being part of both Fedora-24 and Ubuntu-16.04
+We use python 3.5's `asyncio` library. python3.5 can be taken as granted on the ubuntus we use on both `faraday` and `bemol`. This is consistent with python-3.5 being part of both Fedora-24 and Ubuntu-16.04
+
+# TODO
+
+* some option in `rhubarbe leases` to skip the nightly leases
+* investigate why e.g. `rhubarbe load` behaves so poorly through ssh - option to turn off buffering or something ?
+
 
