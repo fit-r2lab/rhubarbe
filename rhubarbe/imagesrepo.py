@@ -221,7 +221,7 @@ class ImagesRepo(metaclass = Singleton):
         # otherwise return None
         
 
-    def share(self, images, dest, dry_run):
+    def share(self, images, dest, dry_run, force):
         """
         A utility to install one or several images in the shared repo
 
@@ -274,7 +274,7 @@ class ImagesRepo(metaclass = Singleton):
                     continue
                 destination = radical
             destination = os.path.join(self.repo, destination + ".ndz")
-            if os.path.exists(destination):
+            if os.path.exists(destination) and not force:
                 print("Destination {} already exists - ignored".format(destination))
                 continue
             moves.append( (origin, destination) )

@@ -492,11 +492,13 @@ def share(*argv):
     # default=None so that imagesrepo.share can compute a default
     parser.add_argument("-n", "--dry-run", default=None, action='store_true', 
                         help="Only show what would be done (default unless running under sudo")
+    parser.add_argument("-f", "--force", default=False, action='store_true',
+                        help="Will move files even if destination exists")
     parser.add_argument("images", nargs="+", type=str)
     args = parser.parse_args(argv)
     
     the_imagesrepo = ImagesRepo()
-    return the_imagesrepo.share(args.images, args.dest, args.dry_run)
+    return the_imagesrepo.share(args.images, args.dest, args.dry_run, args.force)
 
 ####################
 @subcommand
