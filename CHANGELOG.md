@@ -1,3 +1,8 @@
+# 0.9.18 - 2016 Sep 29
+
+* stdout and stderr use line buffering
+* hopefully when running through ssh this will make a noticable change
+
 # 0.9.17 - 2016 Sep 29
 
 * share -f to force overwriting an already existing image
