@@ -1,3 +1,7 @@
+# 0.9.17 - 2016 Sep 29
+
+* share -f to force overwriting an already existing image
+
 # 0.9.16 - 2016 Sep 24
 
 * rework of rhubarbe wait 
