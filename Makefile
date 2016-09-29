@@ -33,11 +33,6 @@ tags:
 	git ls-files | xargs etags
 
 .PHONY: tags
-##############################
-tags:
-	git ls-files | xargs etags
-
-.PHONY: tags
 ############################## for deploying before packaging
 # default is to mess with our preplab and let the production
 # site do proper upgrades using pip3
