@@ -454,6 +454,9 @@ def images(*argv):
                         help="sort by date")
     parser.add_argument("-r", "--reverse", action='store_true', default=False,
                         help="reverse sort")
+    parser.add_argument("-e", "--exact-match", action='store_true', default=False,
+                        help="""resolve these names exactly 
+                                i.e. show what file exactly would be used if used with load""")
     parser.add_argument("-v", "--verbose", action='store_true', default=False,
                         help="show all files, don't trim real files when they have a symlink")
     parser.add_argument("focus", nargs="*", type=str,
@@ -467,7 +470,7 @@ def images(*argv):
     else:
         args.sort_by = 'size'
     # if focus is an empty list, then eveything is shown
-    the_imagesrepo.display(args.focus, args.verbose, args.sort_by, args.reverse)
+    the_imagesrepo.main(args.focus, args.verbose, args.sort_by, args.reverse, args.exact_match)
     return 0
 
 ####################

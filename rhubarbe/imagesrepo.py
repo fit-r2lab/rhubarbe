@@ -54,17 +54,28 @@ class ImagesRepo(metaclass = Singleton):
             candidates += [ repo_image, self.add_extension(repo_image) ]
             repo_pattern = os.path.join(self.repo, glob_pattern)
             patterns += [ repo_pattern, self.add_extension(repo_pattern) ]
+        # exact match ?
         for candidate in candidates:
             if os.path.exists(candidate):
                 return candidate
+        # otherwise, use patterns to find it
+        found = []
         for pattern in patterns:
-            found = glob.glob(pattern)
-            if found:
-                if len(found) > 1:
-                    print("WARNING - found several matches for {}".format(image))
-                    for f in found:
-                        print("match:", f)
-                return found[0]
+            found += glob.glob(pattern)
+        # not found at all
+        if not found:
+            return
+        # exactly one match
+        if len(found) == 1:
+            return found[0]
+        # otherwise, let's be smater
+        print("WARNING - found several matches for {} - using most recent".format(image))
+        # sort them so that we pick the most recent match
+        chunks = [ (f, os.stat(f)) for f in found ]
+        chunks.sort(key=lambda tup: tup[1].st_mtime)
+        for f, stat in chunks:
+            print("match:", f)
+        return chunks[0][0]
         
 
     def where_to_save(self, nodename, name_from_cli):
@@ -104,13 +115,30 @@ class ImagesRepo(metaclass = Singleton):
                 return format.format(value=value, symbol=symbol)
         return format.format(symbol=symbols[0], value=n)
 
-    def display(self, focus, verbose=False, sort_by='date', reverse=False, human_readable=True):
+    def main(self, focus, verbose=False, sort_by='date', reverse=False, exact_match=False):
+        if not exact_match:
+            self.display(focus, verbose=verbose, sort_by=sort_by, reverse=reverse,
+                      human_readable=True)
+        else:
+            self.resolve(focus)
+        
+    def resolve(self, focus):
+        for input in focus:
+            actual_image = self.locate_image(input)
+            if not actual_image:
+                print("Could not spot image {}".format(input))
+            else:
+                print("name {} resolves to {}".format(input, actual_image))
+
+    def display(self, focus, verbose, sort_by, reverse, human_readable):
         # show available images in some sensible way
         #
-        # focus: a list of re patterns; if empty, everything is displayed
-        #        otherwise only files that match that name are displayed (with their symlinks though)
-        # sort_by, reverse: how to sort
-        # human_readable: boolean
+        # (*) focus: a list of re patterns
+        # (.) if empty, everything is displayed
+        # (.) otherwise only files that match one of these names
+        #        are displayed (with their symlinks though)
+        # (*) sort_by, reverse: how to sort
+        # (*) human_readable: bool, show raw size or use units like MB or Gb 
         # 
         # rationale being that we sometimes use internal names, that are not really relevant
         # so here's one idea
