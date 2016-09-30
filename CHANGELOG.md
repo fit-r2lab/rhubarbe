@@ -1,3 +1,8 @@
+# 0.9.19 - 2016 Sep 30
+
+* rhubarbe images -e allows to resolve a name (as if passed to load -i)
+* in case of several matches the most recent is used
+
 # 0.9.18 - 2016 Sep 29
 
 * stdout and stderr use line buffering
