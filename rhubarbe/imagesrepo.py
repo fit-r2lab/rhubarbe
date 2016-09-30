@@ -1,3 +1,4 @@
+import sys
 import os
 import os.path
 import glob
@@ -87,13 +88,15 @@ class ImagesRepo(metaclass = Singleton):
         if len(found) == 1:
             return found[0]
         # otherwise, let's be smater
-        print("WARNING - found several matches for {} - using most recent".format(image))
+        print("WARNING - found several matches for {} - using most recent"
+              .format(image), file=sys.stderr)
         # sort them so that we pick the most recent match
         chunks = [ (f, os.stat(f)) for f in found ]
         chunks.sort(key=lambda tup: tup[1].st_mtime)
         for i, (f, stat) in enumerate(chunks, 1):
-            print("MATCH {} for image {} -> {}".format(i, image, f))
-        return chunks[0][0]
+            print("MATCH {} for image {} -> {}".format(i, image, f),
+                  file=sys.stderr)
+        return chunks[-1][0]
         
 
     def where_to_save(self, nodename, name_from_cli):
@@ -144,9 +147,9 @@ class ImagesRepo(metaclass = Singleton):
         for input in focus:
             actual_image = self.locate_image(input)
             if not actual_image:
-                print("Could not spot image {}".format(input))
+                print("Could not spot image {}".format(input), file=sys.stderr)
             else:
-                print("{} ==> resolves to {}".format(input, actual_image))
+                print(actual_image)
 
     def display(self, focus, verbose, sort_by, reverse, human_readable):
         # show available images in some sensible way

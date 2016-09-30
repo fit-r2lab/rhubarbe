@@ -1,7 +1,9 @@
-# 0.9.19 - 2016 Sep 30
+# 0.9.20 - 2016 Sep 30
 
-* rhubarbe images -e allows to resolve a name (as if passed to load -i)
-* in case of several matches the most recent is used
+* imagefile=$(rhubarbe images -e name) allows to resolve a name
+  (as if passed to load -i)
+* in case of several matches **the most recent** is used
+* don't use 0.9.19 
 
 # 0.9.18 - 2016 Sep 29
 
