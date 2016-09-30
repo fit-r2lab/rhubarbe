@@ -41,24 +41,42 @@ class ImagesRepo(metaclass = Singleton):
         return file + self.suffix
 
     def locate_image(self, image, look_in_global=True):
-        # absolute path : just use image
-        candidates = [ image, self.add_extension(image) ]
+        """
+        search an image from its name
+        look_in_global: do we search in the global repo or just in .
+
+        If the image name actually denotes a filename (i.e. with .ndz) then
+        no completion takes place
+
+        Otherwise, all 'saving' images are also considered and the latest one is picked
+        """
+
+        # when look_in_global is set, but we are already in the repo:
+        # turn it off
+        if look_in_global and os.path.abspath(os.getcwd()) == os.path.abspath(self.repo):
+            look_in_global = False
+
+        # existing filename ?
+        candidate = image
+        if os.path.exists(candidate):
+            return candidate
+        if look_in_global and not os.path.isabs(image):
+            candidate = os.path.join(self.repo, image)
+            if os.path.exists(candidate):
+                return candidate
+
+        # it's not a plain filename, so explore more options
         glob_pattern = saving_keyword + saving_sep + \
                        hostname_glob_pattern_f.format(regularname = self.regularname) + \
                        saving_sep + date_glob_pattern + saving_sep + image
+        patterns = [ self.add_extension(image), self.add_extension(glob_pattern) ]
         if debug:
             print("glob_pattern", glob_pattern)
-        patterns = [ glob_pattern, self.add_extension(glob_pattern) ]
         if look_in_global and not os.path.isabs(image):
-            repo_image = os.path.join(self.repo, image)
-            candidates += [ repo_image, self.add_extension(repo_image) ]
+            repo_file = os.path.join(self.repo, image)
             repo_pattern = os.path.join(self.repo, glob_pattern)
-            patterns += [ repo_pattern, self.add_extension(repo_pattern) ]
-        # exact match ?
-        for candidate in candidates:
-            if os.path.exists(candidate):
-                return candidate
-        # otherwise, use patterns to find it
+            patterns += [ self.add_extension(repo_file), self.add_extension(repo_pattern) ]
+        # run these patterns
         found = []
         for pattern in patterns:
             found += glob.glob(pattern)
@@ -73,8 +91,8 @@ class ImagesRepo(metaclass = Singleton):
         # sort them so that we pick the most recent match
         chunks = [ (f, os.stat(f)) for f in found ]
         chunks.sort(key=lambda tup: tup[1].st_mtime)
-        for f, stat in chunks:
-            print("match:", f)
+        for i, (f, stat) in enumerate(chunks, 1):
+            print("MATCH {} for image {} -> {}".format(i, image, f))
         return chunks[0][0]
         
 
@@ -85,7 +103,7 @@ class ImagesRepo(metaclass = Singleton):
         * behaviour depends on actual id (root stores in global repo, regular users store in '.')
         * name always contains nodename and date
         """
-        parts = [saving_keyword, nodename, time.strftime(saving_time_format)]
+        parts = [ saving_keyword, nodename, time.strftime(saving_time_format) ]
         if name_from_cli:
             parts.append(name_from_cli)
         base = saving_sep.join(parts) + self.suffix
@@ -128,7 +146,7 @@ class ImagesRepo(metaclass = Singleton):
             if not actual_image:
                 print("Could not spot image {}".format(input))
             else:
-                print("name {} resolves to {}".format(input, actual_image))
+                print("{} ==> resolves to {}".format(input, actual_image))
 
     def display(self, focus, verbose, sort_by, reverse, human_readable):
         # show available images in some sensible way
