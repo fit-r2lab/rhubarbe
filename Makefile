@@ -44,8 +44,7 @@ else
     DEST=bemol.pl.sophia.inria.fr
 endif
 
-# installing in /tmp/rhubarbe-sync
-
+# installing in /tmp/rhubarbe-sync for testing
 sync:
 	@echo 'export PYTHONPATH=/tmp/rhubarbe-sync; alias r=/tmp/rhubarbe-sync/bin/rhubarbe'
 	rsync -av --relative $$(git ls-files) root@$(DEST):/tmp/rhubarbe-sync/
@@ -58,8 +57,6 @@ faraday:
 bemol:
 	$(MAKE) sync deployment=bemol
 
-### old stuff
-override:
-	@echo WARNING : double check these locations on the remote end
-	rsync -av $$(git ls-files rhubarbe) root@$(DEST):/usr/local/lib/python3.4/dist-packages/rhubarbe/
-	rsync -av $$(git ls-files bin) root@$(DEST):/usr/local/bin
+# actually install
+infra:
+	apssh -t r2lab.infra pip3 install --upgrade rhubarbe

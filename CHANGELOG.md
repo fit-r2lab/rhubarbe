@@ -1,3 +1,7 @@
+# 0.9.21 - 2016 Oct 4
+
+* nicer way to display multiple matches
+
 # 0.9.20 - 2016 Sep 30
 
 * imagefile=$(rhubarbe images -e name) allows to resolve a name
