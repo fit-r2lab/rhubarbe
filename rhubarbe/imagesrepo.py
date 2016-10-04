@@ -88,13 +88,16 @@ class ImagesRepo(metaclass = Singleton):
         if len(found) == 1:
             return found[0]
         # otherwise, let's be smater
-        print("WARNING - found several matches for {} - using most recent"
+        print("-- several matches for {} - using most recent"
               .format(image), file=sys.stderr)
         # sort them so that we pick the most recent match
         chunks = [ (f, os.stat(f)) for f in found ]
         chunks.sort(key=lambda tup: tup[1].st_mtime)
+        # mark selected one qith a '*'
+        l = len(chunks)
         for i, (f, stat) in enumerate(chunks, 1):
-            print("MATCH {} for image {} -> {}".format(i, image, f),
+            print("{} MATCH {} for image {} -> {}"
+                  .format("*" if i == l else " ", i, image, f),
                   file=sys.stderr)
         return chunks[-1][0]
         
@@ -318,13 +321,13 @@ class ImagesRepo(metaclass = Singleton):
             else:
                 radical = self.radical_part(origin)
                 if not radical:
-                    print("Could not guess radical part in {}\n"
-                          "give one with -d""".format(origin))
+                    print("WARNING: Could not guess radical part in {}\n"
+                          "  you will need to give one with -d".format(origin))
                     continue
                 destination = radical
             destination = os.path.join(self.repo, destination + ".ndz")
             if os.path.exists(destination) and not force:
-                print("Destination {} already exists - ignored".format(destination))
+                print("WARNING: Destination {} already exists - ignored".format(destination))
                 continue
             moves.append( (origin, destination) )
 
