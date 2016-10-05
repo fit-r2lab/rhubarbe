@@ -59,7 +59,7 @@ bemol:
 
 .PHONY: sync both faraday bemol
 
-# actually install
+########## actually install
 infra:
 	apssh -t r2lab.infra pip3 install --upgrade rhubarbe
 check:

@@ -56,7 +56,7 @@ class ImageLoader:
         valid = await leases.currently_valid()
         if not valid:
             await self.feedback('authorization',
-                                     "Access refused : you have no lease on the testbed at this time")
+                                "Access refused : you have no lease on the testbed at this time")
         else:
             await self.feedback('authorization','access granted')
             await (self.stage1() if reset else self.feedback('info', "Skipping stage1"))
