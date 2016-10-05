@@ -57,6 +57,12 @@ faraday:
 bemol:
 	$(MAKE) sync deployment=bemol
 
+.PHONY: sync both faraday bemol
+
 # actually install
 infra:
 	apssh -t r2lab.infra pip3 install --upgrade rhubarbe
+check:
+	apssh -t r2lab.infra rhubarbe version
+
+.PHONY: infra check
