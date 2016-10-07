@@ -1,6 +1,8 @@
 import os
 import asyncio
 
+from asynciojobs import Engine, Job
+
 from rhubarbe.collector import Collector
 from rhubarbe.leases import Leases
 from rhubarbe.config import Config
@@ -49,9 +51,10 @@ class ImageSaver:
         # start_frisbeed will return the ip+port to use 
         await self.feedback('info', "Saving image from {}".format(self.node))
         port = await self.start_collector()
-        await self.node.run_imagezip(port, reset, self.radical, self.comment)
+        result = await self.node.run_imagezip(port, reset, self.radical, self.comment)
         # we can now kill the server
         self.collector.stop_nowait()
+        return result
 
     async def run(self, reset):
         leases = Leases(self.message_bus)
@@ -60,10 +63,10 @@ class ImageSaver:
         if not valid:
             await self.feedback('authorization',
                                      "Access refused : you have no lease on the testbed at this time")
+            return False
         else:
             await (self.stage1() if reset else self.feedback('info', "Skipping stage1"))
-            await (self.stage2(reset))
-        await self.display.stop()
+            return await self.stage2(reset)
 
     def mark_image_as_partial(self):
         # never mind if that fails, we might call this before
@@ -74,28 +77,21 @@ class ImageSaver:
             pass
 
     def main(self, reset, timeout):
-        loop = asyncio.get_event_loop()
-        t1 = util.self_manage(self.run(reset))
-        t2 = util.self_manage(self.display.run())
-        tasks = asyncio.gather(t1, t2)
-        wrapper = asyncio.wait_for(tasks, timeout)
+        mainjob = Job(self.run(reset))
+        displayjob = Job(self.display.run(), forever=True)
+
+        engine = Engine (mainjob, displayjob)
+        
         try:
-            loop.run_until_complete(wrapper)
-            return 0
+            ok = engine.orchestrate(timeout = timeout)
+            if not ok:
+                self.display.set_goodbye("rhubarbe-save failed: {}".format(engine.why()))
+                return 1
+            return 0 if mainjob.result() else 1
         except KeyboardInterrupt as e:
-            self.mark_image_as_partial()
             self.display.set_goodbye("rhubarbe-save : keyboard interrupt - exiting")
-            tasks.cancel()
-            loop.run_forever()
-            tasks.exception()
-            return 1
-        except asyncio.TimeoutError as e:
-            self.mark_image_as_partial()
-            self.display.set_goodbye("rhubarbe-save : timeout expired after {}s"
-                                     .format(timeout))
             return 1
         finally:
-            self.nextboot_cleanup()
             self.collector and self.collector.stop_nowait()
+            self.nextboot_cleanup()
             self.display.epilogue()
-            loop.close()

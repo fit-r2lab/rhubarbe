@@ -251,19 +251,21 @@ class Node:
     async def run_frisbee(self, ip , port, reset):
         await self.wait_for_telnet('frisbee')
         self.manage_nextboot_symlink('cleanup')
-        await self.frisbee.run(ip, port)
+        result = await self.frisbee.run(ip, port)
         if reset:
             await self.ensure_reset()
         else:
             await self.feedback('reboot',
-                                     'skipping final reset')
+                                'skipping final reset')
+        return result
 
     async def run_imagezip(self, port, reset, radical, comment):
         await self.wait_for_telnet('imagezip')
         self.manage_nextboot_symlink('cleanup')
-        await self.imagezip.run(port, self.control_hostname(), radical, comment)
+        result = await self.imagezip.run(port, self.control_hostname(), radical, comment)
         if reset:
             await self.ensure_reset()
         else:
             await self.feedback('reboot',
-                                     'skipping final reset')
+                                'skipping final reset')
+        return result

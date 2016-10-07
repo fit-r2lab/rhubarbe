@@ -105,3 +105,4 @@ class Frisbee(TelnetProxy):
 
         # wait for telnet to terminate
         await self._protocol.waiter_closed
+        return true

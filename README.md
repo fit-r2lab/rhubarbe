@@ -231,7 +231,10 @@ We use python 3.5's `asyncio` library. python3.5 can be taken as granted on the 
 
 # TODO
 
+* add option `rshare --clean` that would clean up the other/older candidates for a name
 * some option in `rhubarbe leases` to skip the nightly leases
-* investigate why e.g. `rhubarbe load` behaves so poorly through ssh - option to turn off buffering or something ?
 
-
+* in terms of the cleanup regarding display.stop / forever jobs
+  * issue was: how to properly terminate a loop that has a infinite task going on
+  * synciojobs provides a nice replacement with forever jobs
+  * this has been deployed almost everywhere, except for monitor for now

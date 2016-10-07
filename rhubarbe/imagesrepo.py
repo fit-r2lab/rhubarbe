@@ -93,7 +93,7 @@ class ImagesRepo(metaclass = Singleton):
         # sort them so that we pick the most recent match
         chunks = [ (f, os.stat(f)) for f in found ]
         chunks.sort(key=lambda tup: tup[1].st_mtime)
-        # mark selected one qith a '*'
+        # mark selected one with a '*'
         l = len(chunks)
         for i, (f, stat) in enumerate(chunks, 1):
             print("{} MATCH {} for image {} -> {}"

@@ -8,8 +8,7 @@ import asyncio
 
 from argparse import ArgumentParser
 
-from asynciojobs.engine import Engine
-from asynciojobs.job import Job
+from asynciojobs import Engine, Job
 
 from rhubarbe.config import Config
 from rhubarbe.imagesrepo import ImagesRepo
@@ -130,12 +129,10 @@ def cmc_verb(verb, check_resa, *argv):
         if engine.orchestrate(timeout = args.timeout):
             return 0
         else:
+            print("rhubarbe-{} failed: {}".format(verb, engine.why()))
             return 1
     except KeyboardInterrupt as e:
         print("rhubarbe-{} : keyboard interrupt - exiting".format(verb))
-        return 1
-    except asyncio.TimeoutError as e:
-        print("rhubarbe-cmc : timeout expired after {}s".format(args.timeout))
         return 1
 
 #####
@@ -319,7 +316,7 @@ def wait(*argv):
     display = display_class(nodes, message_bus)
 
     # have the display class run forever until the other ones are done
-    engine = Engine (Job(display.run(), forever=True), *jobs)
+    engine = Engine(Job(display.run(), forever=True), *jobs)
     try:
         orchestration = engine.orchestrate(timeout=args.timeout)
         if orchestration:

@@ -102,3 +102,4 @@ class ImageZip(TelnetProxy):
         # wait for telnet to terminate
         self._running = True
         await asyncio.gather(self.ticker(), self.wait_protocol_and_stop_ticker())
+        return True

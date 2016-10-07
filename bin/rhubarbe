@@ -8,6 +8,7 @@ sys.stdout = os.fdopen(sys.stdout.fileno(), 'w', 1) # no buffering
 sys.stderr = os.fdopen(sys.stderr.fileno(), 'w', 1) # no buffering
 
 import rhubarbe.main
+from rhubarbe.selector import MisformedRange
 
 def main():
     supported = rhubarbe.main.supported_subcommands
@@ -45,6 +46,9 @@ def main():
     # remove subcommand from args
     try:
         exit(entry_point(*args))
+    except MisformedRange as e:
+        print("ERROR: ", e)
+        exit(1)
     except Exception as e:
         import traceback
         traceback.print_exc()

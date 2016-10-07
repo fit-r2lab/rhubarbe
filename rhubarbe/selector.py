@@ -4,6 +4,13 @@ from rhubarbe.config import Config
 
 import os
 
+class MisformedRange(Exception):
+    def __init__(self, range):
+        self.range = range
+
+    def __str__(self):
+        return "Misformed node range '{}'".format(self.range)
+
 class Selector:
 
     # typically regularname='fit' and rebootname='reboot'
@@ -37,13 +44,12 @@ class Selector:
                 comma = comma[1:]
             try:
                 items = [ int(x) for x in comma.split('-')]
-            except:
+            except Exception as e:
                 # safer to exit abruptly; common mistake is to forget -i, like in
                 # rload image-radical 1 2 3
                 # if we just ignore this situation, the wrong sentence
                 # leads to a totally different behaviour
-                print("ERROR: arg {comma} should denote a node range".format(**locals()))
-                raise Exception("Misformed range {comma}".format(comma=comma))
+                raise MisformedRange(comma)
             if len(items) >= 4:
                 print("Ignored arg {comma}".format(**locals()))
                 continue

@@ -1,5 +1,7 @@
 import asyncio
 
+from asynciojobs import Engine, Job
+
 import rhubarbe.util as util
 from rhubarbe.frisbeed import Frisbeed
 from rhubarbe.leases import Leases
@@ -38,9 +40,10 @@ class ImageLoader:
         """
         # start_frisbeed will return the ip+port to use 
         ip, port = await self.start_frisbeed()
-        await asyncio.gather(*[node.run_frisbee(ip, port, reset) for node in self.nodes])
+        results = await asyncio.gather(*[node.run_frisbee(ip, port, reset) for node in self.nodes])
         # we can now kill the server
         self.frisbeed.stop_nowait()
+        return all(results)
 
     # this is synchroneous
     def nextboot_cleanup(self):
@@ -57,33 +60,28 @@ class ImageLoader:
         if not valid:
             await self.feedback('authorization',
                                 "Access refused : you have no lease on the testbed at this time")
+            return False
         else:
             await self.feedback('authorization','access granted')
             await (self.stage1() if reset else self.feedback('info', "Skipping stage1"))
-            await (self.stage2(reset))
-        await self.display.stop()
+            return await (self.stage2(reset))
 
-    # from http://stackoverflow.com/questions/30765606/whats-the-correct-way-to-clean-up-after-an-interrupted-event-loop
     def main(self, reset, timeout):
-        loop = asyncio.get_event_loop()
-        t1 = util.self_manage(self.run(reset))
-        t2 = util.self_manage(self.display.run())
-        tasks = asyncio.gather(t1, t2)
-        wrapper = asyncio.wait_for(tasks, timeout)
+
+        mainjob = Job(self.run(reset))
+        displayjob = Job(self.display.run(), forever=True)
+        engine = Engine (mainjob, displayjob)
+        
         try:
-            loop.run_until_complete(wrapper)
-            return 0
+            ok = engine.orchestrate(timeout = timeout)
+            if not ok:
+                self.display.set_goodbye("rhubarbe-load failed: {}".format(engine.why()))
+                return 1
+            return 0 if mainjob.result() else 1
         except KeyboardInterrupt as e:
             self.display.set_goodbye("rhubarbe-load : keyboard interrupt - exiting")
-            tasks.cancel()
-            loop.run_forever()
-            tasks.exception()
-            return 1
-        except asyncio.TimeoutError as e:
-            self.display.set_goodbye("rhubarbe-load : timeout expired after {}s".format(timeout))
             return 1
         finally:
             self.frisbeed and self.frisbeed.stop_nowait()
             self.nextboot_cleanup()
             self.display.epilogue()
-            loop.close()
