@@ -1,3 +1,8 @@
+# 0.9.22 - 2016 Oct 7
+
+* more robust exit code, esp. regarding missing leases
+* nicer error message in case of misformed range
+
 # 0.9.21 - 2016 Oct 4
 
 * nicer way to display multiple matches
