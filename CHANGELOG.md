@@ -1,7 +1,8 @@
-# 0.9.22 - 2016 Oct 7
+# 0.9.23 - 2016 Oct 7
 
 * more robust exit code, esp. regarding missing leases
 * nicer error message in case of misformed range
+* 0.9.22 is broken
 
 # 0.9.21 - 2016 Oct 4
 
