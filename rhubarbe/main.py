@@ -21,6 +21,7 @@ from rhubarbe.imagesaver import ImageSaver
 from rhubarbe.monitor import Monitor
 from rhubarbe.ssh import SshProxy
 from rhubarbe.leases import Leases
+from rhubarbe.inventory import Inventory
 
 import rhubarbe.util as util
 
@@ -451,9 +452,6 @@ def images(*argv):
                         help="sort by date")
     parser.add_argument("-r", "--reverse", action='store_true', default=False,
                         help="reverse sort")
-    parser.add_argument("-e", "--exact-match", action='store_true', default=False,
-                        help="""resolve these names exactly 
-                                i.e. show what file exactly would be used if used with load""")
     parser.add_argument("-v", "--verbose", action='store_true', default=False,
                         help="show all files, don't trim real files when they have a symlink")
     parser.add_argument("focus", nargs="*", type=str,
@@ -466,8 +464,30 @@ def images(*argv):
         args.sort_by = 'date'
     else:
         args.sort_by = 'size'
-    # if focus is an empty list, then eveything is shown
-    the_imagesrepo.main(args.focus, args.verbose, args.sort_by, args.reverse, args.exact_match)
+    # if focus is an empty list, then everything is shown
+    the_imagesrepo.main(args.focus, args.verbose, args.sort_by, args.reverse)
+    return 0
+
+####################
+@subcommand
+def resolve(*argv):
+    usage = """
+    For each input, find out any display 
+    what file exactly would be used if used with load
+    and possible siblings if verbose mode is selected
+    """
+
+    parser = ArgumentParser(usage=usage)
+    parser.add_argument("-r", "--reverse", action='store_true', default=False,
+                        help="reverse sort")
+    parser.add_argument("-v", "--verbose", action='store_true', default=False,
+                        help="show all files, don't trim real files when they have a symlink")
+    parser.add_argument("focus", nargs="*", type=str,
+                        help="the names to resolve")
+    args = parser.parse_args(argv)
+    the_imagesrepo = ImagesRepo()
+    # if focus is an empty list, then everything is shown
+    the_imagesrepo.resolve(args.focus, args.verbose, args.reverse)
     return 0
 
 ####################
@@ -494,11 +514,16 @@ def share(*argv):
                         help="Only show what would be done (default unless running under sudo")
     parser.add_argument("-f", "--force", default=False, action='store_true',
                         help="Will move files even if destination exists")
+    parser.add_argument("-c", "--clean", default=False, action='store_true',
+                        help="""Will remove other matches than the one that gets promoted
+                        In other words, useful when `rhubarbe images -e foo`
+                        returns several matches and only the last one is desired
+                        """)
     parser.add_argument("images", nargs="+", type=str)
     args = parser.parse_args(argv)
     
     the_imagesrepo = ImagesRepo()
-    return the_imagesrepo.share(args.images, args.dest, args.dry_run, args.force)
+    return the_imagesrepo.share(args.images, args.dest, args.dry_run, args.force, args.clean)
 
 ####################
 @subcommand
