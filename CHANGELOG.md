@@ -1,3 +1,9 @@
+# 0.9.24 - 2016 Oct 8
+
+* rhubarbe share --clean
+* rhubarbe images -e -> rhubarbe resolve
+* refactoring in the imagesrepo area
+
 # 0.9.23 - 2016 Oct 7
 
 * more robust exit code, esp. regarding missing leases
