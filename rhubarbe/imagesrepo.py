@@ -159,7 +159,15 @@ class ImagesRepo(metaclass = Singleton):
             details[0].is_latest = True
         return details
 
-    def locate_image(self, image_name, look_in_global):
+    def is_root(self):
+        # surprisingly, even when running under sudo we have all 3 set to 0
+        r, e, s = os.getresuid()
+        is_root = r==0 and e==0 and s==0
+        return is_root
+
+    def locate_image(self, image_name, look_in_global=None):
+        if look_in_global is None:
+            look_in_global = self.is_root()
         infos = self._locate_infos_sorted(image_name, look_in_global)
         return infos[0].filename if infos else []
 
@@ -330,10 +338,7 @@ class ImagesRepo(metaclass = Singleton):
             print("destination can be specified only with one image")
             return 1
 
-        # surprisingly, even when running under sudo we have all 3 set to 0
-        r, e, s = os.getresuid()
-        is_root = r==0 and e==0 and s==0
-
+        is_root = self.is_root()
         # compute dry_run if not set on the command line
         if dry_run is None:
             dry_run = False if is_root else True
