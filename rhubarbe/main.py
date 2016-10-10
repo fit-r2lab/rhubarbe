@@ -200,7 +200,7 @@ def load(*argv):
     logger.info("timeout is {}s".format(args.timeout))
     logger.info("bandwidth is {} Mibps".format(args.bandwidth))
 
-    actual_image = the_imagesrepo.locate_image(args.image)
+    actual_image = the_imagesrepo.locate_image(args.image, look_in_global=True)
     if not actual_image:
         print("Image file {} not found - emergency exit".format(args.image))
         exit(1)
