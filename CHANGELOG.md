@@ -1,9 +1,9 @@
-# 0.9.25 - 2016 Oct 8
+# 0.9.26 - 2016 Oct 10
 
 * rhubarbe share --clean
 * rhubarbe images -e -> rhubarbe resolve
 * refactoring in the imagesrepo area
-* 0.9.24 is broken
+* 0.9.24 and 0.9.25 are broken
 
 # 0.9.23 - 2016 Oct 7
 
