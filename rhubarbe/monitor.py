@@ -431,6 +431,8 @@ class Monitor:
 
     # xxx no way to select/disable the 2 components (nodes and leases) for now
     async def run(self):
+        logger.info("Starting monitor on {} nodes - report_wlan={}"
+                    .format(len(self.monitor_nodes), self.report_wlan))
         return asyncio.gather(
             self.monitor_leases.run_forever(),
             *[monitor_node.probe_forever(self.cycle,

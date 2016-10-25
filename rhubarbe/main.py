@@ -356,8 +356,8 @@ def monitor(*argv):
     parser.add_argument('-c', "--cycle", default=default_cycle, type=float,
                         help="Delay to wait between 2 probes of each node, default ={}"
                         .format(default_cycle))
-    parser.add_argument("-w", "--no-wlan", dest="report_wlan", default=True, action='store_true',
-                        help="avoid probing of wlan traffic rates")
+    parser.add_argument("-w", "--wlan", dest="report_wlan", default=False, action='store_true',
+                        help="ask for probing of wlan traffic rates")
     parser.add_argument("-H", "--sidecar-hostname", dest="sidecar_hostname", default=None)
     parser.add_argument("-P", "--sidecar-port", dest="sidecar_port", default=None)
     parser.add_argument("-d", "--debug", dest="debug", action='store_true', default=False)
