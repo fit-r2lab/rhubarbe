@@ -1,3 +1,8 @@
+# 0.9.27 - 2016 Oct 25
+
+* bugfix in collecting `image_radical` that used
+  to be trimmed at dots or other characters
+
 # 0.9.26 - 2016 Oct 10
 
 * rhubarbe share --clean
