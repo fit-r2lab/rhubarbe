@@ -408,7 +408,7 @@ class Monitor:
         reconnectable = ReconnectableSocketIOMonitor(self, hostname, port, debug)
 
         # the nodes part
-        channel = Config().value('monitor', 'sidecar_channel_status')
+        channel = Config().value('monitor', 'sidecar_channel_nodes')
         nodes = [ Node (cmc_name, message_bus) for cmc_name in cmc_names ]
         self.monitor_nodes = [
             MonitorNode (node, reconnectable, channel, debug=debug, report_wlan = self.report_wlan)
