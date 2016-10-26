@@ -1,3 +1,11 @@
+# 1.0.0 - 2016 Oct 26
+
+* use new channel names like 'info:nodes' or 'request:nodes'
+* expose more details on nodes, like
+  * usrp_on_off
+  * gnuradio_release (used to be in os_release)
+  * uname
+
 # 0.9.27 - 2016 Oct 25
 
 * bugfix in collecting `image_radical` that used
