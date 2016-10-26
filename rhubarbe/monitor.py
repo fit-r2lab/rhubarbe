@@ -181,6 +181,7 @@ class MonitorNode:
     ubuntu_matcher = re.compile("DISTRIB_RELEASE=(?P<ubuntu_version>[0-9.]+)")
     fedora_matcher = re.compile("Fedora release (?P<fedora_version>\d+)")
     gnuradio_matcher = re.compile("\AGNURADIO:(?P<gnuradio_version>[0-9\.]+)\Z")
+    uname_matcher = re.compile("\AUNAME:(?P<uname>.+)\Z")
     # 2016-05-28@08:20 - node fit38 - image oai-enb-base2 - by root
     rhubarbe_image_matcher = re.compile("\A/etc/rhubarbe-image:" + \
                                         ".* - image (?P<image_radical>[^ ]+) - by"
@@ -189,8 +190,9 @@ class MonitorNode:
     number_matcher = re.compile("\A[0-9]+\Z")
 
     def parse_ssh_probe_output(self, stdout, padding_dict):
-        flavour = "other"
-        extension = ""
+        os_release = "other"
+        gnuradio_release = "none"
+        uname = ""
         rxtx_dict = {}
         rxtx_key = None
         image_radical = ""
@@ -198,17 +200,20 @@ class MonitorNode:
             match = self.ubuntu_matcher.match(line)
             if match:
                 version = match.group('ubuntu_version')
-                flavour = "ubuntu-{version}".format(**locals())
+                os_release = "ubuntu-{version}".format(**locals())
                 continue
             match = self.fedora_matcher.match(line)
             if match:
                 version = match.group('fedora_version')
-                flavour = "fedora-{version}".format(**locals())
+                os_release = "fedora-{version}".format(**locals())
                 continue
             match = self.gnuradio_matcher.match(line)
             if match:
-                version = match.group('gnuradio_version')
-                extension += "-gnuradio-{version}".format(**locals())
+                gnuradio_release = match.group('gnuradio_version')
+                continue
+            match = self.uname_matcher.match(line)
+            if match:
+                uname = match.group('uname')
                 continue
             match = self.rhubarbe_image_matcher.match(line)
             if match:
@@ -225,7 +230,6 @@ class MonitorNode:
                 continue
             rxtx_key = None
             
-        os_release = flavour + extension
         # now that we have the counters we need to translate this into rate
         # for that purpose we use local clock; small imprecision should not impact overall result
         now = time.time()
@@ -257,21 +261,28 @@ class MonitorNode:
             self.history[rxtx_key] = (bytes, now)
         # xxx would make sense to clean up history for measurements that
         # we were not able to collect at this cycle
-        self.set_info({'os_release' : os_release, 'image_radical' : image_radical },
-                      padding_dict, wlan_info_dict)
+        self.set_info( { 'os_release' : os_release,
+                         'gnuradio_release' : gnuradio_release,
+                         'uname' : uname,
+                         'image_radical' : image_radical,
+                     },
+                       padding_dict, wlan_info_dict)
 
     async def probe(self, ping_timeout, ssh_timeout):
         """
         The logic for getting one node's info and send it to sidecar
         """
         node = self.node
-        if self.debug: logger.info("entering pass1, info={}".format(self.info))
+        if self.debug:
+            logger.info("entering pass1, info={}".format(self.info))
         # pass1 : check for status
         padding_dict = {
             'control_ping' : 'off',
             'control_ssh' : 'off',
             # don't overwrite os_release though
         }
+        usrp_status = await self.node.get_usrpstatus()
+        self.set_info({'usrp_on_off' : usrp_status.replace('usrp', '')})
         status = await self.node.get_status()
         if status is None:
             self.set_info_and_report({'cmc_on_off' : 'fail'}, padding_dict)
@@ -279,7 +290,8 @@ class MonitorNode:
         if status == "off":
             self.set_info_and_report({'cmc_on_off' : 'off'}, padding_dict)
             return
-        if self.debug: logger.info("entering pass2, info={}".format(self.info))
+        if self.debug:
+            logger.info("entering pass2, info={}".format(self.info))
         # pass2 : node is ON - let's try to ssh it
         self.set_info({'cmc_on_off' : 'on'})
         padding_dict = {
@@ -292,18 +304,21 @@ class MonitorNode:
             "echo -n GNURADIO: ; gnuradio-config-info --version 2> /dev/null || echo none",
             # this trick allows to have the filename on each output line
             "grep . /etc/rhubarbe-image /dev/null",
+            "echo -n 'UNAME:' ; uname -r",
             ]
         if self.report_wlan:
             remote_commands.append(
                 "head /sys/class/net/wlan?/statistics/[rt]x_bytes"                
             )
         ssh = SshProxy(self.node)
-        if self.debug: logger.info("trying to ssh-connect")
+        if self.debug:
+            logger.info("trying to ssh-connect")
         try:
             connected = await asyncio.wait_for(ssh.connect(), timeout=ssh_timeout)
         except asyncio.TimeoutError as e:
             connected = False
-        if self.debug: logger.info("connected={}".format(connected))
+        if self.debug:
+            logger.info("connected={}".format(connected))
         if connected:
             try:
                 command = ";".join(remote_commands)
@@ -312,15 +327,19 @@ class MonitorNode:
                 # required as otherwise we leak openfiles
                 try:
                     await ssh.close()
-                except:
+                except Exception as e:
                     pass
                 self.report_info()
                 return
-            except:
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
                 pass
         else:
             self.set_info({'control_ssh': 'off'})
-        if self.debug: logger.info("entering pass3, info={}".format(self.info))
+
+        if self.debug:
+            logger.info("entering pass3, info={}".format(self.info))
         # pass3 : node is ON but could not ssh
         # check for ping
         # I don't know of an asyncio library to deal with icmp
@@ -369,7 +388,6 @@ class MonitorLeases:
     async def run_forever(self):
         leases = Leases(self.message_bus)
         while True:
-            #print("entering")
             self.fast_track = False
             trigger = time.time() + self.cycle
             # check for back_channel every 15 ms
@@ -379,7 +397,6 @@ class MonitorLeases:
                 # give a chance to socketio events to trigger
                 self.reconnectable.wait(self.wait)
                 
-            if self.debug: logger.info("acquiring")
             try:
                 await leases.refresh()
                 omf_leases = leases.resources
@@ -433,6 +450,9 @@ class Monitor:
     async def run(self):
         logger.info("Starting monitor on {} nodes - report_wlan={}"
                     .format(len(self.monitor_nodes), self.report_wlan))
+        # run n+1 tasks in parallel
+        # one for leases,
+        # plus one per node
         return asyncio.gather(
             self.monitor_leases.run_forever(),
             *[monitor_node.probe_forever(self.cycle,
