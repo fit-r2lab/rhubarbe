@@ -38,6 +38,7 @@ class ReconnectableSocketIO:
         self.debug = debug
         # internal stuff
         self.socketio = None
+        self.counters = {}
 
     def __repr__(self):
         return "socket.io sidecar ws://{}:{}/"\
@@ -63,27 +64,30 @@ class ReconnectableSocketIO:
         # not supposed to run - should be redefined
         logger.warning("ReconnectableSocketIO.on_channel, channel={}, args={}".format(channel, args))
 
+    def get_counter(self, channel):
+        return self.counters.get(channel, 0)
+
     def emit_info(self, channel, info):
         if self.debug:
-            if 'id' in info:
-                logger.info("{} emitting id={} : {}"
-                            .format(channel, info['id'], one_char_summary(info)))
-            else:
-                logger.info("{} emitting {}"
-                            .format(channel, info))
+            logger.info("{} emitting id={} -> {}"
+                        .format(channel, info.get('id', '[none]'), info))
                             
+        # wrap info as single elt in a list
         message = json.dumps([info])
         if self.socketio is None:
             self.connect()
         try:
             self.socketio.emit(channel, message,
                                ReconnectableSocketIO.callback)
-        except:
+            self.counters.setdefault(channel, 0)
+            self.counters[channel] += 1
+        except Exception as e:
             # make sure we reconnect later on
             self.socketio = None
-            label = "{}: {}".format(info['id'], one_char_summary(info))
-            logger.warn("Dropped message {} - channel {} on {}"
-                        .format(label, channel, self))
+            label = "{}: {}".format(info.get('id', 'none'), one_char_summary(info))
+            logger.warn("Dropped message on {} - channel {} - msg {}"
+                        .format(self, channel, label))
+            logger.print_exc()
             
     def wait(self, wait):
         if self.socketio:
@@ -168,7 +172,6 @@ class MonitorNode:
         """
         Send info to sidecar
         """
-        #print(self.info)
         self.reconnectable.emit_info(self.channel, self.info)
         
     def set_info_and_report(self, *overrides):
@@ -281,14 +284,17 @@ class MonitorNode:
             'control_ssh' : 'off',
             # don't overwrite os_release though
         }
+        # get USRP status no matter what
         usrp_status = await self.node.get_usrpstatus()
+        # replace usrpon and usrpoff with just on and off
         self.set_info({'usrp_on_off' : usrp_status.replace('usrp', '')})
+        # get CMC status
         status = await self.node.get_status()
-        if status is None:
-            self.set_info_and_report({'cmc_on_off' : 'fail'}, padding_dict)
-            return
         if status == "off":
             self.set_info_and_report({'cmc_on_off' : 'off'}, padding_dict)
+            return
+        elif status != "on":
+            self.set_info_and_report({'cmc_on_off' : 'fail'}, padding_dict)
             return
         if self.debug:
             logger.info("entering pass2, info={}".format(self.info))
@@ -310,6 +316,7 @@ class MonitorNode:
             remote_commands.append(
                 "head /sys/class/net/wlan?/statistics/[rt]x_bytes"                
             )
+        # reconnect each time
         ssh = SshProxy(self.node)
         if self.debug:
             logger.info("trying to ssh-connect")
@@ -318,25 +325,29 @@ class MonitorNode:
         except asyncio.TimeoutError as e:
             connected = False
         if self.debug:
-            logger.info("connected={}".format(connected))
+            logger.info("ssh-connected={}".format(connected))
         if connected:
             try:
                 command = ";".join(remote_commands)
                 output = await ssh.run(command)
+                # padding dict here sets control_ssh and control_ping to on
                 self.parse_ssh_probe_output(output, padding_dict)
                 # required as otherwise we leak openfiles
                 try:
                     await ssh.close()
                 except Exception as e:
                     pass
-                self.report_info()
-                return
             except Exception as e:
                 import traceback
                 traceback.print_exc()
                 pass
         else:
             self.set_info({'control_ssh': 'off'})
+
+        # if we could ssh then we're done
+        if self.info['control_ssh' == 'on']:
+            self.report_info()
+            return
 
         if self.debug:
             logger.info("entering pass3, info={}".format(self.info))
@@ -422,13 +433,14 @@ class Monitor:
         # socket IO pipe
         hostname = sidecar_hostname or Config().value('monitor', 'sidecar_hostname')
         port = int(sidecar_port or Config().value('monitor', 'sidecar_port'))
-        reconnectable = ReconnectableSocketIOMonitor(self, hostname, port, debug)
+        self.reconnectable = ReconnectableSocketIOMonitor(self, hostname, port, debug)
 
         # the nodes part
-        channel = Config().value('monitor', 'sidecar_channel_nodes')
+        self.main_channel = Config().value('monitor', 'sidecar_channel_nodes')
         nodes = [ Node (cmc_name, message_bus) for cmc_name in cmc_names ]
         self.monitor_nodes = [
-            MonitorNode (node, reconnectable, channel, debug=debug, report_wlan = self.report_wlan)
+            MonitorNode (node, self.reconnectable, self.main_channel,
+                         debug=debug, report_wlan = self.report_wlan)
             for node in nodes]
 
         # the leases part
@@ -437,7 +449,7 @@ class Monitor:
         wait = Config().value('monitor', 'wait_leases')
         channel = Config().value('monitor', 'sidecar_channel_leases')
         self.monitor_leases = MonitorLeases(
-            message_bus, reconnectable, channel, cycle,
+            message_bus, self.reconnectable, channel, cycle,
             step=step, wait=wait, debug=debug)
 
     def on_channel(self, channel, *args):
@@ -464,6 +476,7 @@ class Monitor:
     async def log(self):
         while True:
             line = "".join([one_char_summary(mnode.info) for mnode in self.monitor_nodes])
+            line += " {} emits".format(self.reconnectable.get_counter(self.main_channel))
             logger.info(line)
             await asyncio.sleep(self.log_period)
             
