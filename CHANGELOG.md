@@ -1,3 +1,7 @@
+# 1.0.2 - 2016 Nov 2
+
+* big bugfix in monitor
+
 # 1.0.1 - 2016 Nov 2
 
 * monitor shows # of emitted messages
