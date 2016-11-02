@@ -98,6 +98,8 @@ class SshProxy:
     async def close(self):
         if self.conn is not None:
             self.conn.close()
+            await self.conn.wait_closed()
+        self.conn = None
 
     async def wait_for(self, backoff, timeout=1.):
         """

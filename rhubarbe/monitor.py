@@ -68,9 +68,13 @@ class ReconnectableSocketIO:
         return self.counters.get(channel, 0)
 
     def emit_info(self, channel, info):
+        # info can be a list (e.g. for leases)
+        # or a dict, with or without an 'id' field
         if self.debug:
-            logger.info("{} emitting id={} -> {}"
-                        .format(channel, info.get('id', '[none]'), info))
+            msg = "len={}".format(len(info)) if isinstance(info, list) \
+                  else "id={}".format(info.get('id', '[none]'))
+            logger.info("{} emitting {} -> {}"
+                        .format(channel, msg, info))
                             
         # wrap info as single elt in a list
         message = json.dumps([info])
@@ -143,6 +147,7 @@ class MonitorNode:
     """
     
     def __init__(self, node, reconnectable, channel, report_wlan=True, debug=False):
+        # a rhubarbe.node.Node instance
         self.node = node
         self.report_wlan = report_wlan
         self.reconnectable = reconnectable
@@ -275,7 +280,6 @@ class MonitorNode:
         """
         The logic for getting one node's info and send it to sidecar
         """
-        node = self.node
         if self.debug:
             logger.info("entering pass1, info={}".format(self.info))
         # pass1 : check for status
@@ -298,7 +302,7 @@ class MonitorNode:
             return
         if self.debug:
             logger.info("entering pass2, info={}".format(self.info))
-        # pass2 : node is ON - let's try to ssh it
+        # pass2 : CMC status is ON - let's try to ssh it
         self.set_info({'cmc_on_off' : 'on'})
         padding_dict = {
             'control_ping' : 'on',
@@ -336,6 +340,7 @@ class MonitorNode:
                 try:
                     await ssh.close()
                 except Exception as e:
+                    logger.exception("monitor oops 1")
                     pass
             except Exception as e:
                 import traceback
@@ -345,7 +350,7 @@ class MonitorNode:
             self.set_info({'control_ssh': 'off'})
 
         # if we could ssh then we're done
-        if self.info['control_ssh' == 'on']:
+        if self.info['control_ssh'] == 'on':
             self.report_info()
             return
 
@@ -375,7 +380,10 @@ class MonitorNode:
         runs forever, wait <cycle> seconds between 2 runs of probe()
         """
         while True:
-            await self.probe(ping_timeout, ssh_timeout)
+            try:
+                await self.probe(ping_timeout, ssh_timeout)
+            except Exception as e:
+                logger.exception("monitor oops 2")
             await asyncio.sleep(cycle)
             
 
@@ -439,8 +447,9 @@ class Monitor:
         self.main_channel = Config().value('monitor', 'sidecar_channel_nodes')
         nodes = [ Node (cmc_name, message_bus) for cmc_name in cmc_names ]
         self.monitor_nodes = [
-            MonitorNode (node, self.reconnectable, self.main_channel,
-                         debug=debug, report_wlan = self.report_wlan)
+            MonitorNode(node = node, reconnectable = self.reconnectable,
+                        channel = self.main_channel, report_wlan = self.report_wlan,
+                        debug=debug)
             for node in nodes]
 
         # the leases part
