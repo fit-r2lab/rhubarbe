@@ -1,3 +1,7 @@
+# 1.0.1 - 2016 Nov 2
+
+* monitor shows # of emitted messages
+
 # 1.0.0 - 2016 Oct 26
 
 * use new channel names like 'info:nodes' or 'request:nodes'
