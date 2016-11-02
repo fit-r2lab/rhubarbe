@@ -474,9 +474,13 @@ class Monitor:
         )
 
     async def log(self):
+        previous = 0
         while True:
             line = "".join([one_char_summary(mnode.info) for mnode in self.monitor_nodes])
-            line += " {} emits".format(self.reconnectable.get_counter(self.main_channel))
+            current = self.reconnectable.get_counter(self.main_channel)
+            delta = "+ {}".format(current-previous)
+            line += " {} emits ({})".format(current, delta)
+            previous = current
             logger.info(line)
             await asyncio.sleep(self.log_period)
             
