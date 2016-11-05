@@ -1,3 +1,7 @@
+# 1.0.3 - 2016 Nov 5
+
+* bugfix to make selection like -a ~1 work as expected
+
 # 1.0.2 - 2016 Nov 2
 
 * big bugfix in monitor
