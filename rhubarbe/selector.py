@@ -107,7 +107,8 @@ def selected_selector(parser_args):
     if parser_args.all_nodes:
         the_config = Config()
         selector.add_range(the_config.value('testbed', 'all_scope'))
-    elif not ranges:
+    # nothing specified at all - no range no --all-nodes
+    if not ranges and not parser_args.all_nodes:
         if os.getenv('NODES'):
             for node in os.environ["NODES"].split():
                 selector.add_range(node)
