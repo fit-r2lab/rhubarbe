@@ -1,3 +1,10 @@
+# 1.0.4 - 2016 Nov 14
+
+* rshare now has a -a/--alias option
+* remove option -v for rimages
+* remove option -d for rshare
+* bugfix for rimages in case of a dangling symlink
+
 # 1.0.3 - 2016 Nov 5
 
 * bugfix to make selection like -a ~1 work as expected
