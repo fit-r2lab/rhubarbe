@@ -452,8 +452,6 @@ def images(*argv):
                         help="sort by date")
     parser.add_argument("-r", "--reverse", action='store_true', default=False,
                         help="reverse sort")
-    parser.add_argument("-v", "--verbose", action='store_true', default=False,
-                        help="show all files, don't trim real files when they have a symlink")
     parser.add_argument("focus", nargs="*", type=str,
                         help="if provided, only images that contain one of these strings are displayed")
     args = parser.parse_args(argv)
@@ -465,7 +463,7 @@ def images(*argv):
     else:
         args.sort_by = 'size'
     # if focus is an empty list, then everything is shown
-    the_imagesrepo.main(args.focus, args.verbose, args.sort_by, args.reverse)
+    the_imagesrepo.main(args.focus, args.sort_by, args.reverse)
     return 0
 
 ####################
@@ -507,8 +505,8 @@ def share(*argv):
     the_config = Config()
 
     parser = ArgumentParser(usage=usage)
-    parser.add_argument("-o", "--new-name", dest='dest', action='store', default=None,
-                        help="image name (ignored with more than one image)")
+    parser.add_argument("-a", "--alias-name", dest='alias', action='store', default=None,
+                        help="create a symlink of that name (ignored with more than one image)")
     # default=None so that imagesrepo.share can compute a default
     parser.add_argument("-n", "--dry-run", default=None, action='store_true', 
                         help="Only show what would be done (default unless running under sudo")
@@ -523,7 +521,7 @@ def share(*argv):
     args = parser.parse_args(argv)
     
     the_imagesrepo = ImagesRepo()
-    return the_imagesrepo.share(args.images, args.dest, args.dry_run, args.force, args.clean)
+    return the_imagesrepo.share(args.images, args.alias, args.dry_run, args.force, args.clean)
 
 ####################
 @subcommand

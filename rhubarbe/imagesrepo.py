@@ -190,8 +190,8 @@ class ImagesRepo(metaclass = Singleton):
         return format.format(symbol=symbols[0], value=n)
 
     # entry point for rhubarbe images
-    def main(self, focus, verbose=False, sort_by='date', reverse=False):
-        self.display(focus, verbose=verbose, sort_by=sort_by, reverse=reverse,
+    def main(self, focus, sort_by='date', reverse=False):
+        self.display(focus, sort_by=sort_by, reverse=reverse,
                      human_readable=True)
 
     # rhubarbe resolve
@@ -215,7 +215,7 @@ class ImagesRepo(metaclass = Singleton):
                         print(info)
 
 
-    def display(self, focus, verbose, sort_by, reverse, human_readable):
+    def display(self, focus, sort_by, reverse, human_readable):
         # show available images in some sensible way
         #
         # (*) focus: a list of re patterns
@@ -245,7 +245,11 @@ class ImagesRepo(metaclass = Singleton):
         infos = []
         for path in glob.glob("{}/*.ndz".format(self.repo)):
             prefix = os.path.basename(path).replace(".ndz", "")
-            stat = os.stat(path)
+            try:
+                stat = os.stat(path)
+            except Exception as e:
+                print("WARNING - Cannot stat {} (dangling symlink ?) - ignored".format(path))
+                continue
             stat_tuple = (stat.st_size, stat.st_mtime, stat.st_ino, )
             info = {'stat_tuple': stat_tuple, 'prefix': prefix,
                     'isalias': os.path.islink(path), 'relevant':True}
@@ -290,12 +294,6 @@ class ImagesRepo(metaclass = Singleton):
             # skip the cluster if not in focus
             if not in_focus(cluster, focus):
                 continue
-            # do we have at least one symlink ?
-            if not verbose:
-                if any([info['isalias'] for info in cluster]):
-                    for i in cluster:
-                        if not i['isalias']:
-                            i['relevant'] = False
             shown = False
             for info in cluster:
                 if not info['relevant']:
@@ -312,30 +310,29 @@ class ImagesRepo(metaclass = Singleton):
                     print("{:>31} {:40}".format("a.k.a.", prefix))
 
 
-    def share(self, images, dest, dry_run, force, clean):
+    def share(self, images, alias, dry_run, force, clean):
         """
         A utility to install one or several images in the shared repo
 
         parameters:
         * images: a list of image names (not searched in global repo) to transfer
-        * dest: a name for the installed image - only if a single image is provided
+        * alias: a name for the installed image - only if a single image is provided
         
-        * multiple images
-        destination name is based on origin name, 
-        with the extra saving__*blabla removed
+        Each provided image gets renamed into the radical of origin name, 
+        i.e. with the extra saving__*blabla removed
 
-        * single image
-        likewise, except if dest is provided
+        (.) When a single image is given, and 'alias' is set, then a symlink from alias to 
+        radical is created
 
-        * identity
+        (.) identity
         root is allowed to override destination, not regular users
 
         # return 0 if all goes well, 1 otherwise
         """
 
         ### check args
-        if len(images) > 1 and dest:
-            print("destination can be specified only with one image")
+        if len(images) > 1 and alias:
+            print("alias can be specified only with one image")
             return 1
 
         is_root = self.is_root()
@@ -344,10 +341,11 @@ class ImagesRepo(metaclass = Singleton):
             dry_run = False if is_root else True
         
         ### first pass
-        # compute a list of tuples (origin, dest)
+        # compute a list of tuples (origin, destination)
         for image in images:
             moves = []
-            removes = []
+            removes = [] # list of tuples 
+            symlinks = [] # list of tuples
             origin = self.locate_image(image, look_in_global=is_root)
             if not origin:
                 print("Could not find image {} - ignored".format(image))
@@ -361,20 +359,17 @@ class ImagesRepo(metaclass = Singleton):
                 if info.filename == origin:
                     info.is_official = True
             
-            if dest:
-                destination = dest
-            else:
-                radical = self.radical_part(origin)
-                if not radical:
-                    print("WARNING: Could not guess radical part in {}\n"
-                          "  you will need to give one with -d".format(origin))
-                    continue
-                destination = radical
-            destination = os.path.join(self.repo, destination + ".ndz")
+            radical = self.radical_part(origin)
+            if not radical:
+                print("WARNING: Could not guess radical part in {}\n"
+                      "  you will need to give one with -d".format(origin))
+                continue
+            destination = os.path.join(self.repo, radical + ".ndz")
             if os.path.exists(destination) and not force:
                 print("WARNING: Destination {} already exists - ignored".format(destination))
-                continue
-            moves.append( (origin, destination) )
+            else:
+                moves.append( (origin, destination) )
+            symlinks.append( (radical + ".ndz", os.path.join(self.repo, alias + ".ndz")) )
             if clean:
                 # item # 0 is the one selected for being moved
                 for info in matching_infos[1:]:
@@ -388,20 +383,31 @@ class ImagesRepo(metaclass = Singleton):
             for info in matching_infos:
                 print(info)
 
-            if dry_run:
-                print("---- DRY RUN")
+            def do_dry_run(*args):
+                print("DRY-RUN: would do")
+                print(*args)
+
             for remove in removes:
                 if dry_run:
-                    print("rm {}".format(remove))
+                    do_dry_run("rm {}".format(remove))
                 else:
                     print("Removing {}".format(remove))
                     os.unlink(remove)
             
             for origin, destination in moves:
                 if dry_run:
-                    print("mv {} {}".format(origin, destination))
+                    do_dry_run("mv {} {}".format(origin, destination))
                 else:
                     print("Moving {} -> {}".format(origin, destination))
                     os.rename(origin, destination)
+
+            for origin, destination in symlinks:
+                if dry_run:
+                    do_dry_run("ln -sf {} {}".format(origin, destination))
+                else:
+                    print("Creating symlink {} -> {}".format(origin, destination))
+                    if os.path.exists(destination):
+                        os.unlink(destination)
+                    os.symlink(origin, destination)
         
         return 0
