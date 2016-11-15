@@ -190,8 +190,8 @@ class ImagesRepo(metaclass = Singleton):
         return format.format(symbol=symbols[0], value=n)
 
     # entry point for rhubarbe images
-    def main(self, focus, sort_by='date', reverse=False):
-        self.display(focus, sort_by=sort_by, reverse=reverse,
+    def main(self, focus, verbose=False, sort_by='date', reverse=False):
+        self.display(focus, verbose=verbose, sort_by=sort_by, reverse=reverse,
                      human_readable=True)
 
     # rhubarbe resolve
@@ -215,25 +215,33 @@ class ImagesRepo(metaclass = Singleton):
                         print(info)
 
 
-    def display(self, focus, sort_by, reverse, human_readable):
+    def display(self, focus, verbose, sort_by, reverse, human_readable):
         # show available images in some sensible way
         #
         # (*) focus: a list of re patterns
         # (.) if empty, everything is displayed
         # (.) otherwise only files that match one of these names
-        #        are displayed (with their symlinks though)
+        #        are displayed (together with their symlinks)
         # (*) sort_by, reverse: how to sort
         # (*) human_readable: bool, show raw size or use units like MB or Gb 
         # 
-        # rationale being that we sometimes use internal names, that are not really relevant
-        # so here's one idea
+        # We want to show all the names attached to a given image through symlinks
+        # this is why all the filenames are grouped by clusters;
+        # there is one cluster per real image file
+        #
+        # so what we do is
         # (1) scan all files and gather them by clusters that point at the same file
         # for this we use a (inode, mtime) tuple, same value = same file
-        # (2) for each cluster
-        # there is exactly one real-file non-symlink (unless with hardlinks, where there can be several)
-        # if there's at least one symlink then we don't show the real files at all
-        # (3) show results
+        # (2) for each cluster, we distinguish between
+        # 'single' clusters, i.e. an iamge file without any symlink
+        # 'annotated' clusters have at least one symlink
+        #
+        # default behaviour is to show only annotated images
+        # when verbose is turned on, all clusters are shown
+
         print("==================== Images repository {}".format(self.repo))
+        if not verbose:
+            print("==== use with --verbose to see images without a symlink")
         if focus:
             print("==== images matching any of", " ".join(focus))
 
@@ -241,7 +249,6 @@ class ImagesRepo(metaclass = Singleton):
         # a key (inode, mtime, size) (same key = same file),
         # prefix (filename, no extension),
         # isalias
-        # relevant (default is True and then can be turned off)
         infos = []
         for path in glob.glob("{}/*.ndz".format(self.repo)):
             prefix = os.path.basename(path).replace(".ndz", "")
@@ -251,8 +258,8 @@ class ImagesRepo(metaclass = Singleton):
                 print("WARNING - Cannot stat {} (dangling symlink ?) - ignored".format(path))
                 continue
             stat_tuple = (stat.st_size, stat.st_mtime, stat.st_ino, )
-            info = {'stat_tuple': stat_tuple, 'prefix': prefix,
-                    'isalias': os.path.islink(path), 'relevant':True}
+            info = { 'stat_tuple' : stat_tuple, 'prefix' : prefix,
+                     'isalias' : os.path.islink(path) }
             infos.append(info)
         # gather by same file (same stat_tuple)
         clusters = {}
@@ -294,10 +301,14 @@ class ImagesRepo(metaclass = Singleton):
             # skip the cluster if not in focus
             if not in_focus(cluster, focus):
                 continue
+            # without the verbose flag, show only clusters that have at least one symlink
+            if not verbose:
+                # do we have at least one symlink ?
+                if not any([info['isalias'] for info in cluster]):
+                    # ignoring single clusters in non-verbose mode 
+                    continue
             shown = False
             for info in cluster:
-                if not info['relevant']:
-                    continue
                 (size, mtime, inode) = info['stat_tuple']
                 print_size = size if not human_readable \
                              else ImagesRepo.bytes2human(size)
