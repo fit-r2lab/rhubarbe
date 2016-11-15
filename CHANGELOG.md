@@ -1,3 +1,8 @@
+# 1.0.5 - 2016 Nov 14
+
+* rhubarbe images -v shows all images
+* rhubarbe images show only images that have a symlink
+
 # 1.0.4 - 2016 Nov 14
 
 * rshare now has a -a/--alias option
