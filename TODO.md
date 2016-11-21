@@ -2,12 +2,16 @@
 
 ## images
 
-* improvement: allow to refer to an image using its radical name even if it's a saving image
-
 * improvement: rimages --official or --stable or something
   * for filtering out `saving` images
 
 * improvement: rimages ~foo : show all images that **do not** contain foo
+
+* bugfix:
+  use log files in $HOME if permission is denied in current directoy
+  maybe add an option to remove the log altogether; what's the use of logging for rimages ??
+
+* rload and rsave could use a more silent mode where the recurring messages 'trying..' and the like just go away
 
 # design (P2)
 
