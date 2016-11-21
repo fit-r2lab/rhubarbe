@@ -1,3 +1,7 @@
+# 1.1.1 - 2016 Nov 21
+
+* rhubarbe leases —check is verbose
+
 # 1.1.0 - 2016 Nov 21
 
 * use asynciojobs 0.4.0, with engine renamed into scheduler
