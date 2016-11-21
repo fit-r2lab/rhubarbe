@@ -1,7 +1,7 @@
 import os
 import asyncio
 
-from asynciojobs import Engine, Job
+from asynciojobs import Scheduler, Job
 
 from rhubarbe.collector import Collector
 from rhubarbe.leases import Leases
@@ -80,12 +80,12 @@ class ImageSaver:
         mainjob = Job(self.run(reset))
         displayjob = Job(self.display.run(), forever=True)
 
-        engine = Engine (mainjob, displayjob)
+        scheduler = Scheduler (mainjob, displayjob)
         
         try:
-            ok = engine.orchestrate(timeout = timeout)
+            ok = scheduler.orchestrate(timeout = timeout)
             if not ok:
-                self.display.set_goodbye("rhubarbe-save failed: {}".format(engine.why()))
+                self.display.set_goodbye("rhubarbe-save failed: {}".format(scheduler.why()))
                 return 1
             return 0 if mainjob.result() else 1
         except KeyboardInterrupt as e:

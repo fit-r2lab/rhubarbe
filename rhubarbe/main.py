@@ -8,7 +8,7 @@ import asyncio
 
 from argparse import ArgumentParser
 
-from asynciojobs import Engine, Job
+from asynciojobs import Scheduler, Job
 
 from rhubarbe.config import Config
 from rhubarbe.imagesrepo import ImagesRepo
@@ -125,12 +125,12 @@ def cmc_verb(verb, check_resa, *argv):
     nodes = [ Node(cmc_name, message_bus) for cmc_name in selector.cmc_names() ]
     jobs = [ Job(get_and_show_verb(node, verb)) for node in nodes ]
     display = Display(nodes, message_bus)
-    engine = Engine(Job(display.run(), forever=True), *jobs)
+    scheduler = Scheduler(Job(display.run(), forever=True), *jobs)
     try:
-        if engine.orchestrate(timeout = args.timeout):
+        if scheduler.orchestrate(timeout = args.timeout):
             return 0
         else:
-            print("rhubarbe-{} failed: {}".format(verb, engine.why()))
+            print("rhubarbe-{} failed: {}".format(verb, scheduler.why()))
             return 1
     except KeyboardInterrupt as e:
         print("rhubarbe-{} : keyboard interrupt - exiting".format(verb))
@@ -317,14 +317,14 @@ def wait(*argv):
     display = display_class(nodes, message_bus)
 
     # have the display class run forever until the other ones are done
-    engine = Engine(Job(display.run(), forever=True), *jobs)
+    scheduler = Scheduler(Job(display.run(), forever=True), *jobs)
     try:
-        orchestration = engine.orchestrate(timeout=args.timeout)
+        orchestration = scheduler.orchestrate(timeout=args.timeout)
         if orchestration:
             return 0
         else:
             if args.verbose:
-                engine.debrief()
+                scheduler.debrief()
             return 1
     except KeyboardInterrupt as e:
         print("rhubarbe-wait : keyboard interrupt - exiting")
