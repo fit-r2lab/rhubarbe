@@ -41,10 +41,13 @@ def check_reservation(message_bus=None, loop=None, verbose=True):
     message_bus = message_bus or asyncio.Queue()
     loop = loop or asyncio.get_event_loop()
     leases = Leases(message_bus)
+    login = leases.login
     async def check_leases():
+        if verbose:
+            print("Checking current reservation for {} ".format(login), end="")
         ok = await leases.currently_valid()
-        if verbose and not ok:
-            print("WARNING: Access currently denied")
+        if verbose:
+            print("OK" if ok else "WARNING: Access currently denied")
         return ok
     return(loop.run_until_complete(check_leases()))
 
@@ -429,7 +432,7 @@ def leases(*argv):
                         help="Interactively prompt for commands (create, update, delete)")
     args = parser.parse_args(argv)
     if args.check:
-        access = check_reservation()
+        access = check_reservation(verbose=True)
         return 0 if access else 1
     else:
         message_bus = asyncio.Queue()
