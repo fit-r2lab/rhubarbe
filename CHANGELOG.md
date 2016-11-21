@@ -1,3 +1,8 @@
+# 1.1.0 - 2016 Nov 21
+
+* use asynciojobs 0.4.0, with engine renamed into scheduler
+
+
 # 1.0.5 - 2016 Nov 14
 
 * rhubarbe images -v shows all images
