@@ -231,7 +231,7 @@ def save(*argv):
     default_timeout = the_config.value('nodes', 'save_default_timeout')
 
     parser = ArgumentParser(usage=usage)
-    parser.add_argument("-o", "--output", action='store', dest='radical', default=None,
+    parser.add_argument("-o", "--output", action='store', dest='radical', default=None, required=True,
                         help="Mandatory radical to name resulting image")
     parser.add_argument("-t", "--timeout", action='store', default=default_timeout, type=float,
                         help="Specify global timeout for the whole process, default={}"
@@ -244,11 +244,6 @@ def save(*argv):
                         """)
     parser.add_argument("node")
     args = parser.parse_args(argv)
-
-    # make -o mandatory
-    if not args.radical:
-        parser.print_help()
-        exit(1)
 
     message_bus = asyncio.Queue()
 
