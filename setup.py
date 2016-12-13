@@ -46,6 +46,7 @@ required_modules = [
     # for monitor
     'socketIO-client',
     'asynciojobs',
+    'aioxmlrpc',
 ]
 
 setup(

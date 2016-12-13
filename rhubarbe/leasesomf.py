@@ -157,7 +157,6 @@ class Leases:
         omf_sfa_server = Config().value('authorization', 'leases_server')
         omf_sfa_port = Config().value('authorization', 'leases_port')
         self.unique_component_name = Config().value('authorization', 'component_name')
-        use_plc = Config().value('authorization', 'leases_api') == 'plcapi'
         self.omf_sfa_proxy \
             = OmfSfaProxy(omf_sfa_server, omf_sfa_port,
                           # certificate (when not doing GET)

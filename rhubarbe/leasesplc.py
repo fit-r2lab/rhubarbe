@@ -1,5 +1,3 @@
-import asyncio
-import aiohttp
 import os
 import pwd
 import time
@@ -11,88 +9,35 @@ import traceback
 
 from .logger import logger
 from .config import Config
-from .omfsfaproxy import OmfSfaProxy
+from .plcapiproxy import PlcApiProxy
 
 debug = False
 debug = True
 
-
-# This is a plain copy of leasesomf.py for now
-# It will be changed to interact with a plcapi
-# service instead of a omf one
-# ultimately the plan is for the omf code
-# to be trashed
-
-
-# Nov 2015
-# what we get from omf_sfa is essentially something like this
-#root@faraday /tmp/asyncio # curl -k https://localhost:12346/resources/leases
-# {
-#  "resource_response": {
-#    "resources": [
-#      {
-#        "urn": "urn:publicid:IDN+omf:r2lab+lease+ee3614fb-74d2-4097-99c5-fe0b988f2f2d",
-#        "uuid": "ee3614fb-74d2-4097-99c5-fe0b988f2f2d",
-#        "resource_type": "lease",
-#        "valid_from": "2015-11-26T10:30:00Z",
-#        "valid_until": "2015-11-26T11:30:00Z",
-#        "status": "accepted",
-#        "client_id": "b089e80a-3b0a-4580-86ba-aacff6e4043e",
-#        "components": [
-#          {
-#            "name": "r2lab",
-#            "urn": "urn:publicid:IDN+omf:r2lab+node+r2lab",
-#            "uuid": "11fbdd9e-067f-4ee9-bd98-3b12d63fe189",
-#            "resource_type": "node",
-#            "domain": "omf:r2lab",
-#            "available": true,
-#            "status": "unknown",
-#            "exclusive": true
-#          }
-#        ],
-#        "account": {
-#          "name": "onelab.inria.foo1",
-#          "urn": "urn:publicid:IDN+onelab:inria+slice+foo1",
-#          "uuid": "6a49945c-1a17-407e-b334-dca4b9b40373",
-#          "resource_type": "account",
-#          "created_at": "2015-11-26T10:22:26Z",
-#          "valid_until": "2015-12-08T15:13:52Z"
-#        }
-#      }
-#    ],
-#    "about": "/resources/leases"
-#  }
-#
-# myslice tends to keep leases contiguous, and so does a lot of delete/create
-# in this case it seems omf_sfa keeps the lease object but removes the subject from the 'components'
-# field. In any case it is quite frequent to see this 'components' being an empty list
+# designed to replace leasesomf ultimately
 
 class Lease:
     """
-    a simple extract from the omf_sfa loghorrea
+    a single lease entry
     """
 
     wire_timeformat = "%Y-%m-%dT%H:%M:%S%Z"
 
-    def __init__(self, omf_sfa_resource):
-        r = omf_sfa_resource
+    def __init__(self, plc_lease):
+        r = plc_lease
         try:
-            self.owner = r['account']['name']
-            self.uuid = r['uuid']
+            self.unique_component_name = Config().value('authorization', 'component_name')
+            self.owner = r['name']
+            self.lease_id = r['lease_id']
             # this is only for information since there's only one node exposed to SFA
             # so, we take only the first name
-            self.subjects = [component['name'] for component in r['components']]
-            sfrom = r['valid_from']
-            suntil = r['valid_until']
-            # turns out that datetime.strptime() does not seem to like
-            # the terminal 'Z', so let's do this manually
-            if sfrom[-1] == 'Z': sfrom = sfrom[:-1] + 'UTC'
-            if suntil[-1] == 'Z': suntil = suntil[:-1] + 'UTC'
-            self.ifrom = calendar.timegm(time.strptime(sfrom, self.wire_timeformat))
-            self.iuntil = calendar.timegm(time.strptime(suntil, self.wire_timeformat))
+            if r['hostname'].split('.')[0] == self.unique_component_name:
+                self.subjects = [ self.unique_component_name ]
+            else:
+                self.subjects = [ r['hostname'] ]
+            self.ifrom, self.iuntil = r['t_from'], r['t_until']
             self.broken = False
             # this is only to get __repr__ as short as possible
-            self.unique_component_name = Config().value('authorization', 'component_name')
 
         except Exception as e:
             self.broken = "lease broken b/c of exception {}".format(e)
@@ -100,25 +45,29 @@ class Lease:
         if not self.subjects:
             self.broken = "(no component)"    
 
-    def __repr__(self):
+    # show a 2-chars prefix
+    # one for rights (computed by caller - not shown if not provided)
+    # one for situation wrt now: < for past, = for current, > for future
+    def __repr__(self, rights_char=None):
+        rights_char = 'B' if self.broken \
+                      else rights_char if rights_char \
+                           else '?'
         now = time.time()
         if self.iuntil < now:
-            time_message = 'expired'
-#        elif self.ifrom < now:
-#            time_message = "from now until {}".format(self.human(self.iuntil, False))
+            time_char = '<'
+        elif self.ifrom < now:
+            time_char = '='
         else:
-            time_message = 'from {} until {}'.format(
-                self.human(self.ifrom, show_timezone=False),
-                self.human(self.iuntil, show_date=False))
+            time_char = '>'
+        time_message = 'from {} until {}'.format(
+            self.human(self.ifrom, show_timezone=False),
+            self.human(self.iuntil, show_date=False))
         # usual case is that self.subjects == [unique_component_name]
         if len(self.subjects) == 1 and self.subjects[0] == self.unique_component_name:
             scope = ""
         else:
             scope = " -> {}".format(" & ".join(self.subjects))
-        overall = "{}{} - {}".format(self.owner, scope, time_message)
-        if self.broken:
-            overall = "<BROKEN {}> ".format(self.broken) + overall
-        return overall
+        return "{}{} {} {} {}".format(rights_char, time_char, time_message, self.owner, scope)
 
     def sort_key(self):
         return self.ifrom
@@ -154,7 +103,6 @@ class Lease:
         if debug: logger.info("fine")
         return self
 
-####################
 class Leases:
     # the details of the omf_sfa instance where to look for leases
     def __init__(self, message_bus):
@@ -162,33 +110,24 @@ class Leases:
         # don't use os.getlogin() as this gives root if under su
         self.login = pwd.getpwuid(os.getuid())[0]
         # connection to the omf-sfa server
-        omf_sfa_server = Config().value('authorization', 'leases_server')
-        omf_sfa_port = Config().value('authorization', 'leases_port')
+        plcapi_server = Config().value('authorization', 'leases_server')
+        plcapi_port = Config().value('authorization', 'leases_port')
         self.unique_component_name = Config().value('authorization', 'component_name')
-        use_plc = Config().value('authorization', 'leases_api') == 'plcapi'
-        self.omf_sfa_proxy \
-            = OmfSfaProxy(omf_sfa_server, omf_sfa_port,
-                          # certificate (when not doing GET)
-                          os.path.expanduser("~/.omf/user_cert.pem"),
-                          # related keyfile (root has its private key in cert)
-                          None if self.login == 'root' else os.path.expanduser("~/.ssh/id_rsa"),
-                          # the unique node name 
-                          self.unique_component_name)
+        self.plcapi_proxy \
+            = PlcApiProxy(plcapi_server, plcapi_port)
         ### computed later
         # a list of Lease objects
         self.leases = None
         # output from omf-sfa - essentially less as-is
-        self.resources = None
+        self.plc_leases = None
 
     def __repr__(self):
         if self.leases is None:
             return "<Leases from {} - **(UNFETCHED)**>"\
-                .format(self.omf_sfa_proxy)
+                .format(self.plcapi_proxy)
         else:
-#            return "<Leases from {} - fetched at {} - {} lease(s)>"\
-#                .format(self.omf_sfa_proxy, self.fetch_time, len(self.leases))
             return "<Leases from {} - {} lease(s)>"\
-                .format(self.omf_sfa_proxy, len(self.leases))
+                .format(self.plcapi_proxy, len(self.leases))
 
     async def feedback(self, field, msg):
         await self.message_bus.put({field: msg})
@@ -208,8 +147,7 @@ class Leases:
             return False
 
     async def fetch_all(self):
-        await asyncio.gather(self.omf_sfa_proxy.fetch_node_uuid(),
-                             self.fetch_leases())
+        await self.fetch_leases()
 
     async def refresh(self):
         self.leases = None
@@ -224,52 +162,23 @@ class Leases:
         await self._fetch_leases()
         return self.leases
 
-    def ssl_context(self, with_cert):
-        return self.omf_sfa_proxy.ssl_context(with_cert, self.login == 'root')
-
     async def _fetch_leases(self):
         self.leases = None
         try:
             logger.info("Leases are being fetched..")
-
-            text = await self.omf_sfa_proxy.REST_as_json('leases', 'GET', None)
-            omf_sfa_answer = json.loads(text)
-            if debug:
-                logger.info("Leases details {}".format(omf_sfa_answer))
-            ### when nothing applies we are getting this
-            # {'exception': {'code': 404, 'reason': 'No resources matching the request.'}}
-            # which omf_sfa chaps apparently think is normal
-            if 'exception' in omf_sfa_answer and \
-               omf_sfa_answer['exception']['reason'] == 'No resources matching the request.':
-                self.leases = []
-                self.resources = []
-                self.fetch_time = time.strftime("%Y-%m-%d @ %H:%M")
-                return
-            if 'error' in omf_sfa_answer:
-                raise Exception(omf_sfa_answer['error'])
-            # resources is in the OMF format as intact as possible
-            self.resources = omf_sfa_answer['resource_response']['resources']
-            logger.info("{} leases received".format(len(self.resources)))
-# a lot of confusion on the status we find attached to leases
-# not sure how this happens exactly
-# but I do see leases with no component actually in the way
-# in that they prevent other leases to be created at the same time
-# so for now I turn off the code that filters out such broken leases
-# because they are sometimes relevant (and sometimes not, go figure)
-## we keep only the non-broken ones; might not be the best idea ever
-## esp. for admin, but well, this currently only is a backup/playground tool 
-#            self.resources = [ resource for resource in self.resources if OmfSfaProxy.is_accepted_lease(resource)]
-#            logger.info("{} non-pending leases kept".format(len(self.resources)))
+            self.plc_leases = self.plcapi_proxy.GetLeases({'day': 0}, anonymous=True)
+            logger.info("{} leases received".format(len(self.plc_leases)))
             # decoded as a list of Lease objects
-            self.leases = [ Lease(resource) for resource in self.resources ]
+            self.leases = [ Lease(resource) for resource in self.plc_leases ]
             self.sort_leases()
             self.fetch_time = time.strftime("%Y-%m-%d @ %H:%M")
                 
         except Exception as e:
             if debug: print("Leases.fetch: exception {}".format(e))
             traceback.print_exc()
-            await self.feedback('leases_error', 'cannot get leases from {} - exception {}'
-                                     .format(self, e))
+            await self.feedback('leases_error',
+                                'cannot get leases from {} - exception {}'
+                                .format(self, e))
         
     def _currently_valid(self, login):
         # must have run fetch_all() before calling this
@@ -281,24 +190,27 @@ class Leases:
         print(5*'-', self,
               "with special privileges" if self.has_special_privileges() else "")
         if self.leases is not None:
-            def two_chars(lease):
-                if self.has_special_privileges():
-                    return '**'
+            def rights_char(lease):
+                # B like broken
                 if lease.broken:
-                    return 'BB'
+                    return 'B'
+                # S like super user
+                if self.has_special_privileges():
+                    return 'S'
+                # * for yes you can use it
                 if lease.currently_valid(self.login, self.unique_component_name):
-                    return '^^'
-                return '..'
+                    return '*'
+                return ' '
             for i, lease in enumerate(self.leases):
-                print("{:2d} {}: {}".format(i+1, two_chars(lease), lease))
+                print("{:3d} {}".format(i+1, lease.__repr__(rights_char=rights_char(lease))))
 
     ########## material to create and modify leases
     @staticmethod
-    def to_wireformat(input):
+    def to_epoch(input):
         if not input:
-            return time.strftime(Lease.wire_timeformat, time.localtime())
+            return time.time()
         if isinstance(input, (int, float)):
-            return time.strftime(Lease.wire_timeformat, time.localtime(input))
+            return input
         patterns = [
             # fill in year
             "%Y-{}:00%Z",           #"%Y-{}:00",        
@@ -310,20 +222,21 @@ class Leases:
         for pattern in patterns:
             fill = time.strftime(pattern).format(input)
             try:
-                n = time.strptime(fill, Lease.wire_timeformat)
-                return time.strftime(Lease.wire_timeformat, n)
+                struct_time = time.strptime(fill, Lease.wire_timeformat)
+                return int(time.mktime(struct_time))
             except:
                 pass    
-
-    # xxx need to check from/until for non-overlap first
 
     def locate_check_user(self, user):
         prefixes_string = Config().value('authorization', 'user_auto_prefixes')
         candidates = [ user ]
-        candidates += [ "{}.{}".format(prefix, user) for prefix in prefixes_string.strip().split() ]
+        candidates += [ "{}.{}".format(prefix, user)
+                        for prefix in prefixes_string.strip().split() ]
         for candidate in candidates:
             if os.path.exists("/home/{}".format(candidate)):
                 return candidate
+        ### TMP XXX
+        return user
         return None
         
     async def _add_lease(self, owner, input_from, input_until):
@@ -333,40 +246,29 @@ class Leases:
                 print("user {} not found under /home - giving up".format(owner))
                 logger.error("Unknown user {}".format(owner))
                 return
-        t_from = Leases.to_wireformat(input_from)
+        t_from = Leases.to_epoch(input_from)
         if not t_from:
             print("invalid time from: {}".format(input_from))
             return
-        t_until = Leases.to_wireformat(input_until)
+        t_until = Leases.to_epoch(input_until)
         if not t_until:
             print("invalid time until: {}".format(input_until))
             return
         # just making sure
-        node_uuid = await self.omf_sfa_proxy.fetch_node_uuid()
-        lease_request = {
-            'name' : str(uuid.uuid1()),
-            'valid_from' : t_from,
-            'valid_until' : t_until,
-            'account_attributes' : { 'name' : owner },
-            'components' : [ {'uuid' : node_uuid } ],
-            }
-        text = await self.omf_sfa_proxy.REST_as_json('leases', 'POST', lease_request)
-        # it is easy to update self.leases, let's do it instead of refetching
         try:
-            js = json.loads(text)
-            if 'exception' in js:
-                print("Could not add lease: ", js['exception']['reason'])
-            else:
-                resource = js['resource_response']['resource']
-                if not OmfSfaProxy.is_accepted_lease(resource):
-                    print("Could not add lease: conflicting timeslot")
-                else:
-                    self.leases.append(Lease(resource))
-                    self.sort_leases()
-                    print("OK")
-            return text
-        except:
-            print('Error', "Cannot add lease - js={}".format(js))
+            hostname = self.plcapi_proxy.GetNodes()[0]['hostname']
+            retcod = self.plcapi_proxy.AddLeases([ hostname], owner, t_from, t_until)
+            if 'new_ids' in retcod:
+                # do we want to automatically
+                # recompute the index ?
+                print("OK")
+                # force next reload
+                self.leases = None
+            elif 'errors' in retcod and retcod['errors']:
+                for error in retcod['errors']:
+                    print("error: {}".format(error))
+        except Exception as e:
+            print('Error', "Cannot add lease - e={}".format(e))
             traceback.print_exc()
             pass
 
@@ -377,42 +279,37 @@ class Leases:
         except:
             pass
         
-    async def _update_lease(self, lease_rank, input_from=None, input_until=None):
-        if input_from is None and input_until is None:
+    async def _update_lease(self, lease_rank, input_from, input_until):
+        update_fields = {}
+        if not input_from and not input_until:
             logger.info("update_lease : nothing to do")
             return
-        if input_from is not None:
-            t_from = Leases.to_wireformat(input_from)
+        if input_from:
+            t_from = Leases.to_epoch(input_from)
             if not t_from:
                 print("invalid time from: {}".format(input_from))
                 return
-        if input_until is not None:
-            t_until = Leases.to_wireformat(input_until)
+            update_fields['t_from'] = t_from
+        if input_until:
+            t_until = Leases.to_epoch(input_until)
             if not t_until:
                 print("invalid time until: {}".format(input_until))
                 return
+            update_fields['t_until'] = t_until
         # lease_rank could be a rank as displayed by self.print()
         the_lease = self.get_lease_by_rank(lease_rank)
         if not the_lease:
             print("Cannot find lease with rank {}".format(lease_rank))
             return
-        lease_uuid = the_lease.uuid
-        request = {'uuid' : lease_uuid}
-        if input_from is not None:
-            request['valid_from'] = t_from
-        if input_until is not None:
-            request['valid_until'] = t_until
-        text = await self.omf_sfa_proxy.REST_as_json('leases', 'PUT', request)
-        # xxx we could use this result to update self.leases instead of fetching it again
-        try:
-            js = json.loads(text)
-            js['resource_response']['resource']
-            self.leases = None
+        lease_ids = [ the_lease.lease_id ]
+        retcod = self.plcapi_proxy.UpdateLeases( lease_ids, update_fields)
+        if 'errors' in retcod and retcod['errors']:
+            for error in retcod['errors']:
+                print("error: {}".format(error))
+        else:
             print("OK")
-            return text
-        except:
-            traceback.print_exc()
-            pass
+            # force next reload
+            self.leases = None
 
     async def _delete_lease(self, lease_rank):
         # lease_rank could be a rank as displayed by self.print()
@@ -420,19 +317,14 @@ class Leases:
         if not the_lease:
             print("Cannot find lease with rank {}".format(lease_rank))
             return
-        lease_uuid = the_lease.uuid
-        request = {'uuid' : lease_uuid}
-        text = await self.omf_sfa_proxy.REST_as_json('leases', 'DELETE', request)
-        # xxx we could use this result to update self.leases instead of fetching it again
-        try:
-            js = json.loads(text)
-            if js['resource_response']['response'] == 'OK':
-                self.leases = None
-                print("OK")
-            return text
-        except:
-            traceback.print_exc()
-            pass
+        lease_ids = [the_lease.lease_id]
+        retcod = self.plcapi_proxy.DeleteLeases(lease_ids)
+        if retcod == 1:
+            print("OK")
+            # force next reload
+            self.leases = None
+        else:
+            print("not deleted")
 
     async def main(self, interactive):
         await self.fetch_all()

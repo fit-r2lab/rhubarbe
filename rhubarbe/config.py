@@ -6,7 +6,12 @@ from rhubarbe.singleton import Singleton
 from rhubarbe.logger import logger
 
 # location, mandatory
+
+# all the files found in these locations are considered
+# and are all loaded in this order, so the last ones
+# overwrite the first ones
 locations = [
+    # path, mandatory
     ("/etc/rhubarbe/rhubarbe.conf", True),
     ("/etc/rhubarbe/rhubarbe.conf.local", False),
     (os.path.expanduser("~/.rhubarbe.conf"), False),
