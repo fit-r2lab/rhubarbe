@@ -1,3 +1,8 @@
+# 1.2.0 - 2016 Dec 14
+
+* has support for getting leases at a plcapi instance
+* although for now it will run on r2lab in omf mode
+
 # 1.1.1 - 2016 Nov 21
 
 * rhubarbe leases —check is verbose
