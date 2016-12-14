@@ -36,18 +36,30 @@ import rhubarbe.util as util
 ####################
 reservation_required = "This function requires a valid reservation - or to be root"
 
-def check_reservation(message_bus=None, loop=None, verbose=True):
-    "return a bool indicating if we currently have the lease"
+def check_reservation(message_bus=None, loop=None, verbose=False):
+    """
+    return a bool indicating if we currently have the lease
+
+    verbose can be 
+    False : write a message if lease is not there
+    True : always write a message
+    """
     message_bus = message_bus or asyncio.Queue()
     loop = loop or asyncio.get_event_loop()
     leases = Leases(message_bus)
     login = leases.login
     async def check_leases():
         if verbose:
-            print("Checking current reservation for {} ".format(login), end="")
+            print("Checking current reservation for {} : ".format(login), end="")
         ok = await leases.currently_valid()
-        if verbose:
-            print("OK" if ok else "WARNING: Access currently denied")
+        if ok:
+            if verbose:
+                print("OK")
+        else:
+            if not verbose:
+                print("WARNING: Access currently denied to {}".format(login))
+            else:
+                print("access denied")
         return ok
     return(loop.run_until_complete(check_leases()))
 

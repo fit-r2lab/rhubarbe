@@ -84,23 +84,29 @@ class Lease:
         """
         tells if the lease is currently applicable
         """
-        if debug: logger.info("currently_valid with lease {}: ".format(self))
+        if debug:
+            logger.info("currently_valid with lease {}: ".format(self))
         if self.broken:
-            if debug: logger.info("ignoring broken lease {}".format(self))
+            if debug:
+                logger.info("ignoring broken lease {}".format(self))
             return False
         if not self.owner == login:
-            if debug: logger.info("login {} is not owner - actual owner is {}".format(login, self.owner))
+            if debug:
+                logger.info("login {} is not owner - actual owner is {}".format(login, self.owner))
             return False
         if not self.ifrom <= time.time() <= self.iuntil:
-            if debug: logger.info("{} : wrong timerange".format(self))
+            if debug:
+                logger.info("{} : wrong timerange".format(self))
             return False
         if component_name not in self.subjects:
-            if debug: logger.info("{} not among subjects {}"
-                                  .format(component_name, self.subjects))
+            if debug:
+                logger.info("{} not among subjects {}"
+                            .format(component_name, self.subjects))
             return False
         # nothing more to check; the subject name cannot be wrong, there's only
         # one node that one can get a lease on
-        if debug: logger.info("fine")
+        if debug:
+            logger.info("fine")
         return self
 
 class Leases:
@@ -356,10 +362,10 @@ In all the above cases, times will be understood as local time (French Riviera).
 Leaving a time empty means either 'now', or 'do not change', depending on the context
 """
         ### interactive mode
-        if not self.has_special_privileges():
-            # xxx need to reconfigure omf_sfa
-            print("Lease management available to root only for now")
-            return
+#        if not self.has_special_privileges():
+#            # xxx need to reconfigure omf_sfa
+#            print("Lease management available to root only for now")
+#            return
         while True:
             current_time = time.strftime("%H:%M")
             answer = input("{} - Enter command ([l]ist, [a]dd, [u]pdate, [d]elete, [r]efresh, [h]elp, [q]uit : "
