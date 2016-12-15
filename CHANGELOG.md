@@ -1,3 +1,8 @@
+# 1.2.1 - 2016 Dec 15
+
+* create PlcApiProxy from a url instead of a hostname and port
+* for r2lab.inria.fr that uses this class
+
 # 1.2.0 - 2016 Dec 14
 
 * has support for getting leases at a plcapi instance
