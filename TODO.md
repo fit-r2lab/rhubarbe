@@ -1,5 +1,16 @@
 # `rhubarbe` *per se*
 
+## tweak setup.py to use setuptools
+
+* make sure `rhubarbe.conf` gets installed in `/etc/rhubarbe` 
+ 
+## minimal sphinx documentation
+* document also configuration logic, i.e. the names used to locate config files and in what order etc...
+
+## plcapiproxy
+
+* make asynchroneous as far as possible with `oaixmlrpc`
+
 ## images
 
 * improvement: rimages --official or --stable or something

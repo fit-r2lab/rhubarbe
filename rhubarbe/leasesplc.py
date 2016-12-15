@@ -1,7 +1,6 @@
 import os
 import pwd
 import time
-import calendar
 from datetime import datetime
 import json
 import uuid
@@ -119,8 +118,8 @@ class Leases:
         plcapi_server = Config().value('authorization', 'leases_server')
         plcapi_port = Config().value('authorization', 'leases_port')
         self.unique_component_name = Config().value('authorization', 'component_name')
-        self.plcapi_proxy \
-            = PlcApiProxy(plcapi_server, plcapi_port)
+        plcapi_url = "https://{}:{}/PLCAPI/".format(plcapi_server, plcapi_port)
+        self.plcapi_proxy = PlcApiProxy(plcapi_url)
         ### computed later
         # a list of Lease objects
         self.leases = None

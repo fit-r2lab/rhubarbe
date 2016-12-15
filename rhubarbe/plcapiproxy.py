@@ -13,15 +13,12 @@ class PlcApiProxy(ServerProxy):
     # use the standard plcapi scheme to run on /PLCAPI/
     # always use password auth in this first rough version
     # could be improved by using session authentication
-    def __init__(self, hostname, port, debug=False):
-        self.hostname = hostname
-        self.port = port
-        self.email = None
-        self.password = None
+    def __init__(self, url, email=None, password=None, debug=False):
+        self.url = url
+        self.email = email
+        self.password = password
         self.debug = debug
         ###
-        self.url = "https://{}:{}/PLCAPI/"\
-            .format(self.hostname, self.port)
         context = ssl.SSLContext(ssl.PROTOCOL_TLSv1)
         context.check_hostname = False
         ServerProxy.__init__(
