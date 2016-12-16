@@ -21,14 +21,12 @@ from .plcapiproxy import PlcApiProxy
 ####################
 # stolen from historical planetlab nodemanager
 def replace_file_with_string(filename, new_contents,
-                             chmod=None, remove_if_empty=False):
+                             owner=None, chmod=None, remove_if_empty=False):
     """
     Replace a file with new contents
     checks for changes: does not do anything if previous state was already right
     can handle chmod if requested
     can also remove resulting file if contents are void, if requested
-    performs atomically:
-    writes in a tmp file, which is then renamed
 
     returns True if a change occurred, or the file is deleted
     """
@@ -50,14 +48,12 @@ def replace_file_with_string(filename, new_contents,
         return False
     # overwrite filename file: create a temp in the same directory
     path = os.path.dirname(filename) or '.'
-    fd, name = tempfile.mkstemp('', 'repl', path)
-    os.write(fd, new_contents)
-    os.close(fd)
-    if os.path.exists(filename):
-        os.unlink(filename)
-    shutil.move(name, filename)
+    with open(filename, 'w') as f:
+        f.write(new_contents)
     if chmod:
         os.chmod(filename, chmod)
+    if owner:
+        retcod = os.system("chown {} {}".format(owner, filename))
     return True
 
 ####################
@@ -133,7 +129,7 @@ class Accounts:
         (at least wrt homedir creation, IIRC again)
         """
         commands = [
-            "useradd --create-home --user-group {x}",
+            "useradd --create-home --user-group {x} --shell /bin/bash",
             "mkdir /home/{x}/.ssh",
             "chmod 700 /home/{x}/.ssh",
             "chown -R {x}:{x} /home/{x}",
@@ -172,7 +168,7 @@ class Accounts:
         for slice in slices:
             slicename = slice['name']
             persons = [ persons_by_id[id] for id in slice['person_ids']]
-            key_ids = sum( (p['key_ids'] for p in persons), [])
+            key_ids = set(sum( (p['key_ids'] for p in persons), []))
             keys = [ keys_by_id[id] for id in key_ids ]
             authorized = [ k['key'] for k in keys]
             authorized.sort()
@@ -190,7 +186,9 @@ class Accounts:
                     # dictate authorized_keys contents
                     ssh_auth_keys = "/home/{x}/.ssh/authorized_keys".format(x=slicename)
                     replace_file_with_string(ssh_auth_keys, authorized_string,
-                                             chmod=0o400, remove_if_empty=True)
+                                             chmod=0o400,
+                                             owner="{x}:{x}".format(x=slicename),
+                                             remove_if_empty=True)
                     # suggest ssh config - only if not existing
                     ssh_config_file = "/home/{x}/.ssh/config_file".format(x=slicename)
                     if not os.path.exists(ssh_config_file):
