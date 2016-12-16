@@ -19,6 +19,7 @@ from rhubarbe.node import Node
 from rhubarbe.imageloader import ImageLoader
 from rhubarbe.imagesaver import ImageSaver
 from rhubarbe.monitor import Monitor
+from rhubarbe.accounts import Accounts
 from rhubarbe.ssh import SshProxy
 from rhubarbe.leases import Leases
 from rhubarbe.inventory import Inventory
@@ -428,9 +429,16 @@ def monitor(*argv):
         loop.close()
 
 @subcommand
+def accounts(*argv):
+
+    # xxx parse args some day
+    accounts = Accounts()
+    return accounts.main()
+
+@subcommand
 def leases(*argv):
     usage = """
-    Unless otherwise specified, displays current leases
+    Unless otherwise specified, displays current leases, from today onwards
     """
     parser = ArgumentParser(usage=usage)
     parser.add_argument('-c', '--check', action='store_true', default=False,
@@ -511,7 +519,7 @@ def share(*argv):
       another destination name with -o
 
     If your account is enabled in /etc/sudoers.d/rhubarbe-share, 
-    the command will actually perform the mv operation,
+    the command will actually perform the mv operation
     Requires to be run through 'sudo rhubarbe-share'
     """
     the_config = Config()

@@ -4,11 +4,10 @@ import logging.config
 # we essentially need
 # * one all-purpose logger that goes into ./rhubarbe.log
 # * one special logger for monitor that goes into /var/log/monitor.log
+# * one special logger for accounts that goes into /var/log/accounts.log
 
 #import os
-# os.getlogin() surprisingly does this sometimes
-# OSError: [Errno 25] Inappropriate ioctl for device
-#
+# os.getlogin() is unreliable
 # so instead let's see if we can write in /var/log
 try:
     monitor_output = '/var/log/monitor.log'
@@ -16,6 +15,13 @@ try:
         pass
 except:
     monitor_output = 'monitor.log'
+
+try:
+    accounts_output = '/var/log/accounts.log'
+    with open(accounts_output, 'a') as f:
+        pass
+except:
+    accounts_output = 'accounts.log'
 
 rhubarbe_logging_config = {
     'version' : 1,
@@ -43,10 +49,21 @@ rhubarbe_logging_config = {
             'formatter': 'shorter',
             'filename' : monitor_output,
         },
+        'accounts': {
+            'level': 'INFO',
+            'class': 'logging.FileHandler',
+            'formatter': 'shorter',
+            'filename' : accounts_output,
+        },
     },
     'loggers': {
         'monitor': {
             'handlers': ['monitor'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'accounts': {
+            'handlers': ['accounts'],
             'level': 'INFO',
             'propagate': False,
         },
@@ -67,6 +84,10 @@ logger = logging.getLogger('rhubarbe')
 # monitor
 # from rhubarbe.logger import monitor_logger as logger
 monitor_logger = logging.getLogger('monitor')
+
+# accounts
+# from rhubarbe.logger import accounts_logger as logger
+accounts_logger = logging.getLogger('accounts')
 
 #################### test
 if __name__ == '__main__':

@@ -30,8 +30,10 @@ class PlcApiProxy(ServerProxy):
             return { 'AuthMethod' : 'anonymous' }
         else:
             if not self.email:
-                self.email = input("Enter email for login : ")
-                self.password = getpass.getpass("Enter related password : ")
+                self.email = input("Enter plcapi email (login) : ")
+            if not self.password:
+                self.password = getpass.getpass("Enter plcapi password for {} : "
+                                                .format(self.email))
             return { 'AuthMethod' : 'password',
                      'Username'   : self.email,
                      'AuthString' : self.password }
@@ -43,7 +45,7 @@ class PlcApiProxy(ServerProxy):
         # because this is tha majority of the plcapi calls
         def fun(*args, anonymous=False, **kwds):
             if self.debug:
-                auth_msg = "auth" if not anonymous else "anon"
+                auth_msg = "[auth]" if not anonymous else "[anon]"
                 print("-> Sending {} {} on {} with args={} and kwds={}"
                       .format(auth_msg, attr, self, args, kwds))
             actual_fun = ServerProxy.__getattr__(
@@ -58,5 +60,5 @@ class PlcApiProxy(ServerProxy):
                           .format(attr, e))
         return fun
 
-    def __repr__(self):
-        return "plcapi://{}:{}/PLCAPI/".format(self.hostname, self.port)
+    def __str__(self):
+        return "PLCAPIproxy@{}".format(self.url)
