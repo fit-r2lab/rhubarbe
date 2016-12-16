@@ -1,5 +1,15 @@
 # `rhubarbe` *per se*
 
+## review config 
+* should include `/etc/rhubarbe/rhubarbe.conf.root` only when run by root
+* should make sure that file has the right permissions
+* could take advantage of this (plcapi email+passwd) when running rleases -i under root
+* check rhubarbe.conf for comments
+
+## accounts
+* first implem. is rough and needs more work
+* should provide a means for PLCAPI to notify faraday that it needs to be done right away
+
 ## tweak setup.py to use setuptools
 
 * make sure `rhubarbe.conf` gets installed in `/etc/rhubarbe` 
