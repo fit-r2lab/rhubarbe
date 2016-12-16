@@ -25,7 +25,7 @@ with open("README.md") as f:
 # requirements are not met yet
 #from rhubarbe.main import supported_subcommands
 #cut'n'paste from the rhubarbe help message
-rhubarbe_help = "nodes,status,on,off,reset,info,usrpstatus,usrpon,usrpoff,load,save,wait,monitor,leases,images,resolve,share,inventory,config,version"
+rhubarbe_help = "nodes,status,on,off,reset,info,usrpstatus,usrpon,usrpoff,load,save,wait,monitor,accounts,leases,images,resolve,share,inventory,config,version"
 supported_subcommands = rhubarbe_help.split(",")
 subcommand_symlinks = [ "bin/rhubarbe-{}".format(subcommand) for subcommand in supported_subcommands ]
 if sys.argv[1] in ('sdist'):
