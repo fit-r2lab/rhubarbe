@@ -1,3 +1,8 @@
+# 1.2.2 - 2016 Dec 16
+
+* rhubarbe accounts manages accounts from plcapi
+* still rustic : runs one shot at a time
+
 # 1.2.1 - 2016 Dec 15
 
 * create PlcApiProxy from a url instead of a hostname and port
