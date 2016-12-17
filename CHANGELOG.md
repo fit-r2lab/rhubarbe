@@ -1,3 +1,8 @@
+# 1.2.3 - 2016 Dec 17
+
+* fix MonitorLeases that still exposes leases in
+  a way similar to what we had with omf
+
 # 1.2.2 - 2016 Dec 16
 
 * rhubarbe accounts manages accounts from plcapi
