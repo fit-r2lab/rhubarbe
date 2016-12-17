@@ -496,9 +496,16 @@ class Monitor:
 if __name__ == '__main__':
     import sys
     from node import Node
-    rebootnames = sys.argv[1:]
+    # rebootnames = sys.argv[1:]
     message_bus = asyncio.Queue()
-    cycle = Config().value('monitor', 'cycle')
-    monitor = Monitor(rebootnames, message_bus, cycle=2, report_wlan=True)
+    # cycle = Config().value('monitor', 'cycle')
+    # monitor = Monitor(rebootnames, message_bus, cycle=2, report_wlan=True)
+
+    hostname = Config().value('monitor', 'sidecar_hostname')
+    port = int(Config().value('monitor', 'sidecar_port'))
+    reconnectable = ReconnectableSocketIOMonitor(None, hostname, port, debug=True)
+    monitor = MonitorLeases(message_bus, reconnectable = reconnectable,
+                            channel='info:leases',
+                            cycle=10, step=1, wait=.1, debug=True)
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(asyncio.gather(monitor.run(), monitor.report()))
+    loop.run_until_complete(asyncio.gather(monitor.run_forever()))
