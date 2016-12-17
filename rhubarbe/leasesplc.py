@@ -125,6 +125,9 @@ class Leases:
         self.leases = None
         # output from omf-sfa - essentially less as-is
         self.plc_leases = None
+        # xxx this is still used by monitor
+        # should be cleaned up
+        self.resources = None
 
     def __repr__(self):
         if self.leases is None:
@@ -167,6 +170,18 @@ class Leases:
         await self._fetch_leases()
         return self.leases
 
+    # xxx stolen from r2lab.inria.fr : because we still use
+    # a data model inspired from when we had OMF
+    def epoch_to_ui_ts(self, epoch):
+        return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(epoch))
+
+    def resource_from_lease(self, plc_lease):
+        return {'uuid': plc_lease['lease_id'],
+                'slicename': plc_lease['name'],
+                'valid_from': self.epoch_to_ui_ts(plc_lease['t_from']),
+                'valid_until': self.epoch_to_ui_ts(plc_lease['t_until']),
+                'ok': True}
+
     async def _fetch_leases(self):
         self.leases = None
         try:
@@ -177,6 +192,10 @@ class Leases:
             self.leases = [ Lease(resource) for resource in self.plc_leases ]
             self.sort_leases()
             self.fetch_time = time.strftime("%Y-%m-%d @ %H:%M")
+            self.resources = [
+                self.resource_from_lease(plc_lease)
+                for plc_lease in self.plc_leases
+                ]
                 
         except Exception as e:
             if debug: print("Leases.fetch: exception {}".format(e))

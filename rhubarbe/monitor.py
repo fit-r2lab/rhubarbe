@@ -67,7 +67,7 @@ class ReconnectableSocketIO:
     def get_counter(self, channel):
         return self.counters.get(channel, 0)
 
-    def emit_info(self, channel, info):
+    def emit_info(self, channel, info, wrap_in_list):
         # info can be a list (e.g. for leases)
         # or a dict, with or without an 'id' field
         if self.debug:
@@ -77,7 +77,9 @@ class ReconnectableSocketIO:
                         .format(channel, msg, info))
                             
         # wrap info as single elt in a list
-        message = json.dumps([info])
+        if wrap_in_list:
+            info = [ info ]
+        message = json.dumps(info)
         if self.socketio is None:
             self.connect()
         try:
@@ -91,7 +93,7 @@ class ReconnectableSocketIO:
             label = "{}: {}".format(info.get('id', 'none'), one_char_summary(info))
             logger.warn("Dropped message on {} - channel {} - msg {}"
                         .format(self, channel, label))
-            logger.print_exc()
+            logger.exception("Dropped because of this exception")
             
     def wait(self, wait):
         if self.socketio:
@@ -119,7 +121,6 @@ class ReconnectableSocketIOMonitor(ReconnectableSocketIO):
         """
         triggers on_channel back on monitor object
         """
-        #print("ReconnectableSocketIOMonitor.on_channel, channel={}, args={}".format(channel, args))
         self.monitor.on_channel(channel, *args)
 
 # translate info into a single char for logging
@@ -177,7 +178,7 @@ class MonitorNode:
         """
         Send info to sidecar
         """
-        self.reconnectable.emit_info(self.channel, self.info)
+        self.reconnectable.emit_info(self.channel, self.info, wrap_in_list=True)
         
     def set_info_and_report(self, *overrides):
         """
@@ -343,9 +344,7 @@ class MonitorNode:
                     logger.exception("monitor oops 1")
                     pass
             except Exception as e:
-                import traceback
-                traceback.print_exc()
-                pass
+                logger.exception("monitor remote_command failed")
         else:
             self.set_info({'control_ssh': 'off'})
 
@@ -387,7 +386,7 @@ class MonitorNode:
             await asyncio.sleep(cycle)
             
 
-from .leases import Lease, Leases
+from rhubarbe.leases import Lease, Leases
 
 class MonitorLeases:
     def __init__(self, message_bus, reconnectable, channel, cycle, step, wait, debug):
@@ -411,7 +410,6 @@ class MonitorLeases:
             trigger = time.time() + self.cycle
             # check for back_channel every 15 ms
             while not self.fast_track and time.time() < trigger:
-                #print("sleeping {}".format(self.step))
                 await asyncio.sleep(self.step)
                 # give a chance to socketio events to trigger
                 self.reconnectable.wait(self.wait)
@@ -419,7 +417,8 @@ class MonitorLeases:
             try:
                 await leases.refresh()
                 omf_leases = leases.resources
-                self.reconnectable.emit_info(self.channel, omf_leases)
+                self.reconnectable.emit_info(self.channel, omf_leases,
+                                             wrap_in_list=False)
                 logger.info("advertising {} leases".format(len(omf_leases)))
                 if self.debug:
                     logger.info("Leases details: {}".format(omf_leases))
