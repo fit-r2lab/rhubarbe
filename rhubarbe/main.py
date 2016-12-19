@@ -431,9 +431,13 @@ def monitor(*argv):
 @subcommand
 def accounts(*argv):
 
-    # xxx parse args some day
+    parser = ArgumentParser()
+    parser.add_argument("-c", "--cycle", help="Set cycle in seconds",
+                        default=None)
+    args = parser.parse_args(argv)
+
     accounts = Accounts()
-    return accounts.main()
+    return accounts.main(args.cycle)
 
 @subcommand
 def leases(*argv):

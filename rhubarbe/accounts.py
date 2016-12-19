@@ -10,9 +10,8 @@ This implements a daemon that runs on faraday and that
 think of it as a dedicated nodemanager
 """
 
-import sys
+import time
 import os.path
-import tempfile
 import pwd
 import glob
 
@@ -196,9 +195,8 @@ class Accounts:
         return "".join(key_lines)
 
     ##########
-    def cycle(self):
+    def manage_accounts(self):
         self._running = True
-        logger.info("Accounts.cycle ----------")
         # get context
         passwd_entries = self.all_passwd_entries()
         home_basenames = self.authorized_home_basenames()
@@ -275,5 +273,21 @@ class Accounts:
 
         self._running = False
 
-    def main(self):
-        return self.cycle()
+    def run_forever(self, period):
+        while True:
+            beg = time.time()
+            logger.info("---------- rhubarbe accounts manager (period {})"
+                        .format(period))
+            self.manage_accounts()
+            now = time.time()
+            duration = now - beg
+            towait = period - duration
+            logger.info("---------- rhubarbe accounts manager - sleeping for {}"
+                        .format(towait))
+            time.sleep(period - duration)
+
+    def main(self, cycle):
+        if cycle is None:
+            cycle = Config().value('accounts', 'cycle')
+        cycle = int(cycle)
+        self.run_forever(cycle)

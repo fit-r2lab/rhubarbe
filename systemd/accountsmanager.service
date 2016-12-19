@@ -1,0 +1,9 @@
+# this is meant to be installed under /etc/systemd/system
+[Unit]
+Description=testbed accounts manager - manages unix accounts and their authorized_keys
+
+[Service]
+ExecStart=/bin/bash -c "rhubarbe-accounts"
+
+[Install]
+WantedBy=multi-user.target
