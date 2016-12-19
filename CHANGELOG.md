@@ -1,3 +1,8 @@
+# 1.3.0 - 2016 Dec 19
+
+* new function 'monitor-accounts' that can run as a service
+  that keeps the set of unix accounts in sync with the plcapi
+
 # 1.2.3 - 2016 Dec 17
 
 * fix MonitorLeases that still exposes leases in
