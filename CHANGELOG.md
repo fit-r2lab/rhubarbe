@@ -1,7 +1,8 @@
-# 1.3.0 - 2016 Dec 19
+# 1.3.1 - 2016 Dec 19
 
 * new function 'monitor-accounts' that can run as a service
   that keeps the set of unix accounts in sync with the plcapi
+* default config is to use plcapi
 
 # 1.2.3 - 2016 Dec 17
 
