@@ -141,13 +141,49 @@ class Accounts:
             if retcod != 0:
                 logger.error("{} -> {}".format(command, retcod))
 
-    ssh_config = """Host fit*
-    LogLevel=error
+    def create_ssh_config(self, slicename):
+        """
+        Initialize slice's .ssh/config that keeps ssh from
+        being too picky with host keys and similar
+        
+        Performed only if not yet existing
+        """
+        ssh_config_file = "/home/{x}/.ssh/config".format(x=slicename)
+
+        if not os.path.exists(ssh_config_file):
+            
+            # define the magic sequence for both fit* and data*
+            config_bases = [ 'fit', 'data' ]
+            # 
+            config_pattern = """Host {base}*
     StrictHostKeyChecking no
     UserKnownHostsFile=/dev/null
     CheckHostIP=no
 """
 
+            ssh_config = "\n".join(
+                [config_pattern.format(base=base) for base in config_bases])
+            replace_file_with_string(ssh_config_file,
+                                     ssh_config,
+                                     chmod = 0o600,
+                                     owner = "{x}:{x}".format(x=slicename))
+
+    ##########
+    def authorized_key_lines(self, plc_slice, plc_persons_by_id, plc_keys_by_id):
+        """
+        returns the expected contents of that slice's authorized_keys file
+        """
+        slicename = plc_slice['name']
+        persons = [ plc_persons_by_id[id] for id in plc_slice['person_ids']]
+        key_ids = set(sum( (p['key_ids'] for p in persons), []))
+        keys = [ plc_keys_by_id[id] for id in key_ids ]
+        key_lines = [ (k['key'] + "\n") for k in keys]
+        # this is so we get something canonical that does not
+        # change everytime
+        key_lines.sort()
+        return "".join(key_lines)
+
+    ##########
     def cycle(self):
         self._running = True
         logger.info("Accounts.cycle ----------")
@@ -165,19 +201,13 @@ class Accounts:
         keys_by_id = { k['key_id'] : k for k in keys }
         
         active_slices = []
+
         for slice in slices:
             slicename = slice['name']
-            persons = [ persons_by_id[id] for id in slice['person_ids']]
-            key_ids = set(sum( (p['key_ids'] for p in persons), []))
-            keys = [ keys_by_id[id] for id in key_ids ]
-            authorized = [ k['key'] for k in keys]
-            authorized.sort()
-            authorized_string = ""
-            for k in authorized:
-                authorized_string += (k + "\n")
+            authorized_keys = self.authorized_key_lines(slice, persons_by_id, keys_by_id)
 
             # don't bother to create an account if the slice has no key
-            if authorized:
+            if authorized_keys:
                 try:
                     active_slices.append(slicename)
                     # create account if missing
@@ -185,16 +215,11 @@ class Accounts:
                         self.create_account(slicename)
                     # dictate authorized_keys contents
                     ssh_auth_keys = "/home/{x}/.ssh/authorized_keys".format(x=slicename)
-                    replace_file_with_string(ssh_auth_keys, authorized_string,
+                    replace_file_with_string(ssh_auth_keys, authorized_keys,
                                              chmod=0o400,
                                              owner="{x}:{x}".format(x=slicename),
                                              remove_if_empty=True)
-                    # suggest ssh config - only if not existing
-                    ssh_config_file = "/home/{x}/.ssh/config_file".format(x=slicename)
-                    if not os.path.exists(ssh_config_file):
-                        replace_file_with_string(ssh_config_file,
-                                                 self.ssh_config,
-                                                 chmod = 0o600)
+                    self.create_ssh_config(slicename)
                     
                 except Exception as e:
                     logger.exception("could not properly deal with active slice {x}"
