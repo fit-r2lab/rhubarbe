@@ -115,10 +115,8 @@ class Leases:
         # don't use os.getlogin() as this gives root if under su
         self.login = pwd.getpwuid(os.getuid())[0]
         # connection to the omf-sfa server
-        plcapi_server = Config().value('authorization', 'leases_server')
-        plcapi_port = Config().value('authorization', 'leases_port')
         self.unique_component_name = Config().value('authorization', 'component_name')
-        plcapi_url = "https://{}:{}/PLCAPI/".format(plcapi_server, plcapi_port)
+        plcapi_url = Config().value('plcapi', 'url')
         self.plcapi_proxy = PlcApiProxy(plcapi_url)
         ### computed later
         # a list of Lease objects
