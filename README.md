@@ -216,12 +216,17 @@ Format is known as a `.ini` file, should be straightforward. Just beware to **no
  
 ## Authorization system
 
-Among things to be configured is the URL for a leases server. This for now assumes the following
+Among things to be configured are, in the `plcapi` section:
 
-* You run an instance of an OMF_SFA service at that hostname and port
-* And the OMF_SFA service exposes a single resource.
+* `plcapi_url` : the URL for a leases server, and
+* `leases_hostname` : the hostname of the PLCAPI node that is used to record leases on the testbed.
 
-This is an admittedly specific policy for R2Lab, as opposed to other OMF-based deployments, since we want the reservations to be made on the testbed as a whole (to ensure reproducibility). This rather *ad hoc*  approach can easily be revisited if there's interest.
+In other words, all this for now assumes the following:
+
+* You run an instance of a PLCAPI service at that URL, and 
+* this API knows about one node whose hostname is specified above.
+
+This is an admittedly specific policy for R2Lab, since we want the reservations to be made on the testbed as a whole (to ensure reproducibility). 
 
 # A word on the `asyncio` module
 
