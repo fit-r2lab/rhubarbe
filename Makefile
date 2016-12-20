@@ -62,6 +62,8 @@ bemol:
 ########## actually install
 infra:
 	apssh -t r2lab.infra pip3 install --upgrade rhubarbe
+	ssh root@faraday.inria.fr systemctl restart monitor
+	ssh root@faraday.inria.fr systemctl restart accountsmanager
 check:
 	apssh -t r2lab.infra rhubarbe version
 
