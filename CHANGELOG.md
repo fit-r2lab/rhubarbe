@@ -1,3 +1,8 @@
+# 1.3.3 - 2016 Dec 20
+
+* cleanup wrt omf-related code
+* updated readme
+
 # 1.3.2 - 2016 Dec 19
 
 * new function 'monitor-accounts' that can run as a service
