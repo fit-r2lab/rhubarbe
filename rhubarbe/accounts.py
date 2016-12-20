@@ -290,4 +290,8 @@ class Accounts:
         if cycle is None:
             cycle = Config().value('accounts', 'cycle')
         cycle = int(cycle)
-        self.run_forever(cycle)
+        if cycle != 0:
+            self.run_forever(cycle)
+        else:
+            self.manage_accounts()
+              
