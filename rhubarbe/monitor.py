@@ -416,6 +416,7 @@ class MonitorLeases:
                 
             try:
                 await leases.refresh()
+                # xxx this is fragile
                 omf_leases = leases.resources
                 self.reconnectable.emit_info(self.channel, omf_leases,
                                              wrap_in_list=False)

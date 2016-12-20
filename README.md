@@ -6,6 +6,30 @@
 
 This is connected to an authorization system; most of the functions are rather intrusive, and for this reason they require the user to have obtained a lease (reservation), applicable to the current time and day, before the tool can be used. Note that the `root` user is unconditionnally granted permission.
 
+# Purpose
+
+This is the software that runs the R2lab testbed in Inria Sophia Antipolis.
+
+It is written in python3.5 on top of `asyncio`, and covers the following features :
+
+* `on`, `off`, and the like : managing nodes status through their CMC cards: status of the motherboard and of the USRP extension;
+* `load`, `save` , `images` : loading and saving images on nodes;
+* `leases` : displaying, and to some extent modifying, reservations on the testbed
+* `monitor` : feeding the sidecar server live info about the global testbed status (phones excluded)
+* `accounts` : propagates the changes in the PLCAPI into actual Unix accounts and related authorized keys.
+
+With these additional benefits:
+
+* single configuration file in `/etc/rhubarbe/rhubarbe.conf`, individual settings can be
+  overridden at either system- (`/etc/rhubarbe/rhubarbe.conf.local`),
+  user- (`~/.rhubarbe.conf`) or directory- (`./rhubarbe.conf`) level; 
+* all commands accept a timeout
+* all commands return a reliable code. When everything goes fine for all subject nodes they return 0, and 1 otherwise
+* `load` and `wait` come with a `curses` mode that lets you visualize every node individually; very helpful when something goes wrong with a large number of nodes, so you can pinpoint which node is not behaving as expected.
+
+
+# Primer
+
 ## Image loading
 To load your `fedora-23` image on 18 nodes simultaneously:
     
@@ -52,33 +76,6 @@ To save the image of node 10, just do this
  
      rhubarbe save 10 -o image-name -c 'this will end up in /etc/rhubarbe-image right in the image'
      
-# Purpose
-
-This is a tentative rewriting of the `omf6 load` and other similar commands, in python3 using `asyncio`. This results in a very efficient, single-thread, yet asynchroneous solution. The following features are currently available:
-
-* `rhubarbe load` : parallel loading of an image, much like `omf6 load`. Two display modes are supported:
-  * with the `-c` option running on top of curses to show individual progress for each node
-  * otherwise, display is suitable to be redirected in a terminal with a global progressbar - much like `omf6 load`, or to a file.
- 
-  In any case, 'nextboot' symlinks (that tell `pxelinux` that a node to boot onto the frisbee image) are reliably removed in all cases, even if program crashes or is interrupted.
-* `rhubarbe save` : image saving, much like `omf6 save`
-* `rhubarbe wait` : waiting for all nodes to be available (i.e. to be connectable via ssh)
-
-With these additional benefits:
-
-* single configuration file in `/etc/rhubarbe/rhubarbe.conf`, individual setting can be overridden at either user- (`~/.rhubarbe.conf`) or directory- (`./rhubarbe.conf`) level
-* all commands accept a timeout; a timeout that actually works, that is.
-* all commands return a reliable code. When everything goes fine for all subject nodes they return 0, and 1 otherwise
-* `load` comes with a `curses` mode that lets you visualize every node individually; very helpful when something goes wrong, so you can pinpoint which node is not behaving as expected.
-
-A few additional features are available as well for convenience
-
-* `rhubarbe leases` : inspect current leases
-* `rhubarbe images` : list available images
-* `rhubarbe inventory` : display inventory
-* `rhubarbe config` : display config
-
-Finally, `rhubarbe monitor` is a monitoring tool that can be used to feed a `socket.io` service about the current status of the testbed in realtime. This is what is called the *sidecar* service on R2Lab.
 
 # How to use
 
@@ -87,7 +84,7 @@ Finally, `rhubarbe monitor` is a monitoring tool that can be used to feed a `soc
 The python entry point is named `rhubarbe` but it should be called with an additional subcommand.
 
     root@bemol ~ # rhubarbe
-    Unknown subcommand help - use one among {nodes,status,on,off,reset,info,usrpstatus,usrpon,usrpoff,load,save,wait,monitor,leases,images,share,inventory,config,version}
+    Unknown subcommand help - use one among {nodes,status,on,off,reset,info,usrpstatus,usrpon,usrpoff,load,save,wait,images,resolve,share,leases,monitor,accounts,inventory,config,version}
 
 	root@bemol ~ # rhubarbe load --help
 
@@ -165,7 +162,7 @@ In short: see `/etc/rhubarbe/inventory.json`
 
 Unfortunately the tool needs a mapping between hostnames and MAC addresses - essentially for messing with pxelinux *nextboot* symlinks. This is why the tool needs to find an inventory in a file named `/etc/rhubarbe/inventory.json`. See an extract below; note that the `'data'` entry is not needed by the tools, we have them in place over here at r2lab for convenience only. The CMC mac address is not needed either, strictly speaking, as of this writing.
 
-**On R2LAB**: this is taken care of by `inventory/configure.py` and its `Makefile`. Note that like for the OMF JSON inventory file, `configure.py` creates 2 different files for faraday and bemol - to account for any replacement node on faraday, like when e.g. node 41 actually sits in slot 15.
+**On R2LAB**: this is taken care of by `inventory/configure.py` and its `Makefile`. Note that like for the inventory file, `configure.py` creates 2 different files for faraday and bemol - to account for any replacement node on faraday, like when e.g. node 41 actually sits in slot 15.
 
 FYI an inventory files just looks like below; the `data` field is not needed
 

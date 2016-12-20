@@ -13,8 +13,6 @@ from .plcapiproxy import PlcApiProxy
 debug = False
 debug = True
 
-# designed to replace leasesomf ultimately
-
 
 class Lease:
     """
@@ -118,14 +116,14 @@ class Leases:
         self.message_bus = message_bus
         # don't use os.getlogin() as this gives root if under su
         self.login = pwd.getpwuid(os.getuid())[0]
-        # connection to the omf-sfa server
+        # the hostname of the plcapi node that we attach leases to
         self.leases_hostname = Config().value('plcapi', 'leases_hostname')
         plcapi_url = Config().value('plcapi', 'url')
         self.plcapi_proxy = PlcApiProxy(plcapi_url)
         # computed later
         # a list of Lease objects
         self.leases = None
-        # output from omf-sfa - essentially less as-is
+        # the result of GetLeases - essentially as-is
         self.plc_leases = None
         # xxx this is still used by monitor
         # should be cleaned up
@@ -381,10 +379,6 @@ Leaving a time empty means either 'now', or 'do not change',
 depending on the context
 """
         # interactive mode
-#        if not self.has_special_privileges():
-#            # xxx need to reconfigure omf_sfa
-#            print("Lease management available to root only for now")
-#            return
         while True:
             current_time = time.strftime("%H:%M")
             answer = input("{} - Enter command "
