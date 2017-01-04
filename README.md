@@ -21,8 +21,11 @@ It is written in python3.5 on top of `asyncio`, and covers the following feature
 With these additional benefits:
 
 * single configuration file in `/etc/rhubarbe/rhubarbe.conf`, individual settings can be
-  overridden at either system- (`/etc/rhubarbe/rhubarbe.conf.local`),
-  user- (`~/.rhubarbe.conf`) or directory- (`./rhubarbe.conf`) level; 
+  overridden at either 
+  
+  * system-level  in `/etc/rhubarbe/rhubarbe.conf.local`,
+  * user-level  in `~/.rhubarbe.conf`, or
+  * directory-level in  `./rhubarbe.conf`; 
 * all commands accept a timeout
 * all commands return a reliable code. When everything goes fine for all subject nodes they return 0, and 1 otherwise
 * `load` and `wait` come with a `curses` mode that lets you visualize every node individually; very helpful when something goes wrong with a large number of nodes, so you can pinpoint which node is not behaving as expected.
@@ -84,7 +87,7 @@ To save the image of node 10, just do this
 The python entry point is named `rhubarbe` but it should be called with an additional subcommand.
 
     root@bemol ~ # rhubarbe
-    Unknown subcommand help - use one among {nodes,status,on,off,reset,info,usrpstatus,usrpon,usrpoff,load,save,wait,images,resolve,share,leases,monitor,accounts,inventory,config,version}
+    Unknown subcommand help - use one among {nodes,status,on,off,reset,info,usrpstatus,usrpon,usrpoff,load,save,wait,monitor,leases,images,share,inventory,config,version}
 
 	root@bemol ~ # rhubarbe load --help
 
@@ -162,7 +165,7 @@ In short: see `/etc/rhubarbe/inventory.json`
 
 Unfortunately the tool needs a mapping between hostnames and MAC addresses - essentially for messing with pxelinux *nextboot* symlinks. This is why the tool needs to find an inventory in a file named `/etc/rhubarbe/inventory.json`. See an extract below; note that the `'data'` entry is not needed by the tools, we have them in place over here at r2lab for convenience only. The CMC mac address is not needed either, strictly speaking, as of this writing.
 
-**On R2LAB**: this is taken care of by `inventory/configure.py` and its `Makefile`. Note that like for the inventory file, `configure.py` creates 2 different files for faraday and bemol - to account for any replacement node on faraday, like when e.g. node 41 actually sits in slot 15.
+**On R2LAB**: this is taken care of by `inventory/configure.py` and its `Makefile`. Note that like for the OMF JSON inventory file, `configure.py` creates 2 different files for faraday and bemol - to account for any replacement node on faraday, like when e.g. node 41 actually sits in slot 15.
 
 FYI an inventory files just looks like below; the `data` field is not needed
 

@@ -380,7 +380,11 @@ class ImagesRepo(metaclass = Singleton):
                 print("WARNING: Destination {} already exists - ignored".format(destination))
             else:
                 moves.append( (origin, destination) )
-            symlinks.append( (radical + ".ndz", os.path.join(self.repo, alias + ".ndz")) )
+            if alias:
+                symlinks.append( (radical + ".ndz", os.path.join(self.repo, alias + ".ndz")) )
+            else:
+                print("Warning : share without an alias")
+                pass
             if clean:
                 # item # 0 is the one selected for being moved
                 for info in matching_infos[1:]:
