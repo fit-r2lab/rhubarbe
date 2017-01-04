@@ -420,7 +420,7 @@ class ImagesRepo(metaclass = Singleton):
                 if dry_run:
                     do_dry_run("ln -sf {} {}".format(origin, destination))
                 else:
-                    print("Creating symlink {} -> {}".format(origin, destination))
+                    print("Creating symlink {} -> {}".format(destination, origin))
                     if os.path.exists(destination):
                         os.unlink(destination)
                     os.symlink(origin, destination)
