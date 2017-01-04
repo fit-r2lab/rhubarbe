@@ -1,3 +1,8 @@
+# 1.3.4 - 2017 Jan 4
+
+* rhubarbe accounts -c 0 means to run it only once
+* minor bugfix in rhubarbe share with no alias
+
 # 1.3.3 - 2016 Dec 20
 
 * cleanup wrt omf-related code
