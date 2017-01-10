@@ -73,7 +73,6 @@ class Accounts:
         self.password = the_config.value('plcapi', 'admin_password')
 
         self._proxy = None
-        self._running = False
 
     # not reconnectable for now
     def proxy(self):
@@ -196,7 +195,6 @@ class Accounts:
 
     ##########
     def manage_accounts(self):
-        self._running = True
         # get context
         passwd_entries = self.all_passwd_entries()
         home_basenames = self.authorized_home_basenames()
@@ -208,6 +206,10 @@ class Accounts:
         persons = self.proxy().GetPersons(
             {}, ['person_id', 'email', 'slice_ids', 'key_ids'])
         keys = self.proxy().GetKeys()
+
+        if slices is None or persons is None or keys is None:
+            logger.error("Cannot reach PLCAPI endpoint at this time - back to sleep")
+            return
 
         persons_by_id = {p['person_id']: p for p in persons}
         keys_by_id = {k['key_id']: k for k in keys}
@@ -271,7 +273,6 @@ class Accounts:
                                  "with legacy slice {x}"
                                  .format(x=slicename))
 
-        self._running = False
 
     def run_forever(self, period):
         while True:
