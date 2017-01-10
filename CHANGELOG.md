@@ -1,3 +1,7 @@
+# 1.3.5 - 2017 Jan 10
+
+* protect accountsmanager against a plcapi being down 
+
 # 1.3.4 - 2017 Jan 4
 
 * rhubarbe accounts -c 0 means to run it only once
