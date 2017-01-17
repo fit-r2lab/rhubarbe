@@ -540,10 +540,8 @@ def monitor(*argv):
     parser.add_argument("-w", "--wlan", dest="report_wlan",
                         default=False, action='store_true',
                         help="ask for probing of wlan traffic rates")
-    parser.add_argument("-H", "--sidecar-hostname",
-                        dest="sidecar_hostname", default=None)
-    parser.add_argument("-P", "--sidecar-port",
-                        dest="sidecar_port", default=None)
+    parser.add_argument("-u", "--sidecar-url",
+                        dest="sidecar_url", default=None)
     parser.add_argument("-d", "--debug", dest="debug",
                         action='store_true', default=False)
     add_selector_arguments(parser)
@@ -563,8 +561,7 @@ def monitor(*argv):
                       message_bus=message_bus,
                       cycle=args.cycle,
                       report_wlan=args.report_wlan,
-                      sidecar_hostname=args.sidecar_hostname,
-                      sidecar_port=args.sidecar_port,
+                      sidecar_url=args.sidecar_url,
                       debug=args.debug)
 
     # trap signals so we get a nice message in monitor.log

@@ -2,6 +2,8 @@ import time
 import re
 import json
 import asyncio
+from urllib.parse import urlparse
+
 # to connect to sidecar
 # at first I would have preferred an asyncio-friendly library
 # for talking socket.io; however I could not find one, and
@@ -32,17 +34,19 @@ class ReconnectableSocketIO:
     this message is dropped
     """
 
-    def __init__(self, hostname, port, debug=False):
-        self.hostname = hostname
-        self.port = port
+    def __init__(self, url, debug=False):
+        self.url = url
+        # parse url
+        parsed = urlparse(url)
+        self.scheme, self.hostname, self.port \
+            = parsed.scheme, parsed.hostname, parsed.port or 80
         self.debug = debug
         # internal stuff
         self.socketio = None
         self.counters = {}
 
     def __repr__(self):
-        return "socket.io sidecar ws://{}:{}/"\
-            .format(self.hostname, self.port)
+        return "socket.io sidecar at {}".format(self.url)
     
     # at some point we were running into the same issue as this one:
     # https://github.com/liris/websocket-client/issues/222
@@ -51,7 +55,9 @@ class ReconnectableSocketIO:
         action = "connect" if self.socketio is None else "reconnect"
         try:
             logger.info("{}ing to {}".format(action, self))
-            self.socketio = SocketIO(self.hostname, self.port, LoggingNamespace)
+            self.socketio = SocketIO(
+                "{}://{}".format(self.scheme, self.hostname),
+                self.port, LoggingNamespace, verify=False)
             channel = back_channel
             def closure(*args):
                 return self.on_channel(channel, *args)
@@ -428,7 +434,7 @@ class MonitorLeases:
             
 class Monitor:
     def __init__(self, cmc_names, message_bus, cycle, report_wlan=True,
-                 sidecar_hostname=None, sidecar_port=None, debug=False):
+                 sidecar_url = None, debug=False):
         self.cycle = cycle
         self.report_wlan = report_wlan
         self.debug = debug
@@ -439,9 +445,8 @@ class Monitor:
         self.log_period = float(Config().value('monitor', 'log_period'))
 
         # socket IO pipe
-        hostname = sidecar_hostname or Config().value('monitor', 'sidecar_hostname')
-        port = int(sidecar_port or Config().value('monitor', 'sidecar_port'))
-        self.reconnectable = ReconnectableSocketIOMonitor(self, hostname, port, debug)
+        sidecar_url = sidecar_url or Config().value('monitor', 'sidecar_url')
+        self.reconnectable = ReconnectableSocketIOMonitor(self, sidecar_url, debug)
 
         # the nodes part
         self.main_channel = Config().value('monitor', 'sidecar_channel_nodes')
@@ -502,9 +507,8 @@ if __name__ == '__main__':
     # cycle = Config().value('monitor', 'cycle')
     # monitor = Monitor(rebootnames, message_bus, cycle=2, report_wlan=True)
 
-    hostname = Config().value('monitor', 'sidecar_hostname')
-    port = int(Config().value('monitor', 'sidecar_port'))
-    reconnectable = ReconnectableSocketIOMonitor(None, hostname, port, debug=True)
+    url = Config().value('monitor', 'sidecar_url')
+    reconnectable = ReconnectableSocketIOMonitor(None, url, debug=True)
     monitor = MonitorLeases(message_bus, reconnectable = reconnectable,
                             channel='info:leases',
                             cycle=10, step=1, wait=.1, debug=True)
