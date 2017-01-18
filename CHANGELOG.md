@@ -1,3 +1,8 @@
+# 1.3.6 - 2017 Jan 18
+
+* monitor config : sidecar_url replaces sidecar_hostname and sidecar_port
+* default is now on port 999
+
 # 1.3.5 - 2017 Jan 10
 
 * protect accountsmanager against a plcapi being down 
