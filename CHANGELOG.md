@@ -1,3 +1,8 @@
+# 1.3.7 - 2017 Jan 18
+
+* set sidecar url in monitor.service
+* garbage obsolete monitor.sh
+
 # 1.3.6 - 2017 Jan 18
 
 * monitor config : sidecar_url replaces sidecar_hostname and sidecar_port
