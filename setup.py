@@ -66,7 +66,6 @@ setup(
          [ 'rhubarbe.conf', 'inventory.json.template' ] ) ],
     scripts          = [
         'bin/rhubarbe',
-        'bin/monitor.sh',
     ] + subcommand_symlinks,
     install_requires = required_modules,
 )
