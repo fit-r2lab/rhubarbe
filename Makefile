@@ -46,7 +46,7 @@ endif
 
 # installing in /tmp/rhubarbe-sync for testing
 sync:
-	@echo 'export PYTHONPATH=/tmp/rhubarbe-sync; alias r=/tmp/rhubarbe-sync/bin/rhubarbe'
+	@echo 'export PYTHONPATH=/tmp/rhubarbe-sync; alias rhu=/tmp/rhubarbe-sync/bin/rhubarbe'
 	rsync -av --relative $$(git ls-files) root@$(DEST):/tmp/rhubarbe-sync/
 
 both: bemol faraday
