@@ -1,11 +1,6 @@
 # from https://bitbucket.org/ssc/aiomas/src/92ddbe7f8c6dc86c03dd9d00c155a709ef330a89/aiomas/util.py?at=default&fileviewer=file-view-default
 
 import asyncio
-# asyncio.async has been renamed ensure_future in recent versions
-try:
-    from asyncio import ensure_future
-except:
-    from asyncio import async as ensure_future
     
 def self_manage(coro_or_future, ignore_cancel=True, loop=None):
     """Run :func:`asyncio.async()` with *coro_or_future* and set a callback
@@ -42,7 +37,7 @@ def self_manage(coro_or_future, ignore_cancel=True, loop=None):
     future when it is done and will thus print any exceptions immediately.
 
     """
-    task = ensure_future(coro_or_future, loop=loop)
+    task = asyncio.ensure_future(coro_or_future, loop=loop)
 
     def cb(f):
         if f.cancelled() and ignore_cancel:

@@ -240,8 +240,8 @@ class Accounts:
 
                 except Exception as e:
                     logger.exception("could not properly deal "
-                                     "with active slice {x}"
-                                     .format(x=slicename))
+                                     "with active slice {x} (e={e})"
+                                     .format(x=slicename, e=e))
 
         # find out about slices that currently have suthorized keys but should
         # not
@@ -255,8 +255,8 @@ class Accounts:
                     os.unlink(ssh_auth_keys)
                 except Exception as e:
                     logger.exception("could not properly deal "
-                                     "with inactive slice {x}"
-                                     .format(x=slicename))
+                                     "with inactive slice {x} (e={e})"
+                                     .format(x=slicename, e=e))
 
         # a one-shot piece of code : turn off legacy slices
         for slicename in legacy_basenames:
@@ -270,8 +270,8 @@ class Accounts:
                 # os.unlink(ssh_auth_keys)
             except Exception as e:
                 logger.exception("could not properly deal "
-                                 "with legacy slice {x}"
-                                 .format(x=slicename))
+                                 "with inactive slice {x} (e={e})"
+                                 .format(x=slicename, e=e))
 
 
     def run_forever(self, period):

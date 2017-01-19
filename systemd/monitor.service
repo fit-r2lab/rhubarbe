@@ -2,6 +2,7 @@
 [Unit]
 Description=testbed nodes probe - reports to sidecar using socketio
 
+# add -v option to get more details
 [Service]
 ExecStart=/bin/bash -c "rhubarbe-monitor -a --sidecar-url http://r2lab.inria.fr:999/"
 

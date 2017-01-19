@@ -1,0 +1,10 @@
+# this is meant to be installed under /etc/systemd/system
+[Unit]
+Description=testbed phones probe - reports to sidecar using socketio
+
+# add -v option to get more details
+[Service]
+ExecStart=/bin/bash -c "rhubarbe-monitorphones -v --sidecar-url http://r2lab.inria.fr:999/"
+
+[Install]
+WantedBy=multi-user.target

@@ -23,7 +23,7 @@ from rhubarbe.ssh import SshProxy
 ###
 # the channel that allows to fuse the leases acquisition cycle
 # not too clean of course...
-back_channel = Config().value('monitor', 'sidecar_channel_leases_request')
+back_channel = Config().value('sidecar', 'channel_leases_request')
 
 ##########
 class ReconnectableSocketIO:
@@ -34,19 +34,20 @@ class ReconnectableSocketIO:
     this message is dropped
     """
 
-    def __init__(self, url, debug=False):
+    def __init__(self, url, verbose=False):
         self.url = url
         # parse url
         parsed = urlparse(url)
         self.scheme, self.hostname, self.port \
             = parsed.scheme, parsed.hostname, parsed.port or 80
-        self.debug = debug
+        self.verbose = verbose
         # internal stuff
         self.socketio = None
-        self.counters = {}
+        self.counters = { 'connect' : 0 }
 
     def __repr__(self):
-        return "socket.io sidecar at {}".format(self.url)
+        return "socket.io server at {} ({} connections)"\
+            .format(self.url, self.counters['connect'])
     
     # at some point we were running into the same issue as this one:
     # https://github.com/liris/websocket-client/issues/222
@@ -55,20 +56,35 @@ class ReconnectableSocketIO:
         action = "connect" if self.socketio is None else "reconnect"
         try:
             logger.info("{}ing to {}".format(action, self))
-            self.socketio = SocketIO(
-                "{}://{}".format(self.scheme, self.hostname),
-                self.port, LoggingNamespace, verify=False)
+            # this might be due to miscconfiguration
+            if self.scheme not in ('http', 'https'):
+                logger.warn("unsupported scheme {} - malformed socketio URL: {}"
+                            .format(self.scheme, self.url))
+            if self.scheme == 'http':
+                host_part = self.hostname
+                extras = {}
+            else:
+                host_part = "https:{}".format(self.hostname)
+                extras = {'verify' : False}
+            self.socketio = SocketIO(host_part,
+                                     self.port,
+                                     LoggingNamespace,
+                                     **extras)
             channel = back_channel
             def closure(*args):
                 return self.on_channel(channel, *args)
             self.socketio.on(channel, closure)
-        except:
-            logger.warn("Connection lost to {}".format(self))
+            self.counters['connect'] += 1
+            logger.info("{}ed to {}".format(action, self))
+        except Exception as e:
+            logger.warn("Connection lost to {} (e={})".format(self, e))
+            logger.exception("Exception stack:")
             self.socketio = None
 
     def on_channel(self, channel, *args):
         # not supposed to run - should be redefined
-        logger.warning("ReconnectableSocketIO.on_channel, channel={}, args={}".format(channel, args))
+        logger.warning("ReconnectableSocketIO.on_channel, channel={}, args={}"
+                       .format(channel, args))
 
     def get_counter(self, channel):
         return self.counters.get(channel, 0)
@@ -76,16 +92,15 @@ class ReconnectableSocketIO:
     def emit_info(self, channel, info, wrap_in_list):
         # info can be a list (e.g. for leases)
         # or a dict, with or without an 'id' field
-        if self.debug:
+        if self.verbose:
             msg = "len={}".format(len(info)) if isinstance(info, list) \
                   else "id={}".format(info.get('id', '[none]'))
             logger.info("{} emitting {} -> {}"
                         .format(channel, msg, info))
                             
         # wrap info as single elt in a list
-        if wrap_in_list:
-            info = [ info ]
-        message = json.dumps(info)
+        emitted_info = info if not wrap_in_list else [ info ]
+        message = json.dumps(emitted_info)
         if self.socketio is None:
             self.connect()
         try:
@@ -99,7 +114,7 @@ class ReconnectableSocketIO:
             label = "{}: {}".format(info.get('id', 'none'), one_char_summary(info))
             logger.warn("Dropped message on {} - channel {} - msg {}"
                         .format(self, channel, label))
-            logger.exception("Dropped because of this exception")
+            logger.exception("Dropped because of this exception:")
             
     def wait(self, wait):
         if self.socketio:
@@ -153,13 +168,13 @@ class MonitorNode:
     . third, checks for ping
     """
     
-    def __init__(self, node, reconnectable, channel, report_wlan=True, debug=False):
+    def __init__(self, node, reconnectable, channel, report_wlan=True, verbose=False):
         # a rhubarbe.node.Node instance
         self.node = node
         self.report_wlan = report_wlan
         self.reconnectable = reconnectable
         self.channel = channel
-        self.debug = debug
+        self.verbose = verbose
         # current info - will be reported to sidecar
         self.info = {'id': node.id }
         # remember previous wlan measurement to compute rate
@@ -258,7 +273,7 @@ class MonitorNode:
                 wlan_no = wlan_no % 2
             except:
                 pass
-            if self.debug:
+            if self.verbose:
                 logger.info("node={self.node} collected {bytes} for device wlan{wlan_no} in {rxtx}"
                             .format(**locals()))
             # do we have something on this measurement ?
@@ -267,7 +282,7 @@ class MonitorNode:
                 info_key = "wlan_{wlan_no}_{rxtx}_rate".format(**locals())
                 new_rate = 8.*(bytes - previous_bytes) / (now - previous_time)
                 wlan_info_dict[info_key] = new_rate
-                if self.debug:
+                if self.verbose:
                     logger.info("node={} computed {} bps for key {} "
                                 "- bytes = {}, pr = {}, now = {}, pr = {}"
                                 .format(id, new_rate, info_key,
@@ -287,7 +302,7 @@ class MonitorNode:
         """
         The logic for getting one node's info and send it to sidecar
         """
-        if self.debug:
+        if self.verbose:
             logger.info("entering pass1, info={}".format(self.info))
         # pass1 : check for status
         padding_dict = {
@@ -295,8 +310,9 @@ class MonitorNode:
             'control_ssh' : 'off',
             # don't overwrite os_release though
         }
-        # get USRP status no matter what
-        usrp_status = await self.node.get_usrpstatus()
+        # get USRP status no matter what - use "" if we receive None
+        # to limit noise when the node is physically removed
+        usrp_status = await self.node.get_usrpstatus() or 'fail'
         # replace usrpon and usrpoff with just on and off
         self.set_info({'usrp_on_off' : usrp_status.replace('usrp', '')})
         # get CMC status
@@ -307,7 +323,7 @@ class MonitorNode:
         elif status != "on":
             self.set_info_and_report({'cmc_on_off' : 'fail'}, padding_dict)
             return
-        if self.debug:
+        if self.verbose:
             logger.info("entering pass2, info={}".format(self.info))
         # pass2 : CMC status is ON - let's try to ssh it
         self.set_info({'cmc_on_off' : 'on'})
@@ -329,13 +345,13 @@ class MonitorNode:
             )
         # reconnect each time
         ssh = SshProxy(self.node)
-        if self.debug:
+        if self.verbose:
             logger.info("trying to ssh-connect")
         try:
             connected = await asyncio.wait_for(ssh.connect(), timeout=ssh_timeout)
         except asyncio.TimeoutError as e:
             connected = False
-        if self.debug:
+        if self.verbose:
             logger.info("ssh-connected={}".format(connected))
         if connected:
             try:
@@ -359,7 +375,7 @@ class MonitorNode:
             self.report_info()
             return
 
-        if self.debug:
+        if self.verbose:
             logger.info("entering pass3, info={}".format(self.info))
         # pass3 : node is ON but could not ssh
         # check for ping
@@ -395,14 +411,14 @@ class MonitorNode:
 from rhubarbe.leases import Lease, Leases
 
 class MonitorLeases:
-    def __init__(self, message_bus, reconnectable, channel, cycle, step, wait, debug):
+    def __init__(self, message_bus, reconnectable, channel, cycle, step, wait, verbose):
         self.message_bus = message_bus
         self.reconnectable = reconnectable
         self.channel = channel
         self.cycle = float(cycle)
         self.step = float(step)
         self.wait = float(wait)
-        self.debug = debug
+        self.verbose = verbose
 
     def on_back_channel(self, *args):
         # when anything is received on the backchannel, we just go to fast track
@@ -427,17 +443,17 @@ class MonitorLeases:
                 self.reconnectable.emit_info(self.channel, omf_leases,
                                              wrap_in_list=False)
                 logger.info("advertising {} leases".format(len(omf_leases)))
-                if self.debug:
+                if self.verbose:
                     logger.info("Leases details: {}".format(omf_leases))
             except Exception as e:
                 logger.exception("monitor could not get leases")
             
 class Monitor:
-    def __init__(self, cmc_names, message_bus, cycle, report_wlan=True,
-                 sidecar_url = None, debug=False):
+    def __init__(self, cmc_names, message_bus, cycle, sidecar_url,
+                 report_wlan=True, verbose=False):
         self.cycle = cycle
         self.report_wlan = report_wlan
-        self.debug = debug
+        self.verbose = verbose
 
         # get miscell config
         self.ping_timeout = float(Config().value('networking', 'ping_timeout'))
@@ -445,26 +461,25 @@ class Monitor:
         self.log_period = float(Config().value('monitor', 'log_period'))
 
         # socket IO pipe
-        sidecar_url = sidecar_url or Config().value('monitor', 'sidecar_url')
-        self.reconnectable = ReconnectableSocketIOMonitor(self, sidecar_url, debug)
+        self.reconnectable = ReconnectableSocketIOMonitor(self, sidecar_url, verbose)
 
         # the nodes part
-        self.main_channel = Config().value('monitor', 'sidecar_channel_nodes')
+        self.main_channel = Config().value('sidecar', 'channel_nodes')
         nodes = [ Node (cmc_name, message_bus) for cmc_name in cmc_names ]
         self.monitor_nodes = [
             MonitorNode(node = node, reconnectable = self.reconnectable,
                         channel = self.main_channel, report_wlan = self.report_wlan,
-                        debug=debug)
+                        verbose=verbose)
             for node in nodes]
 
         # the leases part
         cycle = Config().value('monitor', 'cycle_leases')
         step = Config().value('monitor', 'step_leases')
         wait = Config().value('monitor', 'wait_leases')
-        channel = Config().value('monitor', 'sidecar_channel_leases')
+        channel = Config().value('sidecar', 'channel_leases')
         self.monitor_leases = MonitorLeases(
             message_bus, self.reconnectable, channel, cycle,
-            step=step, wait=wait, debug=debug)
+            step=step, wait=wait, verbose=verbose)
 
     def on_channel(self, channel, *args):
         if channel == back_channel:
@@ -507,10 +522,10 @@ if __name__ == '__main__':
     # cycle = Config().value('monitor', 'cycle')
     # monitor = Monitor(rebootnames, message_bus, cycle=2, report_wlan=True)
 
-    url = Config().value('monitor', 'sidecar_url')
-    reconnectable = ReconnectableSocketIOMonitor(None, url, debug=True)
+    url = Config().value('sidecar', 'url')
+    reconnectable = ReconnectableSocketIOMonitor(None, url, verbose=True)
     monitor = MonitorLeases(message_bus, reconnectable = reconnectable,
                             channel='info:leases',
-                            cycle=10, step=1, wait=.1, debug=True)
+                            cycle=10, step=1, wait=.1, verbose=True)
     loop = asyncio.get_event_loop()
     loop.run_until_complete(asyncio.gather(monitor.run_forever()))

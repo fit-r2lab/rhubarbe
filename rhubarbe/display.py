@@ -59,14 +59,18 @@ class Display:
         self._start_time = time.time()
         
         while self._alive:
-            message = await self.message_bus.get()
-            if message == 'END-DISPLAY':
-                self._alive = False
-                break
-            self.dispatch(message)
-            # this is new in 3.4.4
-            if 'task_done' in dir(self.message_bus):
-                self.message_bus.task_done()
+            try:
+                message = await self.message_bus.get()
+                if message == 'END-DISPLAY':
+                    self._alive = False
+                    break
+                self.dispatch(message)
+                # this is new in 3.4.4
+                if 'task_done' in dir(self.message_bus):
+                    self.message_bus.task_done()
+            except:
+                pass
+                    
 
     async def stop(self):
         # soft stop

@@ -1,0 +1,10 @@
+[
+  {
+    "adb_bin": "/Users/tester/nexustools/adb",
+    "gw_user": "tester",
+    "gw_host": "macphone",
+    "gw_key": "/home/faraday/r2lab/inventory/macphone",
+    "adb_id": "062337da0051af9f",
+    "id": 1
+  }
+]

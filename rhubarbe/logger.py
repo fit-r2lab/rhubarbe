@@ -46,7 +46,7 @@ rhubarbe_logging_config = {
         'monitor': {
             'level': 'INFO',
             'class': 'logging.FileHandler',
-            'formatter': 'shorter',
+            'formatter': 'standard',
             'filename' : monitor_output,
         },
         'accounts': {
