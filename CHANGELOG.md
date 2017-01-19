@@ -1,4 +1,4 @@
-# 1.4.1 - 2017 Jan 19
+# 1.4.2 - 2017 Jan 19
 
 * merged monitorphones capability from r2lab/
 * rhubarbe.conf
@@ -8,6 +8,7 @@
   * inventory_path = /etc/rhubarbe/inventory-nodes.json
   * inventory_phones_path = /etc/rhubarbe/inventory-phones.json
 * 1.4.0 has a broken setup
+* 1.4.1 was broken too; commands like status would hang
 
 # 1.3.7 - 2017 Jan 18
 
