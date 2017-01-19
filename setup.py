@@ -62,8 +62,11 @@ setup(
     platforms        = "Linux",
     packages         = [ 'rhubarbe' ],
     data_files       =
-      [ ('/etc/rhubarbe',
-         [ 'rhubarbe.conf', 'inventory.json.template' ] ) ],
+      [ ('/etc/rhubarbe', [
+          'rhubarbe.conf',
+          'inventory-nodes.json.template',
+          'inventory-phones.json.template',
+      ] ) ],
     scripts          = [
         'bin/rhubarbe',
     ] + subcommand_symlinks,
