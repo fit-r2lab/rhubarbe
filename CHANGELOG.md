@@ -1,3 +1,13 @@
+# 1.4.0 - 2017 Jan 19
+
+* merged monitorphones capability from r2lab/
+* rhubarbe.conf
+  * new config category [sidecar]
+  * + various renamingsfor consistency
+* inventory config files are now
+  * inventory_path = /etc/rhubarbe/inventory-nodes.json
+  * inventory_phones_path = /etc/rhubarbe/inventory-phones.json
+
 # 1.3.7 - 2017 Jan 18
 
 * set sidecar url in monitor.service
