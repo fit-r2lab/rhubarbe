@@ -1,3 +1,7 @@
+# 1.4.3 - 2017 Jan 19
+
+* bugfix for connecting to sidecar over https
+
 # 1.4.2 - 2017 Jan 19
 
 * merged monitorphones capability from r2lab/
