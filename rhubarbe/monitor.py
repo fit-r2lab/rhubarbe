@@ -64,7 +64,7 @@ class ReconnectableSocketIO:
                 host_part = self.hostname
                 extras = {}
             else:
-                host_part = "https:{}".format(self.hostname)
+                host_part = "https://{}".format(self.hostname)
                 extras = {'verify' : False}
             self.socketio = SocketIO(host_part,
                                      self.port,
