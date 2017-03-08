@@ -86,10 +86,10 @@ To save the image of node 10, just do this
 
 The python entry point is named `rhubarbe` but it should be called with an additional subcommand.
 
-    root@bemol ~ # rhubarbe
+    root@etourdi ~ # rhubarbe
     Unknown subcommand help - use one among {nodes,status,on,off,reset,info,usrpstatus,usrpon,usrpoff,load,save,wait,monitor,leases,images,share,inventory,config,version}
 
-	root@bemol ~ # rhubarbe load --help
+	root@etourdi ~ # rhubarbe load --help
 
 ## Invoking : node scope
 

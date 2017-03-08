@@ -36,12 +36,12 @@ tags:
 ############################## for deploying before packaging
 # default is to mess with our preplab and let the production
 # site do proper upgrades using pip3
-deployment ?= bemol
+deployment ?= etourdi
 
 ifeq "$(deployment)" "production"
     DEST=faraday.inria.fr
 else
-    DEST=bemol.pl.sophia.inria.fr
+    DEST=etourdi.pl.sophia.inria.fr
 endif
 
 # installing in /tmp/rhubarbe-sync for testing
@@ -49,15 +49,15 @@ sync:
 	@echo 'export PYTHONPATH=/tmp/rhubarbe-sync; alias rhu=/tmp/rhubarbe-sync/bin/rhubarbe'
 	rsync -av --relative $$(git ls-files) root@$(DEST):/tmp/rhubarbe-sync/
 
-both: bemol faraday
+both: etourdi faraday
 
 faraday:
 	$(MAKE) sync deployment=production
 
-bemol:
-	$(MAKE) sync deployment=bemol
+etourdi:
+	$(MAKE) sync deployment=etourdi
 
-.PHONY: sync both faraday bemol
+.PHONY: sync both faraday etourdi
 
 ########## actually install
 infra:
