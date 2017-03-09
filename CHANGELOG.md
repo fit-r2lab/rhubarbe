@@ -1,3 +1,10 @@
+# 1.4.4 - 2017 Mar 9
+
+* targets the new preplab box (etourdi) that runs f25
+* added installation notes for fedora
+* tweaks for running on fedora; see netcat_style in config
+* also checks for the presence of required binaries frisbeed and netcat
+
 # 1.4.3 - 2017 Jan 19
 
 * bugfix for connecting to sidecar over https
