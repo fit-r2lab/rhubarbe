@@ -36,7 +36,7 @@ tags:
 ############################## for deploying before packaging
 # default is to mess with our preplab and let the production
 # site do proper upgrades using pip3
-deployment ?= etourdi
+deployment ?= preplab
 
 ifeq "$(deployment)" "production"
     DEST=faraday.inria.fr
@@ -49,15 +49,15 @@ sync:
 	@echo 'export PYTHONPATH=/tmp/rhubarbe-sync; alias rhu=/tmp/rhubarbe-sync/bin/rhubarbe'
 	rsync -av --relative $$(git ls-files) root@$(DEST):/tmp/rhubarbe-sync/
 
-both: etourdi faraday
+both: preplab faraday
 
 faraday:
 	$(MAKE) sync deployment=production
 
-etourdi:
-	$(MAKE) sync deployment=etourdi
+preplab:
+	$(MAKE) sync deployment=preplab
 
-.PHONY: sync both faraday etourdi
+.PHONY: sync both faraday preplab
 
 ########## actually install
 infra:
