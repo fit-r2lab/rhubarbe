@@ -14,4 +14,9 @@ However, when trying to install `cffi`, `pip3` will need `Python.h`. If this hap
 
 * on ubuntu: ```apt-get install python3-dev libffi-dev```
 
+## system setup
+
+* this list grossly ignores the basic system setup 
+* which actually is not trivial, as it involves dhcp / tftp and other pxelinux setup
+* you can find rough [installation notes for fedora in INSTALLING-FEDORA.md](INSTALLING-FEDORA.md)
 
