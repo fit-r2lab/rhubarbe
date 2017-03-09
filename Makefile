@@ -41,7 +41,7 @@ deployment ?= etourdi
 ifeq "$(deployment)" "production"
     DEST=faraday.inria.fr
 else
-    DEST=etourdi.pl.sophia.inria.fr
+    DEST=preplab.pl.sophia.inria.fr
 endif
 
 # installing in /tmp/rhubarbe-sync for testing
