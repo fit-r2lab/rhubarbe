@@ -205,6 +205,7 @@ def load(*argv):
     {resa}
     """.format(resa=reservation_required)
     the_config = Config()
+    the_config.check_binaries()
     the_imagesrepo = ImagesRepo()
     default_image = the_imagesrepo.default()
     default_timeout = the_config.value('nodes', 'load_default_timeout')
@@ -274,6 +275,7 @@ def save(*argv):
     """.format(resa=reservation_required)
 
     the_config = Config()
+    the_config.check_binaries()
     default_timeout = the_config.value('nodes', 'save_default_timeout')
 
     parser = ArgumentParser(usage=usage)

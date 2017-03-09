@@ -28,8 +28,19 @@ class Collector:
         # we instruct bash to exec nc; otherwise when cleaning up we just kill the bash process
         # but nc is left lingering behind
         # WARNING: it is intended that format contains {port} for future formatting
-        command_format = "exec {} -d -l {} {{port}} > {} 2> /dev/null"\
-                        .format(netcat, local_ip, self.image)
+        command_format_ubuntu = "exec {} -d -l {} {{port}} > {} 2> /dev/null"\
+                                .format(netcat, local_ip, self.image)
+        command_format_fedora = "exec {} -l {} {{port}} < /dev/null > {} 2> /dev/null"\
+                                .format(netcat, local_ip, self.image)
+
+        netcat_style = the_config.value('frisbee', 'netcat_style')
+        if netcat_style not in ('fedora', 'ubuntu'):
+            message = "wrong netcat_style {}".format(netcat_style)
+            print(message)
+            raise Exception(message)
+        command_format \
+            =    command_format_fedora if netcat_style == 'fedora' \
+            else command_format_ubuntu
 
         nb_attempts = int(the_config.value('networking', 'pattern_size'))
         pat_port = the_config.value('networking', 'pattern_port')

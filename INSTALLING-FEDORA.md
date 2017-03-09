@@ -66,3 +66,28 @@ enable-tftp
 * manually installed `/usr/sbin/frisbeed`
 * from [the binary in the r2lab repo](https://github.com/parmentelat/r2lab/blob/public/frisbee-binaries-inria/frisbeed) 
   * that incidentally would be a better fit in `rhubarbe` itself
+
+# netcat
+
+## on ubuntu
+
+* we run this
+
+```
+nc -d -l 192.168.3.100 10001
+```
+
+* where `-d` means 'do not read from stdin'
+
+## on fedora
+
+* the `nmap-ncat` package has a binary 
+* where `-d` expects an argument that expresses a delay
+
+## config
+
+so we now have a new config flag
+[frisbee]
+netcat_style = ubuntu
+
+that needs to be set to fedora in `/etc/rhubarbe/rhubarbe.conf.local` 

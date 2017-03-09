@@ -1,6 +1,7 @@
 import os
 import socket
 import configparser
+from pathlib import Path
 
 from rhubarbe.singleton import Singleton
 from rhubarbe.logger import logger
@@ -87,3 +88,28 @@ class Config(metaclass = Singleton):
                 print(10*'='," section {}".format(sname))
                 for fname, value in sorted(section.items()):
                     print("{} = {}".format(fname, value))
+
+
+    def check_file_in_path(self, binary):
+        PATH = os.environ['PATH']
+        paths = ['/'] + [p for p in PATH.split(':') if p]
+        for path in paths:
+            full = Path(path) / binary
+            if (full.exists()):
+                return Path(path) / binary
+        return False
+      
+    def check_binaries(self):
+        # imagezip and frisbee are required on the pxe image only
+        names = ('server', 'netcat')
+        binaries = [self.value('frisbee', name) for name in names]
+
+        for binary in binaries:
+            checked = self.check_file_in_path(binary)
+            if not checked:
+                message = "Binary {} not found in PATH".format(binary)
+                logger.critical(message)
+                raise Exception(message)
+            else:
+                print("Found binary {} as {}"
+                      .format(binary, checked))
