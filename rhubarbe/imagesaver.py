@@ -77,14 +77,15 @@ class ImageSaver:
             pass
 
     def main(self, reset, timeout):
-        mainjob = Job(self.run(reset))
-        displayjob = Job(self.display.run(), forever=True)
+        mainjob = Job(self.run(reset), critical=True)
+        displayjob = Job(self.display.run(), forever=True, critical=True)
 
         scheduler = Scheduler (mainjob, displayjob)
         
         try:
             ok = scheduler.orchestrate(timeout = timeout)
             if not ok:
+                scheduler.debrief()
                 self.display.set_goodbye("rhubarbe-save failed: {}".format(scheduler.why()))
                 return 1
             return 0 if mainjob.result() else 1

@@ -147,13 +147,14 @@ def cmc_verb(verb, check_resa, *argv):
                 print("{}:{}".format(node.cmc_name, line))
 
     nodes = [Node(cmc_name, message_bus) for cmc_name in selector.cmc_names()]
-    jobs = [Job(get_and_show_verb(node, verb)) for node in nodes]
+    jobs = [Job(get_and_show_verb(node, verb), critical=True) for node in nodes]
     display = Display(nodes, message_bus)
-    scheduler = Scheduler(Job(display.run(), forever=True), *jobs)
+    scheduler = Scheduler(Job(display.run(), forever=True, critical=True), *jobs)
     try:
         if scheduler.orchestrate(timeout=args.timeout):
             return 0
         else:
+            scheduler.debrief()
             print("rhubarbe-{} failed: {}".format(verb, scheduler.why()))
             return 1
     except KeyboardInterrupt as e:
@@ -363,13 +364,13 @@ def wait(*argv):
 
     nodes = [Node(cmc_name, message_bus) for cmc_name in selector.cmc_names()]
     sshs = [SshProxy(node, verbose=args.verbose) for node in nodes]
-    jobs = [Job(ssh.wait_for(args.backoff)) for ssh in sshs]
+    jobs = [Job(ssh.wait_for(args.backoff), critical=True) for ssh in sshs]
 
     display_class = Display if not args.curses else DisplayCurses
     display = display_class(nodes, message_bus)
 
     # have the display class run forever until the other ones are done
-    scheduler = Scheduler(Job(display.run(), forever=True), *jobs)
+    scheduler = Scheduler(Job(display.run(), forever=True, critical=True), *jobs)
     try:
         orchestration = scheduler.orchestrate(timeout=args.timeout)
         if orchestration:
