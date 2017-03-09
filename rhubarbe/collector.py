@@ -9,6 +9,7 @@ class Collector:
         self.message_bus = message_bus
         #
         self.subprocess = None
+        self.port = None
     
     async def feedback(self, field, msg):
         await self.message_bus.put({field: msg})
@@ -23,6 +24,7 @@ class Collector:
         the_config = Config()
         netcat = the_config.value('frisbee', 'netcat')
         local_ip = the_config.local_control_ip()
+
         # should use default.ndz if not provided
         # use shell-style as we rather have bash handle the redirection
         # we instruct bash to exec nc; otherwise when cleaning up we just kill the bash process

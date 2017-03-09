@@ -6,13 +6,17 @@ from rhubarbe.logger import logger
 from rhubarbe.config import Config
 
 class Frisbeed:
+    """
+    Controller for a frisbeed instance
+    """
     def __init__(self, image, bandwidth, message_bus):
-        self.subprocess = None
         self.image = image
         self.bandwidth = bandwidth
         self.message_bus = message_bus
+        #
         self.multicast_group = None
         self.multicast_port = None
+        self.subprocess = None
 
     def __repr__(self):
         text = "<frisbeed"
@@ -28,6 +32,7 @@ class Frisbeed:
 
     def feedback_nowait(self, field, msg):
         self.message_bus.put_nowait({field: msg})
+
 
     async def start(self):
         """
@@ -75,6 +80,7 @@ class Frisbeed:
                 logger.warning("failed to start frisbeed with {}".format(command_line))
         logger.critical("Could not find a free IP multicast address + port to start frisbeed")
         raise Exception("Could not start frisbee server")
+
 
     def stop_nowait(self):
         # make it idempotent

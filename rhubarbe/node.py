@@ -245,7 +245,7 @@ class Node:
         self.manage_nextboot_symlink('frisbee')
         await self.ensure_reset()
         await self.feedback('reboot',
-                                 "idling for {}s".format(idle))
+                            "idling for {}s".format(idle))
         await asyncio.sleep(idle)
 
     async def run_frisbee(self, ip , port, reset):
