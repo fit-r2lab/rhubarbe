@@ -16,6 +16,7 @@ locations = [
     ("/etc/rhubarbe/rhubarbe.conf.local", False),
     (os.path.expanduser("~/.rhubarbe.conf"), False),
     ("./rhubarbe.conf", False),
+    ("./rhubarbe.conf.local", False),
 ]
 
 class ConfigException(Exception):
