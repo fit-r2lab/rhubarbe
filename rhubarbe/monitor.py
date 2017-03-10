@@ -346,7 +346,8 @@ class MonitorNode:
         # reconnect each time
         ssh = SshProxy(self.node)
         if self.verbose:
-            logger.info("trying to ssh-connect")
+            logger.info("trying to ssh-connect (timeout={})"
+                        .format(ssh_timeout))
         try:
             connected = await asyncio.wait_for(ssh.connect(), timeout=ssh_timeout)
         except asyncio.TimeoutError as e:
