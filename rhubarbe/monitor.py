@@ -7,7 +7,7 @@ from urllib.parse import urlparse
 # to connect to sidecar
 # at first I would have preferred an asyncio-friendly library
 # for talking socket.io; however I could not find one, and
-# websockets dod not offer something like 'emit' out of the box
+# websockets did not offer something like 'emit' out of the box
 # so, we're still using this synchroneous one
 # using .on to arm callbacks, and occasionally calling wait
 # to give a chance for the callback to trigger
@@ -344,32 +344,32 @@ class MonitorNode:
                 "head /sys/class/net/wlan?/statistics/[rt]x_bytes"                
             )
         # reconnect each time
-        ssh = SshProxy(self.node)
-        if self.verbose:
-            logger.info("trying to ssh-connect (timeout={})"
-                        .format(ssh_timeout))
-        try:
-            connected = await asyncio.wait_for(ssh.connect(), timeout=ssh_timeout)
-        except asyncio.TimeoutError as e:
-            connected = False
-        if self.verbose:
-            logger.info("ssh-connected={}".format(connected))
-        if connected:
+        async with SshProxy(self.node) as ssh:
+            if self.verbose:
+                logger.info("trying to ssh-connect (timeout={})"
+                            .format(ssh_timeout))
             try:
-                command = ";".join(remote_commands)
-                output = await ssh.run(command)
-                # padding dict here sets control_ssh and control_ping to on
-                self.parse_ssh_probe_output(output, padding_dict)
-                # required as otherwise we leak openfiles
+                connected = await asyncio.wait_for(ssh.connect(), timeout=ssh_timeout)
+            except asyncio.TimeoutError as e:
+                connected = False
+            if self.verbose:
+                logger.info("ssh-connected={}".format(connected))
+            if connected:
                 try:
-                    await ssh.close()
+                    command = ";".join(remote_commands)
+                    output = await ssh.run(command)
+                    # padding dict here sets control_ssh and control_ping to on
+                    self.parse_ssh_probe_output(output, padding_dict)
+                    # required as otherwise we leak openfiles
+                    try:
+                        await ssh.close()
+                    except Exception as e:
+                        logger.exception("monitor oops 1")
+                        pass
                 except Exception as e:
-                    logger.exception("monitor oops 1")
-                    pass
-            except Exception as e:
-                logger.exception("monitor remote_command failed")
-        else:
-            self.set_info({'control_ssh': 'off'})
+                    logger.exception("monitor remote_command failed")
+            else:
+                self.set_info({'control_ssh': 'off'})
 
         # if we could ssh then we're done
         if self.info['control_ssh'] == 'on':

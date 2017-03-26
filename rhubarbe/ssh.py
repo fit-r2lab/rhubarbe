@@ -58,6 +58,17 @@ class SshProxy:
     def __repr__(self):
         return "SshProxy {}".format(self.node.hostname)
     
+    # make this an asynchroneous context manager
+    # async with SshProxy(...) as ssh:
+    #    
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc_value, traceback):
+        # xxx this might be a little harsh, in the case
+        # where an exception did occur
+        await self.close()
+
     async def connect(self, timeout=None):
         try:
             # for private keys
