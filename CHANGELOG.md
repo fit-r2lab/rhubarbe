@@ -1,3 +1,7 @@
+# 1.5.0 - 2017 Mar 26
+
+* for running against aiohttp 2.x
+
 # 1.4.5 - 2017 Mar 26
 
 * bugfix in monitor that was leaking ssh connections and thus
