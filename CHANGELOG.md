@@ -1,3 +1,10 @@
+# 1.4.5 - 2017 Mar 26
+
+* bugfix in monitor that was leaking ssh connections and thus
+  was ending up showing all nodes in green instead of ON
+* slightly longer monitor timeouts 
+* preplab runs on etourdi
+
 # 1.4.4 - 2017 Mar 9
 
 * targets the new preplab box (etourdi) that runs f25
