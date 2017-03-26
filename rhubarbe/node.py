@@ -109,19 +109,15 @@ class Node:
         """
         url = "http://{}/{}".format(self.cmc_name, verb)
         try:
-            client_response = await aiohttp.get(url)
-        except Exception as e:
-            setattr(self, verb, None)
-            return None
-        try:
-            text = await client_response.text()
-            if strip_result:
-                text = text.strip()
-            setattr(self, verb, text)
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url) as response:
+                    text = await response.text()
+                    setattr(self, verb, text)
         except Exception as e:
             import traceback
             traceback.print_exc()
             setattr(self, verb, None)
+            return None
         return getattr(self, verb)
 
     ####################
@@ -152,17 +148,15 @@ class Node:
         """
         url = "http://{}/{}".format(self.cmc_name, message)
         try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url) as response:
+                    text = await response.text()
             client_response = await aiohttp.get(url)
         except Exception as e:
             self.action = None
             return self
 
-        try:
-            text = await client_response.text()
-            ok = text.strip() == 'ok'
-        except Exception as e:
-            self.action = None
-            return self
+        ok = text.strip() == 'ok'
     
         if not check:
             self.action = ok
