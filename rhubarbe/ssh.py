@@ -54,6 +54,7 @@ class SshProxy:
         #
         self.hostname = self.node.control_hostname()
         self.status = None
+        self.conn, self.client = None, None
 
     def __repr__(self):
         return "SshProxy {}".format(self.node.hostname)
