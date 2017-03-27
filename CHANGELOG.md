@@ -1,3 +1,9 @@
+# 1.5.1 - 2017 Mar 27
+
+* fixed the adaptation to aiohttp 2.x that was too rough
+  * http response needed to be stripped
+  * and encoding is not returned by the CMC card in http header
+
 # 1.5.0 - 2017 Mar 26
 
 * for running against aiohttp 2.x
