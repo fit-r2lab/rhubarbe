@@ -153,7 +153,6 @@ class Node:
             async with aiohttp.ClientSession() as session:
                 async with session.get(url) as response:
                     text = await response.text(encoding='utf-8')
-            client_response = await aiohttp.get(url)
         except Exception as e:
             self.action = None
             return self
