@@ -1,3 +1,8 @@
+# 1.5.2 - 2017 Mar 27
+
+* 2 more fixes for that move to aiohttp 2.x
+  that was obviously too hasty
+
 # 1.5.1 - 2017 Mar 27
 
 * fixed the adaptation to aiohttp 2.x that was too rough
