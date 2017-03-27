@@ -111,7 +111,9 @@ class Node:
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(url) as response:
-                    text = await response.text()
+                    text = await response.text(encoding='utf-8')
+                    if strip_result:
+                        text = text.strip()                    
                     setattr(self, verb, text)
         except Exception as e:
             import traceback
@@ -150,7 +152,7 @@ class Node:
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(url) as response:
-                    text = await response.text()
+                    text = await response.text(encoding='utf-8')
             client_response = await aiohttp.get(url)
         except Exception as e:
             self.action = None
