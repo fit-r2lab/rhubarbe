@@ -180,16 +180,16 @@ class Node:
             await self.get_status()
         if self.status not in self.message_to_reset_map:
             await self.feedback('reboot',
-                                     "Cannot get status at {}".format(self.cmc_name))
+                                "Cannot get status at {}".format(self.cmc_name))
         message_to_send = self.message_to_reset_map[self.status]
         await self.feedback('reboot',
-                                 "Sending message '{}' to CMC {}"
-                                 .format(message_to_send, self.cmc_name))
+                            "Sending message '{}' to CMC {}"
+                            .format(message_to_send, self.cmc_name))
         await self.send_action(message_to_send, check=True)
         if not self.action:
             await self.feedback('reboot',
-                                     "Failed to send message {} to CMC {}"
-                                     .format(message_to_send, self.cmc_name))
+                                "Failed to send message {} to CMC {}"
+                                .format(message_to_send, self.cmc_name))
 
 
     ##########
