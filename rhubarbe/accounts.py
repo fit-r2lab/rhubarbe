@@ -285,7 +285,11 @@ class Accounts:
             towait = period - duration
             logger.info("---------- rhubarbe accounts manager - sleeping for {}"
                         .format(towait))
-            time.sleep(period - duration)
+            if towait <= 0:
+                logger.warning("duration {} exceeded period {} - skipping sleep"
+                               .format(duration, period))
+            else:
+                time.sleep(period - duration)
 
     def main(self, cycle):
         if cycle is None:
