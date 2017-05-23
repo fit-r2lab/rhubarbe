@@ -39,7 +39,8 @@ if sys.argv[1] in ('sdist'):
 # apt-get -y install libffi-dev
 # which is required before pip can install asyncssh
 required_modules = [
-    'telnetlib3',
+    # version 1.0 breaks our code
+    'telnetlib3==0.5.0',
     'aiohttp',
     'asyncssh',
     'progressbar33',
