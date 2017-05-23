@@ -1,3 +1,8 @@
+# 1.5.3 - 2017 May 23
+
+* bugfix: mainloop would crash if duration > period
+  which happens e.g. upon network failures
+
 # 1.5.2 - 2017 Mar 27
 
 * 2 more fixes for that move to aiohttp 2.x
