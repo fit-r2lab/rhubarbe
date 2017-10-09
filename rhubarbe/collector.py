@@ -32,7 +32,7 @@ class Collector:
         # WARNING: it is intended that format contains {port} for future formatting
         command_format_ubuntu = "exec {} -d -l {} {{port}} > {} 2> /dev/null"\
                                 .format(netcat, local_ip, self.image)
-        command_format_fedora = "exec {} -l {} {{port}} < /dev/null > {} 2> /dev/null"\
+        command_format_fedora = "exec {}    -l {} {{port}} > {} 2> /dev/null"\
                                 .format(netcat, local_ip, self.image)
 
         netcat_style = the_config.value('frisbee', 'netcat_style')
