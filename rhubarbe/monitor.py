@@ -4,6 +4,12 @@ import json
 import asyncio
 from urllib.parse import urlparse
 
+# turn off warnings that show up in monitor's journal
+# https://urllib3.readthedocs.io/en/latest/advanced-usage.html#ssl-warnings
+# worth a try someday..
+import urllib3
+urllib3.disable_warnings()
+
 # to connect to sidecar
 # at first I would have preferred an asyncio-friendly library
 # for talking socket.io; however I could not find one, and

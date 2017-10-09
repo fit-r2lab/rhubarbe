@@ -59,7 +59,7 @@ setup(
     author           = "Thierry Parmentelat",
     author_email     = "thierry.parmentelat@inria.fr",
     download_url     = "http://github/build.onelab.eu/rhubarbe/rhubarbe-{v}.tar.gz".format(v=rhubarbe_version),
-    url              = "https://github.com/parmentelat/fitsophia/tree/master/rhubarbe",
+    url              = "https://github.com/parmentelat/rhubarbe/tree/master",
     platforms        = "Linux",
     packages         = [ 'rhubarbe' ],
     data_files       =
