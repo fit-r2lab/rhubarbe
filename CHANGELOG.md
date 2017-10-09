@@ -1,3 +1,7 @@
+# 1.6.0 - 2017 Oct 9
+
+* bugfix for collecting images on a fedora box
+
 # 1.5.4 - 2017 May 23
 
 * we require telnetlib3 in version 0.5.0 at this point, as 1.0 breaks our code
