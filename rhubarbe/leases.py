@@ -110,7 +110,7 @@ class Lease:
 
 
 class Leases:
-    # the details of the omf_sfa instance where to look for leases
+    # the details of the plcapi_proxy instance where to look for leases
 
     def __init__(self, message_bus):
         self.message_bus = message_bus
