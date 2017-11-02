@@ -77,21 +77,15 @@ class Lease:
             format += " %Z"
         return time.strftime(format, time.localtime(epoch))
 
-    def currently_valid(self, login, hostname):
+
+    def booked_now(self, hostname, login=None):
         """
-        tells if the lease is currently applicable
+        tells if this lease is currently held by that login
+        if login is None, tells if this lease is currently help by anyone
         """
-        if debug:
-            logger.info("currently_valid with lease {}: ".format(self))
         if self.broken:
             if debug:
                 logger.info("ignoring broken lease {}".format(self))
-            return False
-        if not self.owner == login:
-            if debug:
-                logger.info(
-                    "login {} is not owner - actual owner is {}"
-                    .format(login, self.owner))
             return False
         if not self.ifrom <= time.time() <= self.iuntil:
             if debug:
@@ -102,10 +96,12 @@ class Lease:
                 logger.info("{} not among subjects {}"
                             .format(hostname, self.subjects))
             return False
-        # nothing more to check; the subject name cannot be wrong, there's only
-        # one node that one can get a lease on
-        if debug:
-            logger.info("fine")
+        if login is not None and not self.owner == login:
+            if debug:
+                logger.info(
+                    "login {} is not owner - actual owner is {}"
+                    .format(login, self.owner))
+            return False
         return self
 
 
@@ -144,12 +140,27 @@ class Leases:
         # the condition on login is mostly for tests
         return self.login == 'root' and os.getuid() == 0
 
-    async def currently_valid(self):
+    async def booked_now_by_current_login(self):
+        """
+        fetch leases and return a bool that says if current login has a lease
+        """
         if self.has_special_privileges():
             return True
         try:
             await self.fetch_all()
-            return self._currently_valid(self.login)
+            return self._booked_now_by_login(self.login)
+        except Exception as e:
+            await self.feedback('info', "Could not fetch leases : {}"
+                                .format(e))
+            return False
+
+    async def booked_now(self):
+        """
+        fetch leases and return a bool that says if a lease is currently valid
+        """
+        try:
+            await self.fetch_all()
+            return self._booked_now_by_anyone()
         except Exception as e:
             await self.feedback('info', "Could not fetch leases : {}"
                                 .format(e))
@@ -207,9 +218,15 @@ class Leases:
                                 'cannot get leases from {} - exception {}'
                                 .format(self, e))
 
-    def _currently_valid(self, login):
+    # the following 2 methods assume the leases have been fetched
+    def _booked_now_by_login(self, login):
         # must have run fetch_all() before calling this
-        return any([lease.currently_valid(login, self.leases_hostname)
+        return any([lease.booked_now(self.leases_hostname, login)
+                    for lease in self.leases])
+
+    def _booked_now_by_anyone(self):
+        # must have run fetch_all() before calling this
+        return any([lease.booked_now(self.leases_hostname)
                     for lease in self.leases])
 
     # this can be used with a fake message queue, it's synchroneous
@@ -226,7 +243,7 @@ class Leases:
                 if self.has_special_privileges():
                     return 'S'
                 # * for yes you can use it
-                if lease.currently_valid(self.login, self.leases_hostname):
+                if lease.booked_now(self.leases_hostname, self.login):
                     return '*'
                 return ' '
             for i, lease in enumerate(self.leases):

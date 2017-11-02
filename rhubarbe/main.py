@@ -35,26 +35,24 @@ import rhubarbe.util as util
 # would result in a call
 # load ( "-i", "fedora", "12" )
 
+
 ####################
 reservation_required = "This function requires a valid reservation - or to be root"
 
 
-def check_reservation(message_bus=None, loop=None, verbose=False):
+def check_reservation(leases, verbose=False):
     """
-    return a bool indicating if we currently have the lease
+    return a bool indicating if we (current login) currently have the lease
 
     verbose can be
     False : write a message if lease is not there
     True : always write a message
     """
-    message_bus = message_bus or asyncio.Queue()
-    loop = loop or asyncio.get_event_loop()
-    leases = Leases(message_bus)
     login = leases.login
     async def check_leases():
         if verbose:
             print("Checking current reservation for {} : ".format(login), end="")
-        ok = await leases.currently_valid()
+        ok = await leases.booked_now_by_current_login()
         if ok:
             if verbose:
                 print("OK")
@@ -64,7 +62,19 @@ def check_reservation(message_bus=None, loop=None, verbose=False):
             else:
                 print("access denied")
         return ok
-    return loop.run_until_complete(check_leases())
+    return asyncio.get_event_loop().run_until_complete(check_leases())
+
+
+####################
+# exposed to the outside world (typically r2lab's nightly)
+
+def no_reservation(leases):
+    """
+    returns True if nobody currently has a lease
+    """
+    async def check_leases():
+        return not await leases.booked_now()
+    return asyncio.get_event_loop().run_until_complete(check_leases())
 
 
 ####################
@@ -117,9 +127,10 @@ def cmc_verb(verb, check_resa, *argv):
 
     selector = selected_selector(args)
     message_bus = asyncio.Queue()
+    leases = Leases(message_bus)
 
     if check_resa in ('warn', 'enforce'):
-        reserved = check_reservation(verbose=False)
+        reserved = check_reservation(leases, verbose=False)
         if not reserved:
             if check_resa == 'enforce':
                 return 1
@@ -509,12 +520,13 @@ def leases(*argv):
     parser.add_argument('-i', '--interactive', action='store_true', default=False,
                         help="Interactively prompt for commands (create, update, delete)")
     args = parser.parse_args(argv)
+
+    message_bus = asyncio.Queue()
+    leases = Leases(message_bus)
     if args.check:
-        access = check_reservation(verbose=True)
+        access = check_reservation(leases, verbose=True)
         return 0 if access else 1
     else:
-        message_bus = asyncio.Queue()
-        leases = Leases(message_bus)
         loop = asyncio.get_event_loop()
         loop.run_until_complete(leases.main(args.interactive))
         loop.close()
