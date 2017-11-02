@@ -4,8 +4,6 @@ import random
 import asyncio
 import asyncssh
 
-from rhubarbe.node import Node
-
 debug = False
 #debug = True
 
@@ -57,7 +55,7 @@ class SshProxy:
         self.conn, self.client = None, None
 
     def __repr__(self):
-        return "SshProxy {}".format(self.node.hostname)
+        return "SshProxy {}".format(self.node)
     
     # make this an asynchroneous context manager
     # async with SshProxy(...) as ssh:
@@ -135,26 +133,29 @@ class SshProxy:
                     "cannot connect, backing off for {:.3}s".format(random_backoff))
             await asyncio.sleep(random_backoff)
 
-# mostly test-oriented
-async def probe(h, message_bus):
-    node = Node(h, message_bus)
-    proxy = SshProxy(node)
-    c = await proxy.connect()
-    if not c:
-        return False
-    out1 = await proxy.run('cat /etc/lsb-release /etc/fedora-release 2> /dev/null')
-    print("command1 returned {}".format(out1))
-    out2 = await proxy.run('hostname')
-    print("command2 returned {}".format(out2))
-    await proxy.close()
-    return True
 
+# mostly test-oriented
 if __name__ == '__main__':        
+
+    from rhubarbe.node import Node
+
+    async def probe(h, message_bus):
+        node = Node(h, message_bus)
+        proxy = SshProxy(node, verbose=True)
+        c = await proxy.connect()
+        if not c:
+            return False
+        out1 = await proxy.run('cat /etc/lsb-release /etc/fedora-release 2> /dev/null')
+        print("command1 returned {}".format(out1))
+        out2 = await proxy.run('hostname')
+        print("command2 returned {}".format(out2))
+        await proxy.close()
+        return True
 
     message_bus = asyncio.Queue()
 
     nodes = sys.argv[1:]
-    tasks = [ probe(node, message_bus) for node in nodes]
+    tasks = [probe(node, message_bus) for node in nodes]
 
     retcods = asyncio.get_event_loop().run_until_complete(asyncio.gather(*tasks))
 
