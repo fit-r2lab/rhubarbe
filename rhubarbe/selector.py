@@ -71,9 +71,11 @@ class Selector:
     def cmc_names(self):
         return ("{}{:02}".format(self.rebootname, i) for i in sorted(self.set))
 
-    def how_many(self):
+    def __len__(self):
         return len(self.set)
-
+    def use_all_scope(self):
+        the_config = Config()
+        self.add_range(the_config.value('testbed', 'all_scope'))
 
 ####################
 #convenience tools shared by all commands that need this sort of selection
@@ -98,18 +100,19 @@ def add_selector_arguments(arg_parser):
         """)
         
 # parser_args is the result of arg_parser.parse_args()
-def selected_selector(parser_args):        
+def selected_selector(parser_args, defaults_to_all=False):        
     ranges = parser_args.ranges
     
     # our naming conventions
     selector = Selector()
     # nothing set on the command line : let's use $NODES
     if parser_args.all_nodes:
-        the_config = Config()
-        selector.add_range(the_config.value('testbed', 'all_scope'))
+        selector.use_all_scope()
     # nothing specified at all - no range no --all-nodes
     if not ranges and not parser_args.all_nodes:
-        if os.getenv('NODES'):
+        if defaults_to_all:
+            selector.use_all_scope()
+        elif os.getenv('NODES'):
             for node in os.environ["NODES"].split():
                 selector.add_range(node)
         else:

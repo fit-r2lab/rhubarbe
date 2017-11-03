@@ -13,6 +13,7 @@ from asynciojobs import Scheduler, Job
 from rhubarbe.config import Config
 from rhubarbe.imagesrepo import ImagesRepo
 from rhubarbe.selector import Selector, add_selector_arguments, selected_selector
+from rhubarbe.action import Action
 from rhubarbe.display import Display
 from rhubarbe.display_curses import DisplayCurses
 from rhubarbe.node import Node
@@ -24,6 +25,7 @@ from rhubarbe.accounts import Accounts
 from rhubarbe.ssh import SshProxy
 from rhubarbe.leases import Leases
 from rhubarbe.inventory import Inventory
+from rhubarbe.inventoryphones import InventoryPhones
 
 import rhubarbe.util as util
 
@@ -49,6 +51,7 @@ def check_reservation(leases, verbose=False):
     True : always write a message
     """
     login = leases.login
+
     async def check_leases():
         if verbose:
             print("Checking current reservation for {} : ".format(login), end="")
@@ -103,17 +106,17 @@ def nodes(*argv):
 ####################
 
 
-def cmc_verb(verb, check_resa, *argv):
+def cmc_verb(verb, resa_policy, *argv):
     """
-    check_resa can be either
-    (*) enforce: refuse to send the message if the lease is not there
-    (*) warn: issue a warning when the lease is not there
-    (*) none: does not check the leases
+    resa_policy can be either
+    (*) 'enforce': refuse to send the message if the lease is not there
+    (*) 'warn': issue a warning when the lease is not there
+    (*) 'none' - or anything else really: does not check the leases
     """
     usage = """
     Send verb '{verb}' to the CMC interface of selected nodes""".format(verb=verb)
-    if check_resa == 'enforce':
-        usage += "\n    {resa}".format(resa=reservation_required)
+    if resa_policy == 'enforce':
+        usage += "\n    {policy}".format(policy=reservation_required)
     the_config = Config()
     default_timeout = the_config.value('nodes', 'cmc_default_timeout')
 
@@ -125,52 +128,19 @@ def cmc_verb(verb, check_resa, *argv):
     add_selector_arguments(parser)
     args = parser.parse_args(argv)
 
-    selector = selected_selector(args)
     message_bus = asyncio.Queue()
     leases = Leases(message_bus)
 
-    if check_resa in ('warn', 'enforce'):
+    if resa_policy in ('warn', 'enforce'):
         reserved = check_reservation(leases, verbose=False)
         if not reserved:
-            if check_resa == 'enforce':
+            if resa_policy == 'enforce':
                 return 1
 
-    verb_to_method = {'status': 'get_status',
-                      'on': 'turn_on',
-                      'off': 'turn_off',
-                      'reset': 'do_reset',
-                      'info': 'get_info',
-                      'usrpstatus': 'get_usrpstatus',
-                      'usrpon': 'turn_usrpon',
-                      'usrpoff': 'turn_usrpoff',
-                      }
+    selector = selected_selector(args)
+    action = Action(verb, selector)
 
-    async def get_and_show_verb(node, verb):
-        assert verb in verb_to_method
-        # send the 'verb' method on node
-        method = getattr(node, verb_to_method[verb])
-        # bound methods must not be passed the subject !
-        await method()
-        result = getattr(node, verb)
-        result = result if result is not None else "{} N/A".format(verb)
-        for line in result.split("\n"):
-            if line:
-                print("{}:{}".format(node.cmc_name, line))
-
-    nodes = [Node(cmc_name, message_bus) for cmc_name in selector.cmc_names()]
-    jobs = [Job(get_and_show_verb(node, verb), critical=True) for node in nodes]
-    display = Display(nodes, message_bus)
-    scheduler = Scheduler(Job(display.run(), forever=True, critical=True), *jobs)
-    try:
-        if scheduler.orchestrate(timeout=args.timeout):
-            return 0
-        else:
-            scheduler.debrief()
-            print("rhubarbe-{} failed: {}".format(verb, scheduler.why()))
-            return 1
-    except KeyboardInterrupt as e:
-        print("rhubarbe-{} : keyboard interrupt - exiting".format(verb))
-        return 1
+    return 0 if action.run(message_bus, args.timeout) else 1
 
 #####
 
@@ -205,6 +175,53 @@ def usrpon(*argv): return cmc_verb('usrpon', 'enforce', *argv)
 
 @subcommand
 def usrpoff(*argv): return cmc_verb('usrpoff', 'enforce', *argv)
+
+
+#####
+# xxx should be asynchronous
+@subcommand
+def bye(*argv):
+    """
+    An alternative implementation of the previous 'all-off' utility
+    Switch the lights off when you leave
+    """
+
+    usage = """
+    Turn off whole testbed
+    """
+    the_config = Config()
+    default_timeout = the_config.value('nodes', 'cmc_default_timeout')
+    parser = ArgumentParser(usage=usage)
+    parser.add_argument("-t", "--timeout", action='store',
+                        default=default_timeout, type=float,
+                        help="Specify timeout for each phase, default={}"
+                        .format(default_timeout))
+    add_selector_arguments(parser)
+    args = parser.parse_args(argv)
+
+    selector = selected_selector(args, defaults_to_all=True)
+    if len(selector) == 0:
+        selector.use_all_scope()
+
+    bus = asyncio.Queue()
+    Action('usrpoff', selector).run(bus, args.timeout)
+
+    # keep it simple for now
+    import time
+    time.sleep(1)
+    Action('off', selector).run(bus, args.timeout)
+
+    # even simpler
+    import os
+    phones_inventory = InventoryPhones()
+    for phone in phones_inventory.all_phones():
+        gateway = phone['gw_host']
+        user = phone['gw_user']
+        key = phone['gw_key']
+        command = "ssh -i {key} {user}@{gateway} phone-off"\
+                  .format(**locals())
+        print(command)
+        os.system(command)
 
 ####################
 
@@ -248,7 +265,7 @@ def load(*argv):
     message_bus = asyncio.Queue()
 
     selector = selected_selector(args)
-    if not selector.how_many():
+    if not len(selector):
         parser.print_help()
         return 1
     nodes = [Node(cmc_name, message_bus) for cmc_name in selector.cmc_names()]
@@ -313,7 +330,7 @@ def save(*argv):
     selector = Selector()
     selector.add_range(args.node)
     # in case there was one argument but it was not found in inventory
-    if selector.how_many() != 1:
+    if len(selector) != 1:
         parser.print_help()
     cmc_name = next(selector.cmc_names())
     node = Node(cmc_name, message_bus)
@@ -383,7 +400,8 @@ def wait(*argv):
     display = display_class(nodes, message_bus)
 
     # have the display class run forever until the other ones are done
-    scheduler = Scheduler(Job(display.run(), forever=True, critical=True), *jobs)
+    scheduler = Scheduler(
+        Job(display.run(), forever=True, critical=True), *jobs)
     try:
         orchestration = scheduler.orchestrate(timeout=args.timeout)
         if orchestration:
@@ -562,7 +580,7 @@ def monitor(*argv):
                         default=default_sidecar_url,
                         help="url for thesidecar server (default={})"
                              .format(default_sidecar_url))
-    parser.add_argument("-v", "--verbose", 
+    parser.add_argument("-v", "--verbose",
                         action='store_true', default=False)
     add_selector_arguments(parser)
     args = parser.parse_args(argv)
@@ -645,7 +663,7 @@ def monitorphones(*argv):
                              .format(default_sidecar_url))
     parser.add_argument("-v", "--verbose", action='store_true')
     args = parser.parse_args(argv)
-    
+
     from rhubarbe.logger import logger
     logger.info("Using all phones")
     loop = asyncio.get_event_loop()
@@ -680,7 +698,7 @@ def monitorphones(*argv):
         loop.close()
 
 ####################
-        
+
 
 @subcommand
 def accounts(*argv):
