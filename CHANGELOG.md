@@ -1,3 +1,9 @@
+# 1.7.0 - 2017 Nov 3
+
+* new feature rhubarbe bye (formerly known as all-off)
+* new class Action that can send a CMC verb to a selector of nodes
+* slight tweaks in lease management to allow r2lab to write a new nightly
+
 # 1.6.0 - 2017 Oct 9
 
 * bugfix for collecting images on a fedora box
