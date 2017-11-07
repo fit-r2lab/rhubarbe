@@ -1,3 +1,10 @@
+
+"""
+Leases management : download from r2labapi service,
+creation update deletions,
+and minimal verifications
+"""
+
 import os
 import pwd
 import time
@@ -65,11 +72,17 @@ class Lease:
                                       time_message, self.owner, scope)
 
     def sort_key(self):
+        """
+        Sort on start time
+        """
         return self.ifrom
 
     @staticmethod
     def human(epoch, show_date=True, show_timezone=True):
         format = ""
+        """
+        human-readable format
+        """
         if show_date:
             format += "%m-%d @ "
         format += "%H:%M"
@@ -78,16 +91,23 @@ class Lease:
         return time.strftime(format, time.localtime(epoch))
 
 
-    def booked_now(self, hostname, login=None):
+    def booked_now_by(self, hostname, login):
         """
-        tells if this lease is currently held by that login
-        if login is None, tells if this lease is currently help by anyone
+        tells if this lease is held right now, by that login (if not None)
+        or by anyone (if login is None)
+        """
+        return self.booked_at_by(hostname, time.time(), login)
+
+    def booked_at_by(self, hostname, instant, login):
+        """
+        tells if this lease is held at that time, by that login (if not None)
+        or by anyone (if login is None)
         """
         if self.broken:
             if debug:
                 logger.info("ignoring broken lease {}".format(self))
             return False
-        if not self.ifrom <= time.time() <= self.iuntil:
+        if not self.ifrom <= instant <= self.iuntil:
             if debug:
                 logger.info("{} : wrong timerange".format(self))
             return False
@@ -106,6 +126,9 @@ class Lease:
 
 
 class Leases:
+    """
+    A list of leases as downloaded from the API
+    """
     # the details of the plcapi_proxy instance where to look for leases
 
     def __init__(self, message_bus):
@@ -134,24 +157,33 @@ class Leases:
                 .format(self.plcapi_proxy, len(self.leases))
 
     async def feedback(self, field, msg):
+        """
+        send feedback, for displaying or monitoring
+        """
         await self.message_bus.put({field: msg})
 
     def has_special_privileges(self):
-        # the condition on login is mostly for tests
+        """
+        check for being run as root
+        """
         return self.login == 'root' and os.getuid() == 0
 
-    async def booked_now_by_current_login(self):
+    async def booked_now_by_current_login(self, *, root_allowed=True):
         """
         fetch leases and return a bool that says if current login has a lease
+        if root_allowed is True, then this function will return True for root user
+           no matter what else
+        if root_allowed is false, root goes through the usual process, which most of 
+           th time results in this function answering False
         """
-        if self.has_special_privileges():
+        if root_allowed and self.has_special_privileges():
             return True
         try:
             await self.fetch_all()
             return self._booked_now_by_login(self.login)
         except Exception as e:
-            await self.feedback('info', "Could not fetch leases : {}"
-                                .format(e))
+            await self.feedback('info',
+                                "Could not fetch leases : {}".format(e))
             return False
 
     async def booked_now(self):
@@ -167,6 +199,10 @@ class Leases:
             return False
 
     async def fetch_all(self):
+        """
+        makes sure all required data is available 
+        (turns out only the leases are required for now)
+        """
         await self.fetch_leases()
 
     async def refresh(self):
@@ -274,12 +310,11 @@ class Leases:
                 pass
 
     def check_user(self, user):
-        return user if os.path.exists("/home/{}".format(user)) else None
+        return os.path.exists("/home/{}".format(user))
 
     async def _add_lease(self, owner, input_from, input_until):
         if owner != 'root':
-            owner = self.check_user(owner)
-            if not owner:
+            if not self.check_user(owner):
                 print("user {} not found under /home - giving up"
                       .format(owner))
                 logger.error("Unknown user {}".format(owner))
@@ -412,6 +447,7 @@ depending on the context
                     owner = self.login
                 time_from = input("From : ")
                 time_until = input("Until : ")
+                print("owner={}".format(owner))
                 result = await self._add_lease(owner, time_from, time_until)
                 await self.fetch_all()
             elif char == 'u':

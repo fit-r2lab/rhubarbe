@@ -42,7 +42,7 @@ import rhubarbe.util as util
 reservation_required = "This function requires a valid reservation - or to be root"
 
 
-def check_reservation(leases, verbose=False):
+def check_reservation(leases, *, root_allowed=True, verbose=False):
     """
     return a bool indicating if we (current login) currently have the lease
 
@@ -55,7 +55,7 @@ def check_reservation(leases, verbose=False):
     async def check_leases():
         if verbose:
             print("Checking current reservation for {} : ".format(login), end="")
-        ok = await leases.booked_now_by_current_login()
+        ok = await leases.booked_now_by_current_login(root_allowed=root_allowed)
         if ok:
             if verbose:
                 print("OK")

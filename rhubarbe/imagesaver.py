@@ -62,7 +62,7 @@ class ImageSaver:
         valid = await leases.booked_now_by_current_login()
         if not valid:
             await self.feedback('authorization',
-                                     "Access refused : you have no lease on the testbed at this time")
+                                "Access refused : you have no lease on the testbed at this time")
             return False
         else:
             await (self.stage1() if reset else self.feedback('info', "Skipping stage1"))
