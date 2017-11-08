@@ -45,27 +45,34 @@ reservation_required = "This function requires a valid reservation - or to be ro
 ####################
 # exposed to the outside world (typically r2lab's nightly)
 
-def check_reservation(leases, *, root_allowed=True, verbose=False):
+def check_reservation(leases, *, root_allowed=True, verbose=False, login=None):
     """
     return a bool indicating if we (current login) currently have the lease
 
     when True, root_allowed means that the root user is always granted access
 
     verbose can be
+    None  : does not write anything
     False : write a message if lease is not there
     True : always write a message
     """
-    login = leases.login
+    if login is None:
+        login = leases.login
 
     async def check_leases():
         if verbose:
             print("Checking current reservation for {} : ".format(login), end="")
-        ok = await leases.booked_now_by_me(root_allowed=root_allowed)
+        if login is None:
+            ok = await leases.booked_now_by_me(root_allowed=root_allowed)
+        else:
+            ok = await leases.booked_now_by(root_allowed=root_allowed, login=login)
         if ok:
             if verbose:
                 print("OK")
         else:
-            if not verbose:
+            if verbose is None:
+                pass
+            elif verbose:
                 print("WARNING: Access currently denied to {}".format(login))
             else:
                 print("access denied")
@@ -78,7 +85,7 @@ def no_reservation(leases):
     returns True if nobody currently has a lease
     """
     async def check_leases():
-        return not await leases.booked_now()
+        return not await leases.booked_now_by_anyone()
     return asyncio.get_event_loop().run_until_complete(check_leases())
 
 

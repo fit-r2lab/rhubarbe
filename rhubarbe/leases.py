@@ -177,17 +177,20 @@ class Leases:
         if root_allowed is false, root goes through the usual process, which most of 
            th time results in this function answering False
         """
+        await self.booked_now_by(root_allowed=root_allowed, login=self.login)
+
+    async def booked_now_by(self, root_allowed, login):
         if root_allowed and self.has_special_privileges():
             return True
         try:
             await self.fetch_all()
-            return self._booked_now_by_login(self.login)
+            return self._booked_now_by_login(login)
         except Exception as e:
             await self.feedback('info',
                                 "Could not fetch leases : {}".format(e))
             return False
 
-    async def booked_now(self):
+    async def booked_now_by_anyone(self):
         """
         fetch leases and return a bool that says if a lease is currently valid
         """
@@ -202,12 +205,12 @@ class Leases:
     # the following 2 methods assume the leases have been fetched
     def _booked_now_by_login(self, login):
         # must have run fetch_all() before calling this
-        return any([lease.booked_now(self.leases_hostname, login)
+        return any([lease.booked_now_by(self.leases_hostname, login)
                     for lease in self.leases])
 
     def _booked_now_by_anyone(self):
         # must have run fetch_all() before calling this
-        return any([lease.booked_now(self.leases_hostname)
+        return any([lease.booked_now_by(self.leases_hostname, login=None)
                     for lease in self.leases])
 
     async def fetch_all(self):
@@ -280,7 +283,7 @@ class Leases:
                 if self.has_special_privileges():
                     return 'S'
                 # * for yes you can use it
-                if lease.booked_now(self.leases_hostname, self.login):
+                if lease.booked_now_by(self.leases_hostname, self.login):
                     return '*'
                 return ' '
             for i, lease in enumerate(self.leases):
