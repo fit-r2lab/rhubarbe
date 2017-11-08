@@ -1,3 +1,7 @@
+# 1.7.1 - 2017 Nov 8
+
+* more tweaks in the leases area for r2lab's nightly
+
 # 1.7.0 - 2017 Nov 3
 
 * new feature rhubarbe bye (formerly known as all-off)
