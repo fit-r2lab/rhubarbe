@@ -42,9 +42,14 @@ import rhubarbe.util as util
 reservation_required = "This function requires a valid reservation - or to be root"
 
 
+####################
+# exposed to the outside world (typically r2lab's nightly)
+
 def check_reservation(leases, *, root_allowed=True, verbose=False):
     """
     return a bool indicating if we (current login) currently have the lease
+
+    when True, root_allowed means that the root user is always granted access
 
     verbose can be
     False : write a message if lease is not there
@@ -55,7 +60,7 @@ def check_reservation(leases, *, root_allowed=True, verbose=False):
     async def check_leases():
         if verbose:
             print("Checking current reservation for {} : ".format(login), end="")
-        ok = await leases.booked_now_by_current_login(root_allowed=root_allowed)
+        ok = await leases.booked_now_by_me(root_allowed=root_allowed)
         if ok:
             if verbose:
                 print("OK")
@@ -67,9 +72,6 @@ def check_reservation(leases, *, root_allowed=True, verbose=False):
         return ok
     return asyncio.get_event_loop().run_until_complete(check_leases())
 
-
-####################
-# exposed to the outside world (typically r2lab's nightly)
 
 def no_reservation(leases):
     """

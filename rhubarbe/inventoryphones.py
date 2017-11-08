@@ -11,8 +11,11 @@ class InventoryPhones(metaclass = Singleton):
 
     def __init__(self):
         the_config = Config()
-        with open(the_config.value('testbed', 'inventory_phones_path')) as feed:
-           self._phones = json.load(feed)
+        try:
+            with open(the_config.value('testbed', 'inventory_phones_path')) as feed:
+                self._phones = json.load(feed)
+        except FileNotFoundError:
+            self._phones = []
 
     def all_phones(self):
         """

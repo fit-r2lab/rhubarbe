@@ -1,6 +1,7 @@
 
 """
-Leases management : download from r2labapi service,
+Leases management : 
+download from r2labapi service,
 creation update deletions,
 and minimal verifications
 """
@@ -168,7 +169,7 @@ class Leases:
         """
         return self.login == 'root' and os.getuid() == 0
 
-    async def booked_now_by_current_login(self, *, root_allowed=True):
+    async def booked_now_by_me(self, *, root_allowed=True):
         """
         fetch leases and return a bool that says if current login has a lease
         if root_allowed is True, then this function will return True for root user
@@ -197,6 +198,17 @@ class Leases:
             await self.feedback('info', "Could not fetch leases : {}"
                                 .format(e))
             return False
+
+    # the following 2 methods assume the leases have been fetched
+    def _booked_now_by_login(self, login):
+        # must have run fetch_all() before calling this
+        return any([lease.booked_now(self.leases_hostname, login)
+                    for lease in self.leases])
+
+    def _booked_now_by_anyone(self):
+        # must have run fetch_all() before calling this
+        return any([lease.booked_now(self.leases_hostname)
+                    for lease in self.leases])
 
     async def fetch_all(self):
         """
@@ -253,17 +265,6 @@ class Leases:
             await self.feedback('leases_error',
                                 'cannot get leases from {} - exception {}'
                                 .format(self, e))
-
-    # the following 2 methods assume the leases have been fetched
-    def _booked_now_by_login(self, login):
-        # must have run fetch_all() before calling this
-        return any([lease.booked_now(self.leases_hostname, login)
-                    for lease in self.leases])
-
-    def _booked_now_by_anyone(self):
-        # must have run fetch_all() before calling this
-        return any([lease.booked_now(self.leases_hostname)
-                    for lease in self.leases])
 
     # this can be used with a fake message queue, it's synchroneous
     def print(self):

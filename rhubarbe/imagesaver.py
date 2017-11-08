@@ -59,7 +59,7 @@ class ImageSaver:
     async def run(self, reset):
         leases = Leases(self.message_bus)
         await self.feedback('authorization','checking for a valid lease')
-        valid = await leases.booked_now_by_current_login()
+        valid = await leases.booked_now_by_me()
         if not valid:
             await self.feedback('authorization',
                                 "Access refused : you have no lease on the testbed at this time")
