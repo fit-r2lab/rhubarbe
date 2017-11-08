@@ -177,7 +177,7 @@ class Leases:
         if root_allowed is false, root goes through the usual process, which most of 
            th time results in this function answering False
         """
-        await self.booked_now_by(root_allowed=root_allowed, login=self.login)
+        return await self.booked_now_by(root_allowed=root_allowed, login=self.login)
 
     async def booked_now_by(self, root_allowed, login):
         if root_allowed and self.has_special_privileges():

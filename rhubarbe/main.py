@@ -47,7 +47,9 @@ reservation_required = "This function requires a valid reservation - or to be ro
 
 def check_reservation(leases, *, root_allowed=True, verbose=False, login=None):
     """
-    return a bool indicating if we (current login) currently have the lease
+    return a bool indicating if a login currently has a lease
+
+    if login is None, the current login is used instead
 
     when True, root_allowed means that the root user is always granted access
 
@@ -56,8 +58,6 @@ def check_reservation(leases, *, root_allowed=True, verbose=False, login=None):
     False : write a message if lease is not there
     True : always write a message
     """
-    if login is None:
-        login = leases.login
 
     async def check_leases():
         if verbose:
