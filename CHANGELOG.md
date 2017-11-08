@@ -1,3 +1,7 @@
+# 1.7.2 - 2017 Nov 8
+
+* bugfixes
+
 # 1.7.1 - 2017 Nov 8
 
 * more tweaks in the leases area for r2lab's nightly
