@@ -60,12 +60,13 @@ def check_reservation(leases, *, root_allowed=True, verbose=False, login=None):
     """
 
     async def check_leases():
+        # login = None means use my login
+        # we don't use booked_now_by_me because of the verbose message
+        # we use another variable to avoid using nonlocal
+        actual_login = login or leases.login
         if verbose:
-            print("Checking current reservation for {} : ".format(login), end="")
-        if login is None:
-            ok = await leases.booked_now_by_me(root_allowed=root_allowed)
-        else:
-            ok = await leases.booked_now_by(root_allowed=root_allowed, login=login)
+            print("Checking current reservation for {} : ".format(actual_login), end="")
+        ok = await leases.booked_now_by(login=actual_login, root_allowed=root_allowed)
         if ok:
             if verbose:
                 print("OK")
@@ -73,7 +74,7 @@ def check_reservation(leases, *, root_allowed=True, verbose=False, login=None):
             if verbose is None:
                 pass
             elif verbose:
-                print("WARNING: Access currently denied to {}".format(login))
+                print("WARNING: Access currently denied to {}".format(actual_login))
             else:
                 print("access denied")
         return ok
