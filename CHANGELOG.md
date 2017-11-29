@@ -1,3 +1,7 @@
+# 1.7.3 - 2017 Nov 8
+
+* another bugfix; rhubarbe leases --check displayed current login name as None
+
 # 1.7.2 - 2017 Nov 8
 
 * bugfixes
