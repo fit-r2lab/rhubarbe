@@ -37,7 +37,7 @@ def replace_file_with_string(filename, new_contents,
     try:
         with open(filename) as f:
             current = f.read()
-    except:
+    except IOError:
         current = ""
     if current == new_contents:
         # if turns out to be an empty string, and remove_if_empty is set,
@@ -52,13 +52,12 @@ def replace_file_with_string(filename, new_contents,
         # we're done and have nothing to do
         return False
     # overwrite filename file: create a temp in the same directory
-    path = os.path.dirname(filename) or '.'
     with open(filename, 'w') as f:
         f.write(new_contents)
     if chmod:
         os.chmod(filename, chmod)
     if owner:
-        retcod = os.system("chown {} {}".format(owner, filename))
+        os.system("chown {} {}".format(owner, filename))
     return True
 
 ####################
@@ -80,7 +79,7 @@ class Accounts:
             self._proxy = PlcApiProxy(self.plcapiurl,
                                       email=self.email, password=self.password,
                                       # debug = True
-                                      )
+                                     )
         return self._proxy
 
     def authorized_home_basenames(self):

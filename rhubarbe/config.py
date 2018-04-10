@@ -6,6 +6,7 @@ from pathlib import Path
 from rhubarbe.singleton import Singleton
 from rhubarbe.logger import logger
 
+
 # location, mandatory
 
 # all the files found in these locations are considered
@@ -20,10 +21,12 @@ locations = [
     ("./rhubarbe.conf.local", False),
 ]
 
+
 class ConfigException(Exception):
     pass
 
-class Config(metaclass = Singleton):
+
+class Config(metaclass=Singleton):
 
     def __init__(self):
         self.parser = configparser.ConfigParser()
@@ -33,10 +36,10 @@ class Config(metaclass = Singleton):
             if os.path.exists(location):
                 self.files.append(location)
                 self.parser.read(location)
-                logger.info("Loaded config from {}".format(location))                
+                logger.info("Loaded config from {}".format(location))
             elif mandatory:
                 raise ConfigException("Missing mandatory config file {}".format(location))
-        # 
+        #
         self._hostname = None
 
     def local_hostname(self):
@@ -59,7 +62,7 @@ class Config(metaclass = Singleton):
         hostname = self.local_hostname()
         return config_section.get("{flag}.{hostname}".format(**locals()), None) \
                 or self.get_or_raise(config_section, section, flag)
-        
+
     # for now
     # the foreseeable tricky part is, this should be a coroutine..
     def available_frisbee_port(self):
@@ -80,12 +83,12 @@ class Config(metaclass = Singleton):
 
     def display(self, sections):
         for i, file in enumerate(self.files):
-            print("{}-th config file = {}".format(i+1, file)) 
+            print("{}-th config file = {}".format(i+1, file))
         def match(section, sections):
             return not sections or section in sections
         for sname, section in sorted(self.parser.items()):
             if match(sname, sections) and section:
-                print(10*'='," section {}".format(sname))
+                print(10*'=', " section {}".format(sname))
                 for fname, value in sorted(section.items()):
                     print("{} = {}".format(fname, value))
 
@@ -95,10 +98,10 @@ class Config(metaclass = Singleton):
         paths = ['/'] + [p for p in PATH.split(':') if p]
         for path in paths:
             full = Path(path) / binary
-            if (full.exists()):
+            if full.exists():
                 return Path(path) / binary
         return False
-      
+
     def check_binaries(self):
         # imagezip and frisbee are required on the pxe image only
         names = ('server', 'netcat')
