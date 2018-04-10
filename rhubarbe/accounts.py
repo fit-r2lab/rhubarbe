@@ -1,29 +1,25 @@
 """
 This implements a daemon that runs on faraday and that
-
-* cyclically fetches something like GetSlivers()
-  and adjusts local accounts accordingly
-* it is also planned that it will listen on some port
-  so that one can get it to fuse its cycle an redo the
-  core of its job right away
+takes care of the defined / authorized logins
 
 think of it as a dedicated nodemanager
 """
 
 import time
-import os.path
+import os
 import pwd
-import glob
+
+from pathlib import Path
 
 from rhubarbe.logger import accounts_logger as logger
 from .config import Config
 from .plcapiproxy import PlcApiProxy
 
+
 ####################
-# stolen from historical planetlab nodemanager
+# adapted from historical planetlab nodemanager
 
-
-def replace_file_with_string(filename, new_contents,
+def replace_file_with_string(destination_path, new_contents,
                              owner=None, chmod=None, remove_if_empty=False):
     """
     Replace a file with new contents
@@ -35,29 +31,30 @@ def replace_file_with_string(filename, new_contents,
     returns True if a change occurred, or the file is deleted
     """
     try:
-        with open(filename) as f:
-            current = f.read()
+        with destination_path.open() as previous:
+            current = previous.read()
     except IOError:
         current = ""
     if current == new_contents:
         # if turns out to be an empty string, and remove_if_empty is set,
         # then make sure to trash the file if it exists
-        if remove_if_empty and not new_contents and os.path.isfile(filename):
+        if remove_if_empty and not new_contents and destination_path.is_file():
             logger.info(
-                "replace_file_with_string: removing file {}".format(filename))
+                "replace_file_with_string: removing file {}"
+                .format(destination_path))
             try:
-                os.unlink(filename)
+                destination_path.unlink()
             finally:
                 return True
         # we're done and have nothing to do
         return False
-    # overwrite filename file: create a temp in the same directory
-    with open(filename, 'w') as f:
-        f.write(new_contents)
+    # overwrite file: create a temp in the same directory
+    with destination_path.open('w') as new:
+        new.write(new_contents)
     if chmod:
-        os.chmod(filename, chmod)
+        destination_path.chmod(chmod)
     if owner:
-        os.system("chown {} {}".format(owner, filename))
+        os.system("chown {} {}".format(owner, destination_path))
     return True
 
 ####################
@@ -82,51 +79,15 @@ class Accounts:
                                      )
         return self._proxy
 
-    def authorized_home_basenames(self):
+    def slices_from_passwd(self):
         """
-        Inspect /home/ to find accounts that have authorized_keys
+        Inspect /etc/passwd and return all logins
 
-        temporarily leave alone the ones that start with 'onelab.'
-
-        also focus on the ones that have a '_' in them so that we leave
-        artificial accounts like 'michelle' or 'mario' that can maybe
-        be helpful some day
-
+        ignore the ones that do not have a '_' in them so that
+        we leave alone individual accounts
         """
-        basenames = []
-        for homedir in glob.glob("/home/*"):
-            basename = os.path.basename(homedir)
-            if basename.startswith("onelab."):
-                continue
-            if '_' not in basename:
-                continue
-            if not os.path.exists(
-                    os.path.join(homedir, ".ssh/authorized_keys")):
-                continue
-            basenames.append(basename)
-        return basenames
-
-    def authorized_legacy_basenames(self):
-        """
-        Inspect /home/ to find accounts that have authorized_keys
-        focus on the ones that start with 'onelab.'
-
-        """
-        basenames = []
-        for homedir in glob.glob("/home/onelab.*"):
-            basename = os.path.basename(homedir)
-            if not os.path.exists(
-                    os.path.join(homedir, ".ssh/authorized_keys")):
-                continue
-            basenames.append(basename)
-        return basenames
-
-    def all_passwd_entries(self):
-        """
-        Returns all entries in /etc/passwd
-        this is just to figure if an account needs to be created
-        """
-        return [pw.pw_name for pw in pwd.getpwall()]
+        return [record.pw_name for record in pwd.getpwall()
+                if '_' in record.pw_name]
 
     def create_account(self, slicename):
         """
@@ -156,25 +117,23 @@ class Accounts:
 
         Performed only if not yet existing
         """
-        ssh_config_file = "/home/{x}/.ssh/config".format(x=slicename)
+        ssh_config_file = Path("/home") / slicename / ".ssh/config"
 
-        if not os.path.exists(ssh_config_file):
-
-            # define the magic sequence for both fit* and data*
-            config_bases = ['fit', 'data']
-            #
-            config_pattern = """Host {base}*
+        # define the magic sequence for both fit* and data*
+        config_bases = ['fit', 'data']
+        #
+        config_pattern = """Host {base}*
     StrictHostKeyChecking no
     UserKnownHostsFile=/dev/null
     CheckHostIP=no
 """
 
-            ssh_config = "\n".join(
-                [config_pattern.format(base=base) for base in config_bases])
-            replace_file_with_string(ssh_config_file,
-                                     ssh_config,
-                                     chmod=0o600,
-                                     owner="{x}:{x}".format(x=slicename))
+        ssh_config = "\n".join(
+            [config_pattern.format(base=base) for base in config_bases])
+        replace_file_with_string(ssh_config_file,
+                                 ssh_config,
+                                 chmod=0o600,
+                                 owner="{x}:{x}".format(x=slicename))
 
     ##########
     def authorized_key_lines(self, plc_slice,
@@ -182,11 +141,11 @@ class Accounts:
         """
         returns the expected contents of that slice's authorized_keys file
         """
-        slicename = plc_slice['name']
         persons = [plc_persons_by_id[id] for id in plc_slice['person_ids']]
         key_ids = set(sum((p['key_ids'] for p in persons), []))
+        # somtimes the key comes with a final "\n"
         keys = [plc_keys_by_id[id] for id in key_ids]
-        key_lines = [(k['key'] + "\n") for k in keys]
+        key_lines = [(k['key'].replace("\n", "") + "\n") for k in keys]
         # this is so we get something canonical that does not
         # change everytime
         key_lines.sort()
@@ -194,108 +153,99 @@ class Accounts:
 
     ##########
     def manage_accounts(self):
-        # get context
-        passwd_entries = self.all_passwd_entries()
-        home_basenames = self.authorized_home_basenames()
-        legacy_basenames = self.authorized_legacy_basenames()
 
         # get plcapi specification of what should be
-        slices = self.proxy().GetSlices(
-            {}, ['slice_id', 'name', 'expires', 'person_ids'])
+        now = int(time.time())
+        active_leases = self.proxy().GetLeases({'alive': now})
+
+        # don't lookup slices yet, we need only one
         persons = self.proxy().GetPersons(
             {}, ['person_id', 'email', 'slice_ids', 'key_ids'])
         keys = self.proxy().GetKeys()
 
-        if slices is None or persons is None or keys is None:
+        if active_leases is None or persons is None or keys is None:
             logger.error("Cannot reach PLCAPI endpoint at this time - back to sleep")
             return
 
         persons_by_id = {p['person_id']: p for p in persons}
         keys_by_id = {k['key_id']: k for k in keys}
 
-        active_slices = []
+        # initialize with the slice names that are in /etc/passwd
+        logins = self.slices_from_passwd()
+        slice_auth_s = {login : "" for login in logins}
 
-        for slice in slices:
-            slicename = slice['name']
+        # at this point active_leases has 0 or 1 item
+        for lease in active_leases:
+            slicename = lease['name']
+            slices = self.proxy().GetSlices(
+                {'name':slicename},
+                ['slice_id', 'name', 'expires', 'person_ids']
+            )
+            if len(slices) != 1:
+                logger.error("Cannot find slice {}".format(slicename))
+                continue
+            slice = slices[0]
             authorized_keys = self.authorized_key_lines(
                 slice, persons_by_id, keys_by_id)
 
-            # don't bother to create an account if the slice has no key
-            if authorized_keys:
-                try:
-                    active_slices.append(slicename)
-                    # create account if missing
-                    if slicename not in passwd_entries:
-                        self.create_account(slicename)
-                    # dictate authorized_keys contents
-                    ssh_auth_keys = "/home/{x}/.ssh/authorized_keys".format(
-                        x=slicename)
-                    replace_file_with_string(ssh_auth_keys, authorized_keys,
-                                             chmod=0o400,
-                                             owner="{x}:{x}".format(
-                                                 x=slicename),
-                                             remove_if_empty=True)
-                    self.create_ssh_config(slicename)
+            slice_auth_s[slicename] = authorized_keys
 
-                except Exception as e:
-                    logger.exception("could not properly deal "
-                                     "with active slice {x} (e={e})"
-                                     .format(x=slicename, e=e))
 
-        # find out about slices that currently have suthorized keys but should
-        # not
-        for slicename in home_basenames:
-            if slicename not in active_slices:
-                try:
-                    logger.info(
-                        "Removing authorized_keys for {x}".format(x=slicename))
-                    ssh_auth_keys = "/home/{x}/.ssh/authorized_keys".format(
-                        x=slicename)
-                    os.unlink(ssh_auth_keys)
-                except Exception as e:
-                    logger.exception("could not properly deal "
-                                     "with inactive slice {x} (e={e})"
-                                     .format(x=slicename, e=e))
-
-        # a one-shot piece of code : turn off legacy slices
-        for slicename in legacy_basenames:
+            # create account if needed
             try:
-                logger.info(
-                    "legacy slicename {x} "
-                    "needs to be shutdown".format(x=slicename))
-                ssh_auth_keys = "/home/{x}/.ssh/authorized_keys".format(
-                    x=slicename)
-                # xxx enable the following line to tear down legacy slices
-                # os.unlink(ssh_auth_keys)
+                # create account if missing
+                if slicename not in logins:
+                    self.create_account(slicename)
+                    self.create_ssh_config(slicename)
             except Exception as e:
                 logger.exception("could not properly deal "
-                                 "with inactive slice {x} (e={e})"
+                                 "with active slice {x} (e={e})"
                                  .format(x=slicename, e=e))
 
 
-    def run_forever(self, period):
+        # apply all authorized_keys
+        for slicename, keys in slice_auth_s.items():
+            authorized_keys_path = Path("/home") / slicename \
+                / ".ssh/authorized_keys"
+            replace_file_with_string(authorized_keys_path, keys,
+                                     chmod=0o400,
+                                     owner="{x}:{x}"
+                                     .format(x=slicename),
+                                     remove_if_empty=True)
+
+
+    def run_forever(self, cycle):
         while True:
             beg = time.time()
-            logger.info("---------- rhubarbe accounts manager (period {})"
-                        .format(period))
+            logger.info("---------- rhubarbe accounts manager (cycle {}s)"
+                        .format(cycle))
             self.manage_accounts()
             now = time.time()
             duration = now - beg
-            towait = period - duration
-            logger.info("---------- rhubarbe accounts manager - sleeping for {}"
-                        .format(towait))
-            if towait <= 0:
-                logger.warning("duration {} exceeded period {} - skipping sleep"
-                               .format(duration, period))
+            towait = cycle - duration
+            if towait > 0:
+                logger.info("---------- rhubarbe accounts manager - sleeping for {:.2f}s"
+                            .format(towait))
+                time.sleep(towait)
             else:
-                time.sleep(period - duration)
+                logger.warning("duration {}s exceeded cycle {}s - skipping sleep"
+                               .format(duration, cycle))
+
 
     def main(self, cycle):
+        """
+        cycle is the duration in seconds of one cycle
+
+        Corner cases:
+        * cycle = None : fetch value from config_bases
+        * cycle = 0 : run just once (for debug mostly)
+
+        """
         if cycle is None:
             cycle = Config().value('accounts', 'cycle')
         cycle = int(cycle)
+        # trick is
         if cycle != 0:
             self.run_forever(cycle)
         else:
             self.manage_accounts()
-              
