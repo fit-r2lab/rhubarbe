@@ -167,7 +167,9 @@ class Leases:
         """
         check for being run as root
         """
-        return self.login == 'root' and os.getuid() == 0
+        privileged = Config().value('accounts', 'privileged')
+        names = privileged.split(',')
+        return self.login in names
 
     async def booked_now_by_me(self, *, root_allowed=True):
         """
@@ -235,7 +237,8 @@ class Leases:
 
     # xxx stolen from r2lab.inria.fr : because we still use
     # a data model inspired from when we had OMF
-    def epoch_to_ui_ts(self, epoch):
+    @staticmethod
+    def epoch_to_ui_ts(epoch):
         return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(epoch))
 
     def resource_from_lease(self, plc_lease):
