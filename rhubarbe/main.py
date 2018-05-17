@@ -299,7 +299,7 @@ def load(*argv):
     message_bus = asyncio.Queue()
 
     selector = selected_selector(args)
-    if not selector.is_empty():
+    if selector.is_empty():
         parser.print_help()
         return 1
     nodes = [Node(cmc_name, message_bus)                # pylint: disable=w0621
