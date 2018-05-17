@@ -1,15 +1,26 @@
+"""
+The logic for loading an image on a set of node
+"""
+
+# c0111 no docstrings yet
+# w0201 attributes defined outside of __init__
+# w1202 logger & format
+# w0703 catch Exception
+# r1705 else after return
+# pylint: disable=c0111
+
 import asyncio
 
 from asynciojobs import Scheduler, Job
 
-import rhubarbe.util as util
 from rhubarbe.frisbeed import Frisbeed
 from rhubarbe.leases import Leases
 from rhubarbe.config import Config
 
+
 class ImageLoader:
 
-    def __init__(self, nodes,  image, bandwidth,
+    def __init__(self, nodes, image, bandwidth,         # pylint: disable=r0913
                  message_bus, display):
         self.nodes = nodes
         self.image = image
@@ -25,7 +36,8 @@ class ImageLoader:
     async def stage1(self):
         the_config = Config()
         idle = int(the_config.value('nodes', 'idle_after_reset'))
-        await asyncio.gather(*[node.reboot_on_frisbee(idle) for node in self.nodes])
+        await asyncio.gather(*[node.reboot_on_frisbee(idle)
+                               for node in self.nodes])
 
     async def start_frisbeed(self):
         self.frisbeed = Frisbeed(self.image, self.bandwidth, self.message_bus)
@@ -38,9 +50,10 @@ class ImageLoader:
         then run frisbee in all of them
         and reset the nodes afterwards, unless told otherwise
         """
-        # start_frisbeed will return the ip+port to use 
-        ip, port = await self.start_frisbeed()
-        results = await asyncio.gather(*[node.run_frisbee(ip, port, reset) for node in self.nodes])
+        # start_frisbeed will return the ip+port to use
+        ipaddr, port = await self.start_frisbeed()
+        results = await asyncio.gather(*[node.run_frisbee(ipaddr, port, reset)
+                                         for node in self.nodes])
         # we can now kill the server
         self.frisbeed.stop_nowait()
         return all(results)
@@ -51,38 +64,44 @@ class ImageLoader:
         Remove nextboot symlinks for all nodes in this selection
         so next boot will be off the harddrive
         """
-        [node.manage_nextboot_symlink('harddrive') for node in self.nodes]
+        for node in self.nodes:
+            node.manage_nextboot_symlink('harddrive')
 
     async def run(self, reset):
         leases = Leases(self.message_bus)
-        await self.feedback('authorization','checking for a valid lease')
+        await self.feedback('authorization', 'checking for a valid lease')
         valid = await leases.booked_now_by_me()
         if not valid:
             await self.feedback('authorization',
-                                "Access refused : you have no lease on the testbed at this time")
+                                "Access refused : you have no lease "
+                                "on the testbed at this time")
             return False
-        else:
-            await self.feedback('authorization','access granted')
-            await (self.stage1() if reset else self.feedback('info', "Skipping stage1"))
-            return await (self.stage2(reset))
+        await self.feedback('authorization', 'access granted')
+        await (self.stage1()
+               if reset
+               else self.feedback('info', "Skipping stage1"))
+        return await self.stage2(reset)
 
     def main(self, reset, timeout):
 
         mainjob = Job(self.run(reset), critical=True)
         displayjob = Job(self.display.run(), forever=True, critical=True)
-        scheduler = Scheduler (mainjob, displayjob)
+        scheduler = Scheduler(mainjob, displayjob)
 
         try:
-            ok = scheduler.orchestrate(timeout = timeout)
-            if not ok:
+            is_ok = scheduler.orchestrate(timeout=timeout)
+            if not is_ok:
                 scheduler.debrief()
-                self.display.set_goodbye("rhubarbe-load failed: {}".format(scheduler.why()))
+                self.display.set_goodbye("rhubarbe-load failed: {}"
+                                         .format(scheduler.why()))
                 return 1
             return 0 if mainjob.result() else 1
-        except KeyboardInterrupt as e:
-            self.display.set_goodbye("rhubarbe-load : keyboard interrupt - exiting")
+        except KeyboardInterrupt:
+            self.display.set_goodbye(
+                "rhubarbe-load : keyboard interrupt - exiting")
             return 1
         finally:
-            self.frisbeed and self.frisbeed.stop_nowait()
+            if self.frisbeed:
+                self.frisbeed.stop_nowait()
             self.nextboot_cleanup()
             self.display.epilogue()

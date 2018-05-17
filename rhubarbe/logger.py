@@ -1,3 +1,16 @@
+"""
+create/configure logger objects
+"""
+
+# c0111 no docstrings yet
+# c0103 constants names should be UPPER_CASE
+# w0201 attributes defined outside of __init__
+# w1202 logger & format
+# w0703 catch Exception
+# r1705 else after return
+# r0903 too few public methods
+# pylint: disable=c0103, w0703
+
 import logging
 import logging.config
 
@@ -6,32 +19,32 @@ import logging.config
 # * one special logger for monitor that goes into /var/log/monitor.log
 # * one special logger for accounts that goes into /var/log/accounts.log
 
-#import os
 # os.getlogin() is unreliable
 # so instead let's see if we can write in /var/log
 try:
     monitor_output = '/var/log/monitor.log'
     with open(monitor_output, 'a') as f:
         pass
-except:
+except Exception:
     monitor_output = 'monitor.log'
 
 try:
     accounts_output = '/var/log/accounts.log'
     with open(accounts_output, 'a') as f:
         pass
-except:
+except Exception:
     accounts_output = 'accounts.log'
 
 rhubarbe_logging_config = {
-    'version' : 1,
-    'disable_existing_loggers' : True,
-    'formatters': { 
-        'standard': { 
-            'format': '%(asctime)s %(levelname)s %(filename)s:%(lineno)d %(message)s',
+    'version': 1,
+    'disable_existing_loggers': True,
+    'formatters': {
+        'standard': {
+            'format': '%(asctime)s %(levelname)s '
+                      '%(filename)s:%(lineno)d %(message)s',
             'datefmt': '%m-%d %H:%M:%S'
         },
-        'shorter': { 
+        'shorter': {
             'format': '%(asctime)s %(levelname)s %(message)s',
             'datefmt': '%d %H:%M:%S'
         },
@@ -41,19 +54,19 @@ rhubarbe_logging_config = {
             'level': 'INFO',
             'class': 'logging.FileHandler',
             'formatter': 'standard',
-            'filename' : 'rhubarbe.log',
+            'filename': 'rhubarbe.log',
         },
         'monitor': {
             'level': 'INFO',
             'class': 'logging.FileHandler',
             'formatter': 'standard',
-            'filename' : monitor_output,
+            'filename': monitor_output,
         },
         'accounts': {
             'level': 'INFO',
             'class': 'logging.FileHandler',
             'formatter': 'shorter',
-            'filename' : accounts_output,
+            'filename': accounts_output,
         },
     },
     'loggers': {
@@ -89,9 +102,8 @@ monitor_logger = logging.getLogger('monitor')
 # from rhubarbe.logger import accounts_logger as logger
 accounts_logger = logging.getLogger('accounts')
 
-#################### test
+####################
+# test
 if __name__ == '__main__':
     logger.info("in rhubarbe")
     monitor_logger.info("in monitor")
-
-    

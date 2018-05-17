@@ -1,52 +1,62 @@
 #!/usr/bin/env python3
-# determines local IP address to use for frisbeed
+
+"""
+determine local IP address to use for frisbeed
+"""
+
+# c0111 no docstrings yet
+# w0201 attributes defined outside of __init__
+# w1202 logger & format
+# w0703 catch Exception
+# r1705 else after return
+# pylint: disable=c0111
 
 import subprocess
 import re
 import ipaddress
 
-from rhubarbe.logger import logger
+MATCHER = re.compile(r"inet (?P<address>([0-9]+\.){3}[0-9]+)/(?P<mask>[0-9]+)")
 
-matcher = re.compile(r"inet (?P<address>([0-9]+\.){3}[0-9]+)/(?P<mask>[0-9]+)")
+_LOCAL_INTERFACES = None
 
-_local_interfaces = None
 
 def local_interfaces():
-    global _local_interfaces
-    if _local_interfaces is not None:
-        return _local_interfaces
+    global _LOCAL_INTERFACES                            # pylint: disable=w0603
+    if _LOCAL_INTERFACES is not None:
+        return _LOCAL_INTERFACES
     ip_links = subprocess.Popen(
         ['ip', 'address', 'show'],
-        stdout = subprocess.PIPE,
-        stderr = subprocess.DEVNULL,
-        universal_newlines = True
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        universal_newlines=True
     )
-    _local_interfaces = []
-    out, err = ip_links.communicate()
+    _LOCAL_INTERFACES = []
+    out, _ = ip_links.communicate()
     for line in out.split("\n"):
         line = line.strip()
-        m = matcher.match(line)
-        if m:
-            address, mask = m.group('address'), m.group('mask')
-            interface = ipaddress.ip_interface("{}/{}".format(address, mask))
+        match = MATCHER.match(line)
+        if match:
+            interface = ipaddress.ip_interface(
+                "{}/{}".format(match.group('address'), match.group('mask')))
             if not interface.is_loopback:
-                _local_interfaces.append(interface)
-    return _local_interfaces
+                _LOCAL_INTERFACES.append(interface)
+    return _LOCAL_INTERFACES
+
 
 def local_ip_on_same_network_as(peer):
     """
     Typically if peer is 192.168.3.1 and we have an interface 192.168.3.200/24
     then this will return a tuple of strings 192.168.3.200, 24
-
     """
-    #peer_address = ipaddress.ip_address(peer)
     for interface in local_interfaces():
-        n = interface.network
-        l = n.prefixlen
-        peer_interface = ipaddress.ip_interface("{}/{}".format(peer,l))
+        length = interface.network.prefixlen
+        peer_interface = ipaddress.ip_interface(
+            "{}/{}".format(peer, length))
         if peer_interface.network == interface.network:
-            return str(interface.ip), str(l)
-    
+            return str(interface.ip), str(length)
+    return None
+
+
 if __name__ == '__main__':
-    local_ip, mask = local_ip_on_same_network_as("192.168.3.1")
-    print("found {}/{}".format(local_ip, mask))
+    LOCAL_IP, MASK = local_ip_on_same_network_as("192.168.3.1")
+    print("found {}/{}".format(LOCAL_IP, MASK))

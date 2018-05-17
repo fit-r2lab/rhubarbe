@@ -1,9 +1,22 @@
-import asyncio
+"""
+Controller for the frisbee daemon that sends images when doing
+rhubarbe load
+"""
 
-import os.path
+# c0111 no docstrings yet
+# w0201 attributes defined outside of __init__
+# w1202 logger & format
+# w0703 catch Exception
+# r1705 else after return
+# pylint: disable=c0111,w0201,r1705,w1201,w1202
+
+from pathlib import Path
+
+import asyncio
 
 from rhubarbe.logger import logger
 from rhubarbe.config import Config
+
 
 class Frisbeed:
     """
@@ -22,19 +35,18 @@ class Frisbeed:
         text = "<frisbeed"
         if self.multicast_group:
             text += "@{}:{}".format(self.multicast_group, self.multicast_port)
-        text += " on {} at {} Mibps".format(os.path.basename(self.image),
-                                          self.bandwidth)
+        text += " on {} at {} Mibps".format(Path(self.image).name,
+                                            self.bandwidth)
         text += ">"
         return text
-    
+
     async def feedback(self, field, msg):
         await self.message_bus.put({field: msg})
 
     def feedback_nowait(self, field, msg):
         self.message_bus.put_nowait({field: msg})
 
-
-    async def start(self):
+    async def start(self):                              # pylint: disable=r0914
         """
         Start a frisbeed instance
         returns a tuple multicast_group, port_number
@@ -53,19 +65,20 @@ class Frisbeed:
         command_common += server_options.split()
 
         nb_attempts = int(the_config.value('networking', 'pattern_size'))
-        pat_ip   = the_config.value('networking', 'pattern_multicast')
+        pat_ip = the_config.value('networking', 'pattern_multicast')
         pat_port = the_config.value('networking', 'pattern_port')
         for i in range(1, nb_attempts+1):
             pat = str(i)
             multicast_group = pat_ip.replace('*', pat)
-            multicast_port = str(eval(pat_port.replace('*', pat)))
+            multicast_port = str(eval(                  # pylint: disable=w0123
+                pat_port.replace('*', pat)))
             command = command_common + [
                 "-m", multicast_group, "-p", multicast_port,
                 ]
             self.subprocess = await asyncio.create_subprocess_exec(
                 *command,
-                stdout = asyncio.subprocess.PIPE,
-                stderr = asyncio.subprocess.STDOUT
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.STDOUT
                 )
             await asyncio.sleep(1)
             # after such a short time, frisbeed should not have returned yet
@@ -77,10 +90,12 @@ class Frisbeed:
                 await self.feedback('info', "started {}".format(self))
                 return multicast_group, multicast_port
             else:
-                logger.warning("failed to start frisbeed with {}".format(command_line))
-        logger.critical("Could not find a free IP multicast address + port to start frisbeed")
-        raise Exception("Could not start frisbee server")
-
+                logger.warning("failed to start frisbeed with {}"
+                               .format(command_line))
+        logger.critical("Could not find a free "
+                        "IP multicast address + port to start frisbeed")
+        raise Exception("Could not start frisbee server; "
+                        "no available IP multicast address + port")
 
     def stop_nowait(self):
         # make it idempotent

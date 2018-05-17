@@ -5,9 +5,8 @@ packaging / installing
 """
 
 # c0103: should use uppercase names
+# c0326: no space allowed around keyword argument assignment
 # pylint: disable=c0103,c0326
-
-from __future__ import print_function
 
 import sys
 import os
@@ -69,8 +68,7 @@ setup(
     license          = license,
     author           = "Thierry Parmentelat",
     author_email     = "thierry.parmentelat@inria.fr",
-    download_url     = "http://github/build.onelab.eu/rhubarbe/rhubarbe-{v}.tar.gz".format(v=rhubarbe_version),
-    url              = "https://github.com/parmentelat/rhubarbe/tree/master",
+    url              = "https://github.com/parmentelat/rhubarbe/",
     platforms        = "Linux",
     packages         = [ 'rhubarbe' ],
     data_files       = [

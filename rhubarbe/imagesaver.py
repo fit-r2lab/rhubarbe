@@ -1,15 +1,26 @@
+"""
+The logic for saving an image
+"""
+
+# c0111 no docstrings yet
+# w0201 attributes defined outside of __init__
+# w1202 logger & format
+# w0703 catch Exception
+# r1705 else after return
+# pylint: disable=c0111
+
 import os
-import asyncio
 
 from asynciojobs import Scheduler, Job
 
 from rhubarbe.collector import Collector
 from rhubarbe.leases import Leases
 from rhubarbe.config import Config
-import rhubarbe.util as util
+
 
 class ImageSaver:
-    def __init__(self, node, image, radical, message_bus, display, comment):
+    def __init__(self, node, image, radical,            # pylint: disable=r0913
+                 message_bus, display, comment):
         self.node = node
         self.image = image
         self.radical = radical
@@ -48,51 +59,56 @@ class ImageSaver:
         then run imagezip on the node
         reset node when finished unless reset is False
         """
-        # start_frisbeed will return the ip+port to use 
+        # start_frisbeed will return the ip+port to use
         await self.feedback('info', "Saving image from {}".format(self.node))
         port = await self.start_collector()
-        result = await self.node.run_imagezip(port, reset, self.radical, self.comment)
+        result = await self.node.run_imagezip(port, reset,
+                                              self.radical, self.comment)
         # we can now kill the server
         self.collector.stop_nowait()
         return result
 
     async def run(self, reset):
         leases = Leases(self.message_bus)
-        await self.feedback('authorization','checking for a valid lease')
+        await self.feedback('authorization', 'checking for a valid lease')
         valid = await leases.booked_now_by_me()
         if not valid:
             await self.feedback('authorization',
-                                "Access refused : you have no lease on the testbed at this time")
+                                "Access refused : you have no lease"
+                                " on the testbed at this time")
             return False
-        else:
-            await (self.stage1() if reset else self.feedback('info', "Skipping stage1"))
-            return await self.stage2(reset)
+        await (self.stage1()
+               if reset
+               else self.feedback('info', "Skipping stage1"))
+        return await self.stage2(reset)
 
     def mark_image_as_partial(self):
         # never mind if that fails, we might call this before
         # the file is created
         try:
             os.rename(self.image, self.image + ".partial")
-        except:
+        except Exception:                               # pylint: disable=w0703
             pass
 
     def main(self, reset, timeout):
         mainjob = Job(self.run(reset), critical=True)
         displayjob = Job(self.display.run(), forever=True, critical=True)
 
-        scheduler = Scheduler (mainjob, displayjob)
-        
+        scheduler = Scheduler(mainjob, displayjob, timeout=timeout)
+
         try:
-            ok = scheduler.orchestrate(timeout = timeout)
-            if not ok:
+            is_ok = scheduler.run()
+            if not is_ok:
                 scheduler.debrief()
-                self.display.set_goodbye("rhubarbe-save failed: {}".format(scheduler.why()))
+                self.display.set_goodbye("rhubarbe-save failed: {}"
+                                         .format(scheduler.why()))
                 return 1
             return 0 if mainjob.result() else 1
-        except KeyboardInterrupt as e:
-            self.display.set_goodbye("rhubarbe-save : keyboard interrupt - exiting")
+        except KeyboardInterrupt:
+            self.display.set_goodbye("rhubarbe-save : keyboard interrupt, bye")
             return 1
         finally:
-            self.collector and self.collector.stop_nowait()
+            if self.collector:
+                self.collector.stop_nowait()
             self.nextboot_cleanup()
             self.display.epilogue()

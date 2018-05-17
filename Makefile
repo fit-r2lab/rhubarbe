@@ -28,6 +28,18 @@ pypi:
 testpypi:
 	./setup.py sdist upload -r testpypi
 
+##########
+pyfiles:
+	@git ls-files | grep '\.py$$' 
+
+pep8:
+	$(MAKE) pyfiles | xargs flake8 --max-line-length=80 --exclude=__init__.py
+
+pylint:
+	$(MAKE) pyfiles | xargs pylint
+
+
+.PHONY: pep8 pylint pyfiles
 ##############################
 tags:
 	git ls-files | xargs etags

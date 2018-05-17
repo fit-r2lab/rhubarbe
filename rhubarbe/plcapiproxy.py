@@ -1,14 +1,23 @@
-# this class allows to create an authenticated xmlrpc
-# connection to 
+"""
+The PlcApiProxy class allows to create an authenticated xmlrpc
+connection to a myplc server; typically r2labapi.inria.fr
+"""
+
+# c0111 no docstrings yet
+# w1202 logger & format
+# w0703 catch Exception
+# r1705 else after return
+# pylint: disable=c0111, w0703, w1202
 
 import getpass
 
 import ssl
 
-#from aioxmlrpc.client import ServerProxy
+# from aioxmlrpc.client import ServerProxy
 from xmlrpc.client import ServerProxy
 
-class PlcApiProxy(ServerProxy):
+
+class PlcApiProxy(ServerProxy):                         # pylint: disable=r0903
 
     # use the standard plcapi scheme to run on /PLCAPI/
     # always use password auth in this first rough version
@@ -24,25 +33,27 @@ class PlcApiProxy(ServerProxy):
         ServerProxy.__init__(
             self, self.url, allow_none=True, context=context
         )
-        
+
     def __auth__(self, anonymous):
         if anonymous:
-            return { 'AuthMethod' : 'anonymous' }
+            return {'AuthMethod': 'anonymous'}
         else:
             if not self.email:
                 self.email = input("Enter plcapi email (login) : ")
             if not self.password:
-                self.password = getpass.getpass("Enter plcapi password for {} : "
-                                                .format(self.email))
-            return { 'AuthMethod' : 'password',
-                     'Username'   : self.email,
-                     'AuthString' : self.password }
-        
+                self.password = getpass.getpass(
+                    "Enter plcapi password for {} : "
+                    .format(self.email))
+            return {'AuthMethod': 'password',
+                    'Username': self.email,
+                    'AuthString': self.password}
 
-    # pass the authentication along for all calls
     def __getattr__(self, attr):
+        """
+        pass the authentication along for all calls
+        """
         # the default is to use authenticated calls
-        # because this is tha majority of the plcapi calls
+        # because this is the majority of the plcapi calls
         def fun(*args, anonymous=False, **kwds):
             if self.debug:
                 auth_msg = "[auth]" if not anonymous else "[anon]"
@@ -55,9 +66,9 @@ class PlcApiProxy(ServerProxy):
                 if self.debug:
                     print("<- Received {}".format(retcod))
                 return retcod
-            except Exception as e:
+            except Exception as exc:
                 print("ignored exception in {} : {}"
-                          .format(attr, e))
+                      .format(attr, exc))
         return fun
 
     def __str__(self):

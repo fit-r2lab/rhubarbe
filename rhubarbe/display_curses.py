@@ -60,7 +60,7 @@ class DisplayCurses(Display):
         self.screen.addstr(1, self.offsetc+1, self.pad(text))
         self.screen.refresh()
 
-    def dispatch_ip_hook(self, ip, node,                # pylint: disable=r0913
+    def dispatch_ip_hook(self, _, node,            # pylint:disable=w0221,r0913
                          message, timestamp, duration):
         timemsg = "{} {} {}".format(timestamp, duration, node.name)
         text = self.message_to_text_ip(message, node, mention_node=False)
@@ -71,7 +71,7 @@ class DisplayCurses(Display):
         self.screen.refresh()
         self.subwin.refresh()
 
-    def dispatch_ip_percent_hook(self, ip, node,        # pylint: disable=r0913
+    def dispatch_ip_percent_hook(self, _, node,    # pylint:disable=w0221,r0913
                                  message, timestamp, duration):
         # global area
         timemsg = "{} {}".format(timestamp, duration)
