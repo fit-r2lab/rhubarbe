@@ -1,25 +1,34 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+"""
+display class when using curses, like in
+rhubarbe load --curses
+"""
 
-import asyncio
 import curses
-import sys
 
-from rhubarbe.logger import logger
 from rhubarbe.display import Display
+
+# c0111 no docstrings yet
+# w0201 attributes defined outside of __init__
+# w1202 logger & format
+# w0703 catch Exception
+# r1705 else after return
+# pylint: disable=c0111,w0201,r1705
+
 
 class DisplayCurses(Display):
 
     # extra room on top and on the left
     offsetl = 3
     offsetc = 25
-    
+
     def start_hook(self):
         self.screen = curses.initscr()
         self.maxl, self.maxc = self.screen.getmaxyx()
         self.submaxc = self.maxc - self.offsetc
-        if len(self.nodes) + self.offsetl +2 >= self.maxl:
-            self.screen.addstr(1, 1, "WARNING: screen is not high enough - best effort..")
+        if len(self.nodes) + self.offsetl + 2 >= self.maxl:
+            self.screen.addstr(1, 1,
+                               "WARNING: screen not high enough - "
+                               "best effort..")
             self.screen.refresh()
             self.submaxl = self.maxl - self.offsetl
         else:
@@ -50,8 +59,9 @@ class DisplayCurses(Display):
         self.screen.addstr(1, 1, timemsg)
         self.screen.addstr(1, self.offsetc+1, self.pad(text))
         self.screen.refresh()
-            
-    def dispatch_ip_hook(self, ip, node, message, timestamp, duration):
+
+    def dispatch_ip_hook(self, ip, node,                # pylint: disable=r0913
+                         message, timestamp, duration):
         timemsg = "{} {} {}".format(timestamp, duration, node.name)
         text = self.message_to_text_ip(message, node, mention_node=False)
         text = str(text)
@@ -61,7 +71,8 @@ class DisplayCurses(Display):
         self.screen.refresh()
         self.subwin.refresh()
 
-    def dispatch_ip_percent_hook(self, ip, node, message, timestamp, duration):
+    def dispatch_ip_percent_hook(self, ip, node,        # pylint: disable=r0913
+                                 message, timestamp, duration):
         # global area
         timemsg = "{} {}".format(timestamp, duration)
         text = self.node_percent_bar(int((self.total_percent)/len(self.nodes)))
@@ -69,13 +80,13 @@ class DisplayCurses(Display):
         self.screen.addstr(2, self.offsetc+1, self.pad(text))
         # node area
         timemsg = "{} {} {}".format(timestamp, duration, node.name)
-        bar = self.node_percent_bar(node.percent)
+        barsize = self.node_percent_bar(node.percent)
         line = (node.rank % self.usable_l) + 1
         self.screen.addstr(line+self.offsetl, 1, timemsg)
-        self.subwin.addstr(line, 1, bar)
+        self.subwin.addstr(line, 1, barsize)
         self.screen.refresh()
         self.subwin.refresh()
-        
+
     def node_percent_bar(self, percent):
         # 2 is for the 2 borders left and right; 4 is the size for '|10%'
         avail = self.submaxc - 2 - 4
@@ -88,11 +99,13 @@ class DisplayCurses(Display):
 #        return self._pad(text, self.maxc-2)
     def pad(self, text):
         return self._pad(text, self.submaxc-2)
-    def _pad(self, text, width):
+
+    @staticmethod
+    def _pad(text, width):
         if len(text) == width:
             return text
         elif len(text) > width:
             return text[:(width-3)] + '...'
         else:
             missing = width-len(text)
-            return text + missing*' ' 
+            return text + missing*' '

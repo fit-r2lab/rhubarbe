@@ -7,7 +7,7 @@ class Inventory(metaclass = Singleton):
 
     def __init__(self):
         the_config = Config()
-        with open(the_config.value('testbed', 'inventory_path')) as feed:
+        with open(the_config.value('testbed', 'inventory_nodes_path')) as feed:
            self._nodes = json.load(feed)
 
     def _locate_entry_from_key(self, key, value):
@@ -56,4 +56,3 @@ class Inventory(metaclass = Singleton):
 
     def all_control_hostnames(self):
         return (node['control']['hostname'] for node in self._nodes)
-

@@ -5,6 +5,12 @@ takes care of the defined / authorized logins
 think of it as a dedicated nodemanager
 """
 
+# c0111 no docstrings yet
+# w1202 logger & format
+# w0703 catch Exception
+# r1705 else after return
+# pylint: disable=c0111,w0703,w1202,w1202
+
 import time
 import os
 import pwd
@@ -45,7 +51,7 @@ def replace_file_with_string(destination_path, new_contents,
             try:
                 destination_path.unlink()
             finally:
-                return True
+                return True                             # pylint: disable=w0150
         # we're done and have nothing to do
         return False
     # overwrite file: create a temp in the same directory
@@ -73,13 +79,13 @@ class Accounts:
     # not reconnectable for now
     def proxy(self):
         if self._proxy is None:
+            # also set debug=True if needed
             self._proxy = PlcApiProxy(self.plcapiurl,
-                                      email=self.email, password=self.password,
-                                      # debug = True
-                                     )
+                                      email=self.email, password=self.password)
         return self._proxy
 
-    def slices_from_passwd(self):
+    @staticmethod
+    def slices_from_passwd():
         """
         Inspect /etc/passwd and return all logins
 
@@ -89,7 +95,8 @@ class Accounts:
         return [record.pw_name for record in pwd.getpwall()
                 if '_' in record.pw_name]
 
-    def create_account(self, slicename):
+    @staticmethod
+    def create_account(slicename):
         """
         Does useradd with the right options
         Plus, creates an empty .ssh dir with proper permissions
@@ -110,7 +117,8 @@ class Accounts:
             if retcod != 0:
                 logger.error("{} -> {}".format(command, retcod))
 
-    def create_ssh_config(self, slicename):
+    @staticmethod
+    def create_ssh_config(slicename):
         """
         Initialize slice's .ssh/config that keeps ssh from
         being too picky with host keys and similar
@@ -136,8 +144,8 @@ class Accounts:
                                  owner="{x}:{x}".format(x=slicename))
 
     ##########
-    def authorized_key_lines(self, plc_slice,
-                             plc_persons_by_id, plc_keys_by_id):
+    @staticmethod
+    def authorized_key_lines(plc_slice, plc_persons_by_id, plc_keys_by_id):
         """
         returns the expected contents of that slice's authorized_keys file
         """
@@ -152,7 +160,7 @@ class Accounts:
         return "".join(key_lines)
 
     ##########
-    def manage_accounts(self):
+    def manage_accounts(self):                          # pylint: disable=r0914
 
         # get plcapi specification of what should be
         now = int(time.time())
@@ -164,7 +172,6 @@ class Accounts:
         keys = self.proxy().GetKeys()
 
         if active_leases is None or persons is None or keys is None:
-            logger.error("Cannot reach PLCAPI endpoint at this time - back to sleep")
             return
 
         persons_by_id = {p['person_id']: p for p in persons}
@@ -172,24 +179,23 @@ class Accounts:
 
         # initialize with the slice names that are in /etc/passwd
         logins = self.slices_from_passwd()
-        slice_auth_s = {login : "" for login in logins}
+        slice_auth_s = {login: "" for login in logins}
 
         # at this point active_leases has 0 or 1 item
         for lease in active_leases:
             slicename = lease['name']
             slices = self.proxy().GetSlices(
-                {'name':slicename},
+                {'name': slicename},
                 ['slice_id', 'name', 'expires', 'person_ids']
             )
             if len(slices) != 1:
                 logger.error("Cannot find slice {}".format(slicename))
                 continue
-            slice = slices[0]
+            the_slice = slices[0]
             authorized_keys = self.authorized_key_lines(
-                slice, persons_by_id, keys_by_id)
+                the_slice, persons_by_id, keys_by_id)
 
             slice_auth_s[slicename] = authorized_keys
-
 
             # create account if needed
             try:
@@ -197,11 +203,10 @@ class Accounts:
                 if slicename not in logins:
                     self.create_account(slicename)
                     self.create_ssh_config(slicename)
-            except Exception as e:
+            except Exception as exc:
                 logger.exception("could not properly deal "
                                  "with active slice {x} (e={e})"
-                                 .format(x=slicename, e=e))
-
+                                 .format(x=slicename, e=exc))
 
         # apply all authorized_keys
         for slicename, keys in slice_auth_s.items():
@@ -213,7 +218,6 @@ class Accounts:
                                      .format(x=slicename),
                                      remove_if_empty=True)
 
-
     def run_forever(self, cycle):
         while True:
             beg = time.time()
@@ -224,13 +228,14 @@ class Accounts:
             duration = now - beg
             towait = cycle - duration
             if towait > 0:
-                logger.info("---------- rhubarbe accounts manager - sleeping for {:.2f}s"
+                logger.info("---------- rhubarbe accounts manager - "
+                            "sleeping for {:.2f}s"
                             .format(towait))
                 time.sleep(towait)
             else:
-                logger.warning("duration {}s exceeded cycle {}s - skipping sleep"
+                logger.warning("duration {}s exceeded cycle {}s - "
+                               "skipping sleep"
                                .format(duration, cycle))
-
 
     def main(self, cycle):
         """
