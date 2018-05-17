@@ -10,6 +10,12 @@ This implements a daemon that runs on faraday and that
 think of it as a dedicated nodemanager
 """
 
+# c0111 no docstrings yet
+# w1202 logger & format
+# w0703 catch Exception
+# r1705 else after return
+# pylint: disable=c0111,w1202
+
 import time
 import os.path
 import pwd
@@ -35,8 +41,8 @@ def replace_file_with_string(filename, new_contents,
     returns True if a change occurred, or the file is deleted
     """
     try:
-        with open(filename) as f:
-            current = f.read()
+        with open(filename) as feed:
+            current = feed.read()
     except IOError:
         current = ""
     if current == new_contents:
@@ -48,12 +54,12 @@ def replace_file_with_string(filename, new_contents,
             try:
                 os.unlink(filename)
             finally:
-                return True
+                return True                             # pylint: disable=w0150
         # we're done and have nothing to do
         return False
     # overwrite filename file: create a temp in the same directory
-    with open(filename, 'w') as f:
-        f.write(new_contents)
+    with open(filename, 'w') as output:
+        output.write(new_contents)
     if chmod:
         os.chmod(filename, chmod)
     if owner:
@@ -76,13 +82,13 @@ class Accounts:
     # not reconnectable for now
     def proxy(self):
         if self._proxy is None:
+            # also set debug=True if needed
             self._proxy = PlcApiProxy(self.plcapiurl,
-                                      email=self.email, password=self.password,
-                                      # debug = True
-                                     )
+                                      email=self.email, password=self.password)
         return self._proxy
 
-    def authorized_home_basenames(self):
+    @staticmethod
+    def authorized_home_basenames():
         """
         Inspect /home/ to find accounts that have authorized_keys
 
@@ -106,7 +112,8 @@ class Accounts:
             basenames.append(basename)
         return basenames
 
-    def authorized_legacy_basenames(self):
+    @staticmethod
+    def authorized_legacy_basenames():
         """
         Inspect /home/ to find accounts that have authorized_keys
         focus on the ones that start with 'onelab.'
@@ -121,14 +128,16 @@ class Accounts:
             basenames.append(basename)
         return basenames
 
-    def all_passwd_entries(self):
+    @staticmethod
+    def all_passwd_entries():
         """
         Returns all entries in /etc/passwd
         this is just to figure if an account needs to be created
         """
         return [pw.pw_name for pw in pwd.getpwall()]
 
-    def create_account(self, slicename):
+    @staticmethod
+    def create_account(slicename):
         """
         Does useradd with the right options
         Plus, creates an empty .ssh dir with proper permissions
@@ -149,7 +158,8 @@ class Accounts:
             if retcod != 0:
                 logger.error("{} -> {}".format(command, retcod))
 
-    def create_ssh_config(self, slicename):
+    @staticmethod
+    def create_ssh_config(slicename):
         """
         Initialize slice's .ssh/config that keeps ssh from
         being too picky with host keys and similar
@@ -177,12 +187,11 @@ class Accounts:
                                      owner="{x}:{x}".format(x=slicename))
 
     ##########
-    def authorized_key_lines(self, plc_slice,
-                             plc_persons_by_id, plc_keys_by_id):
+    @staticmethod
+    def authorized_key_lines(plc_slice, plc_persons_by_id, plc_keys_by_id):
         """
         returns the expected contents of that slice's authorized_keys file
         """
-        slicename = plc_slice['name']
         persons = [plc_persons_by_id[id] for id in plc_slice['person_ids']]
         key_ids = set(sum((p['key_ids'] for p in persons), []))
         keys = [plc_keys_by_id[id] for id in key_ids]
@@ -193,7 +202,7 @@ class Accounts:
         return "".join(key_lines)
 
     ##########
-    def manage_accounts(self):
+    def manage_accounts(self):                          # pylint: disable=r0914
         # get context
         passwd_entries = self.all_passwd_entries()
         home_basenames = self.authorized_home_basenames()
@@ -207,7 +216,8 @@ class Accounts:
         keys = self.proxy().GetKeys()
 
         if slices is None or persons is None or keys is None:
-            logger.error("Cannot reach PLCAPI endpoint at this time - back to sleep")
+            logger.error("Cannot reach PLCAPI endpoint at this time -"
+                         " back to sleep")
             return
 
         persons_by_id = {p['person_id']: p for p in persons}
@@ -215,7 +225,7 @@ class Accounts:
 
         active_slices = []
 
-        for slice in slices:
+        for slice in slices:                            # pylint: disable=w0622
             slicename = slice['name']
             authorized_keys = self.authorized_key_lines(
                 slice, persons_by_id, keys_by_id)
@@ -237,10 +247,10 @@ class Accounts:
                                              remove_if_empty=True)
                     self.create_ssh_config(slicename)
 
-                except Exception as e:
+                except Exception as exc:                # pylint: disable=w0703
                     logger.exception("could not properly deal "
                                      "with active slice {x} (e={e})"
-                                     .format(x=slicename, e=e))
+                                     .format(x=slicename, e=exc))
 
         # find out about slices that currently have suthorized keys but should
         # not
@@ -252,10 +262,10 @@ class Accounts:
                     ssh_auth_keys = "/home/{x}/.ssh/authorized_keys".format(
                         x=slicename)
                     os.unlink(ssh_auth_keys)
-                except Exception as e:
+                except Exception as exc:                # pylint: disable=w0703
                     logger.exception("could not properly deal "
                                      "with inactive slice {x} (e={e})"
-                                     .format(x=slicename, e=e))
+                                     .format(x=slicename, e=exc))
 
         # a one-shot piece of code : turn off legacy slices
         for slicename in legacy_basenames:
@@ -267,11 +277,10 @@ class Accounts:
                     x=slicename)
                 # xxx enable the following line to tear down legacy slices
                 # os.unlink(ssh_auth_keys)
-            except Exception as e:
+            except Exception as exc:                    # pylint: disable=w0703
                 logger.exception("could not properly deal "
                                  "with inactive slice {x} (e={e})"
-                                 .format(x=slicename, e=e))
-
+                                 .format(x=slicename, e=exc))
 
     def run_forever(self, period):
         while True:
@@ -282,10 +291,12 @@ class Accounts:
             now = time.time()
             duration = now - beg
             towait = period - duration
-            logger.info("---------- rhubarbe accounts manager - sleeping for {}"
+            logger.info("---------- rhubarbe accounts manager -"
+                        " sleeping for {}s"
                         .format(towait))
             if towait <= 0:
-                logger.warning("duration {} exceeded period {} - skipping sleep"
+                logger.warning("duration {} exceeded period {} -"
+                               " skipping sleep"
                                .format(duration, period))
             else:
                 time.sleep(period - duration)
@@ -298,4 +309,3 @@ class Accounts:
             self.run_forever(cycle)
         else:
             self.manage_accounts()
-              

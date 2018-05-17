@@ -1,25 +1,27 @@
-
 """
-Leases management : 
+Leases management :
 download from r2labapi service,
 creation update deletions,
 and minimal verifications
 """
 
+# c0111 no docstrings yet
+# w1202 logger & format
+# w0703 catch Exception
+# r1705 else after return
+# pylint: disable=c0111, w1202, r1705, w0703
+
 import os
 import pwd
 import time
-from datetime import datetime
-import json
-import uuid
 import traceback
 
 from .logger import logger
 from .config import Config
 from .plcapiproxy import PlcApiProxy
 
-debug = False
-debug = True
+DEBUG = False
+DEBUG = True
 
 
 class Lease:
@@ -30,18 +32,17 @@ class Lease:
     wire_timeformat = "%Y-%m-%dT%H:%M:%S%Z"
 
     def __init__(self, plc_lease):
-        r = plc_lease
         try:
             self.leases_hostname = Config().value('plcapi', 'leases_hostname')
-            self.owner = r['name']
-            self.lease_id = r['lease_id']
-            self.subjects = [r['hostname']]
-            self.ifrom, self.iuntil = r['t_from'], r['t_until']
+            self.owner = plc_lease['name']
+            self.lease_id = plc_lease['lease_id']
+            self.subjects = [plc_lease['hostname']]
+            self.ifrom, self.iuntil = plc_lease['t_from'], plc_lease['t_until']
             self.broken = False
             # this is only to get __repr__ as short as possible
 
-        except Exception as e:
-            self.broken = "lease broken b/c of exception {}".format(e)
+        except Exception as exc:
+            self.broken = "lease broken b/c of exception {}".format(exc)
 
         if not self.subjects:
             self.broken = "(no component)"
@@ -80,17 +81,16 @@ class Lease:
 
     @staticmethod
     def human(epoch, show_date=True, show_timezone=True):
-        format = ""
         """
         human-readable format
         """
+        timeformat = ""
         if show_date:
-            format += "%m-%d @ "
-        format += "%H:%M"
+            timeformat += "%m-%d @ "
+        timeformat += "%H:%M"
         if show_timezone:
-            format += " %Z"
-        return time.strftime(format, time.localtime(epoch))
-
+            timeformat += " %Z"
+        return time.strftime(timeformat, time.localtime(epoch))
 
     def booked_now_by(self, hostname, login):
         """
@@ -105,20 +105,20 @@ class Lease:
         or by anyone (if login is None)
         """
         if self.broken:
-            if debug:
+            if DEBUG:
                 logger.info("ignoring broken lease {}".format(self))
             return False
         if not self.ifrom <= instant <= self.iuntil:
-            if debug:
+            if DEBUG:
                 logger.info("{} : wrong timerange".format(self))
             return False
         if hostname not in self.subjects:
-            if debug:
+            if DEBUG:
                 logger.info("{} not among subjects {}"
                             .format(hostname, self.subjects))
             return False
         if login is not None and not self.owner == login:
-            if debug:
+            if DEBUG:
                 logger.info(
                     "login {} is not owner - actual owner is {}"
                     .format(login, self.owner))
@@ -126,7 +126,7 @@ class Lease:
         return self
 
 
-class Leases:
+class Leases:                                           # pylint: disable=r0902
     """
     A list of leases as downloaded from the API
     """
@@ -172,12 +172,13 @@ class Leases:
     async def booked_now_by_me(self, *, root_allowed=True):
         """
         fetch leases and return a bool that says if current login has a lease
-        if root_allowed is True, then this function will return True for root user
-           no matter what else
-        if root_allowed is false, root goes through the usual process, which most of 
-           th time results in this function answering False
+        if root_allowed is True, then this function will return True
+          for privileged users, no matter what else
+        if root_allowed is false, privileged users go through the usual
+          process, which most of the time has this function answering False
         """
-        return await self.booked_now_by(login=self.login, root_allowed=root_allowed)
+        return await self.booked_now_by(login=self.login,
+                                        root_allowed=root_allowed)
 
     async def booked_now_by(self, login, *, root_allowed=True):
         if root_allowed and self.has_special_privileges():
@@ -185,9 +186,9 @@ class Leases:
         try:
             await self.fetch_all()
             return self._booked_now_by_login(login)
-        except Exception as e:
+        except Exception as exc:
             await self.feedback('info',
-                                "Could not fetch leases : {}".format(e))
+                                "Could not fetch leases : {}".format(exc))
             return False
 
     async def booked_now_by_anyone(self):
@@ -197,9 +198,9 @@ class Leases:
         try:
             await self.fetch_all()
             return self._booked_now_by_anyone()
-        except Exception as e:
+        except Exception as exc:
             await self.feedback('info', "Could not fetch leases : {}"
-                                .format(e))
+                                .format(exc))
             return False
 
     # the following 2 methods assume the leases have been fetched
@@ -215,7 +216,7 @@ class Leases:
 
     async def fetch_all(self):
         """
-        makes sure all required data is available 
+        makes sure all required data is available
         (turns out only the leases are required for now)
         """
         await self.fetch_leases()
@@ -255,19 +256,18 @@ class Leases:
             # decoded as a list of Lease objects
             self.leases = [Lease(resource) for resource in self.plc_leases]
             self.sort_leases()
-            self.fetch_time = time.strftime("%Y-%m-%d @ %H:%M")
             self.resources = [
                 self.resource_from_lease(plc_lease)
                 for plc_lease in self.plc_leases
             ]
 
-        except Exception as e:
-            if debug:
-                print("Leases.fetch: exception {}".format(e))
+        except Exception as exc:
+            if DEBUG:
+                print("Leases.fetch: exception {}".format(exc))
             traceback.print_exc()
             await self.feedback('leases_error',
                                 'cannot get leases from {} - exception {}'
-                                .format(self, e))
+                                .format(self, exc))
 
     # this can be used with a fake message queue, it's synchroneous
     def print(self):
@@ -292,11 +292,11 @@ class Leases:
 
     # material to create and modify leases
     @staticmethod
-    def to_epoch(input):
-        if not input:
+    def to_epoch(incoming):
+        if not incoming:
             return time.time()
-        if isinstance(input, (int, float)):
-            return input
+        if isinstance(incoming, (int, float)):
+            return incoming
         patterns = [
             # fill in year
             "%Y-{}:00%Z",  # "%Y-{}:00",
@@ -306,14 +306,15 @@ class Leases:
         ]
 
         for pattern in patterns:
-            fill = time.strftime(pattern).format(input)
+            fill = time.strftime(pattern).format(incoming)
             try:
                 struct_time = time.strptime(fill, Lease.wire_timeformat)
                 return int(time.mktime(struct_time))
-            except:
+            except Exception:
                 pass
 
-    def check_user(self, user):
+    @staticmethod
+    def check_user(user):
         return os.path.exists("/home/{}".format(user))
 
     async def _add_lease(self, owner, input_from, input_until):
@@ -345,16 +346,15 @@ class Leases:
             elif 'errors' in retcod and retcod['errors']:
                 for error in retcod['errors']:
                     print("error: {}".format(error))
-        except Exception as e:
-            print('Error', "Cannot add lease - e={}".format(e))
+        except Exception as exc:
+            print('Error', "Cannot add lease - exc={}".format(exc))
             traceback.print_exc()
-            pass
 
     def get_lease_by_rank(self, lease_rank):
         try:
             irank = int(lease_rank)
             return self.leases[irank - 1]
-        except:
+        except Exception:
             pass
 
     async def _update_lease(self, lease_rank, input_from, input_until):
@@ -412,7 +412,7 @@ class Leases:
         try:
             result = await self.interactive()
             return result
-        except (KeyboardInterrupt, EOFError) as e:
+        except (KeyboardInterrupt, EOFError):
             print("Bye")
             return 1
 
@@ -452,17 +452,17 @@ depending on the context
                 time_from = input("From : ")
                 time_until = input("Until : ")
                 print("owner={}".format(owner))
-                result = await self._add_lease(owner, time_from, time_until)
+                await self._add_lease(owner, time_from, time_until)
                 await self.fetch_all()
             elif char == 'u':
                 rank = input("Enter lease index : ")
                 time_from = input("From : ")
                 time_until = input("Until : ")
-                result = await self._update_lease(rank, time_from, time_until)
+                await self._update_lease(rank, time_from, time_until)
                 await self.fetch_all()
             elif char == 'd':
                 rank = input("Enter lease index : ")
-                result = await self._delete_lease(rank)
+                await self._delete_lease(rank)
                 await self.fetch_all()
             elif char == 'r':
                 await self.refresh()

@@ -2,6 +2,12 @@
 utility to send a given CMC action to a set of nodes
 """
 
+# c0111 no docstrings yet
+# w1202 logger & format
+# w0703 catch Exception
+# r1705 else after return
+# pylint: disable=c0111,w1202,r1705
+
 from asynciojobs import Job, Scheduler
 
 from rhubarbe.node import Node
@@ -57,8 +63,10 @@ class Action:
                 return True
             else:
                 scheduler.debrief()
-                print("rhubarbe-{} failed: {}".format(self.verb, scheduler.why()))
+                print("rhubarbe-{} failed: {}"
+                      .format(self.verb, scheduler.why()))
                 return False
-        except KeyboardInterrupt as e:
-            print("rhubarbe-{} : keyboard interrupt - exiting".format(self.verb))
+        except KeyboardInterrupt:
+            print("rhubarbe-{} : keyboard interrupt - exiting"
+                  .format(self.verb))
             return False
