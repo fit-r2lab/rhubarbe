@@ -98,6 +98,24 @@ class Accounts:
                 if '_' in record.pw_name]
 
     @staticmethod
+    def slices_with_authorized():
+        """
+        Iterator:
+
+        Inspect /home/ to find accounts that have authorized_keys.
+
+        Focus on the ones that have a '_' in them, so that we leave
+        alone custom accounts like 'guest' or similar.
+        """
+        homeroot = Path('/home')
+        for authorized in homeroot.glob('*/.ssh/authorized_keys'):
+            # need to move 2 steps up
+            basename = authorized.parts[-3]
+            if '_' not in basename:
+                continue
+            yield basename
+
+    @staticmethod
     def create_account(slicename):
         """
         Does useradd with the right options
@@ -145,6 +163,15 @@ CheckHostIP=no
                                  chmod=0o600,
                                  owner="{x}:{x}".format(x=slicename))
 
+    @staticmethod
+    def apply_keys(slicename, keys_string):
+        auth_path = Path("/home") / slicename / ".ssh/authorized_keys"
+        replace_file_with_string(auth_path,
+                                 keys_string,
+                                 chmod=0o600,
+                                 owner="{x}:{x}".format(x=slicename),
+                                 remove_if_empty=True)
+
     ##########
     @staticmethod
     def authorized_key_lines(plc_slice, plc_persons_by_id, plc_keys_by_id):
@@ -162,70 +189,75 @@ CheckHostIP=no
         return "".join(key_lines)
 
     ##########
-    def manage_accounts(self):                          # pylint: disable=r0914
+    def manage_accounts(self, policy):             # pylint: disable=r0914
 
         # get plcapi specification of what should be
-        now = int(time.time())
-        active_leases = self.proxy().GetLeases({'alive': now})
-
-        # don't lookup slices yet, we need only one
+        slices = self.proxy().GetSlices(
+            {}, ['slice_id', 'name', 'expires', 'person_ids'])
         persons = self.proxy().GetPersons(
             {}, ['person_id', 'email', 'slice_ids', 'key_ids'])
         keys = self.proxy().GetKeys()
 
-        if active_leases is None or persons is None or keys is None:
+        current_leases = []
+        if policy == 'closed':
+            now = int(time.time())
+            current_leases = self.proxy().GetLeases(
+                {'alive': now}, ['name'])
+
+        if (current_leases is None or slices is None
+                or persons is None or keys is None):
+            logger.info("PLCAPI unreachable - back to sleep")
             return
 
+        # prepare data
         persons_by_id = {p['person_id']: p for p in persons}
         keys_by_id = {k['key_id']: k for k in keys}
+        # current_slicenames will contain 0 or 1 item
+        current_slicenames = [lease['name'] for lease in current_leases]
 
         # initialize with the slice names that are in /etc/passwd
         logins = self.slices_from_passwd()
-        slice_auth_s = {login: "" for login in logins}
 
-        # at this point active_leases has 0 or 1 item
-        for lease in active_leases:
-            slicename = lease['name']
-            slices = self.proxy().GetSlices(
-                {'name': slicename},
-                ['slice_id', 'name', 'expires', 'person_ids']
-            )
-            if len(slices) != 1:
-                logger.error("Cannot find slice {}".format(slicename))
-                continue
-            the_slice = slices[0]
-            authorized_keys = self.authorized_key_lines(
-                the_slice, persons_by_id, keys_by_id)
+        # initialize map login_name -> authorized_keys contents
+        # this is where we handle the fact that obsolete slices
+        # will effectively have their authorized_keys voided
+        auths_by_login = {login: "" for login in logins}
 
-            slice_auth_s[slicename] = authorized_keys
+        for sliceobj in slices:
+            slicename = sliceobj['name']
+            # policy-dependant
+            if policy == 'closed':
+                authorized_keys = ""
+                if slicename in current_slicenames:
+                    authorized_keys = self.authorized_key_lines(
+                        sliceobj, persons_by_id, keys_by_id)
 
-            # create account if needed
+            # policy == 'open'
+            else:
+                authorized_keys = self.authorized_key_lines(
+                    sliceobj, persons_by_id, keys_by_id)
+
+            auths_by_login[slicename] = authorized_keys
+
+        # implement it
+        for slicename, keys in auths_by_login.items():
             try:
-                # create account if missing
                 if slicename not in logins:
                     self.create_account(slicename)
-                    self.create_ssh_config(slicename)
-            except Exception as exc:
-                logger.exception("could not properly deal "
-                                 "with active slice {x} (e={exc})"
-                                 .format(x=slicename, exc=exc))
+                # do this always, allows to propagate later changes
+                self.create_ssh_config(slicename)
+                self.apply_keys(slicename, keys)
+            except Exception:
+                logger.exception("Could not deal with slice {}"
+                                 .format(slicename))
 
-        # apply all authorized_keys
-        for slicename, keys in slice_auth_s.items():
-            authorized_keys_path = Path("/home") / slicename \
-                / ".ssh/authorized_keys"
-            replace_file_with_string(authorized_keys_path, keys,
-                                     chmod=0o400,
-                                     owner="{x}:{x}"
-                                     .format(x=slicename),
-                                     remove_if_empty=True)
-
-    def run_forever(self, cycle):
+    def run_forever(self, cycle, policy):
         while True:
             beg = time.time()
-            logger.info("---------- rhubarbe accounts manager (cycle {}s)"
-                        .format(cycle))
-            self.manage_accounts()
+            logger.info("---------- rhubarbe accounts manager "
+                        "policy = {}, cycle {}s"
+                        .format(policy, cycle))
+            self.manage_accounts(policy)
             now = time.time()
             duration = now - beg
             towait = cycle - duration
@@ -235,9 +267,9 @@ CheckHostIP=no
                             .format(towait))
                 time.sleep(towait)
             else:
-                logger.warning("duration {}s exceeded cycle {}s - "
-                               "skipping sleep"
-                               .format(duration, cycle))
+                logger.info("duration {}s exceeded cycle {}s - "
+                            "skipping sleep"
+                            .format(duration, cycle))
 
     def main(self, cycle):
         """
@@ -251,8 +283,16 @@ CheckHostIP=no
         if cycle is None:
             cycle = Config().value('accounts', 'cycle')
         cycle = int(cycle)
+        policy = Config().value('accounts', 'access_policy')
+        if policy not in ('open', 'closed'):
+            logger.error("Unknown policy {} - using 'closed'"
+                         .format(policy))
+            policy = 'closed'
         # trick is
         if cycle != 0:
-            self.run_forever(cycle)
+            self.run_forever(cycle, policy)
         else:
-            self.manage_accounts()
+            logger.info("---------- rhubarbe accounts manager oneshot "
+                        "policy = {}"
+                        .format(policy))
+            self.manage_accounts(policy)
