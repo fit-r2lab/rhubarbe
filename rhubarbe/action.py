@@ -57,9 +57,10 @@ class Action:
                 for node in nodes]
         display = Display(nodes, message_bus)
         scheduler = Scheduler(
-            Job(display.run(), forever=True, critical=True), *jobs)
+            Job(display.run(), forever=True, critical=True),
+            *jobs, timeout=timeout)
         try:
-            if scheduler.orchestrate(timeout=timeout):
+            if scheduler.run():
                 return True
             else:
                 scheduler.debrief()

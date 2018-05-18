@@ -437,9 +437,10 @@ def wait(*argv):                                        # pylint: disable=r0914
 
     # have the display class run forever until the other ones are done
     scheduler = Scheduler(
-        Job(display.run(), forever=True, critical=True), *jobs)
+        Job(display.run(), forever=True, critical=True),
+        *jobs, timeout=args.timeout)
     try:
-        orchestration = scheduler.orchestrate(timeout=args.timeout)
+        orchestration = scheduler.run()
         if orchestration:
             return 0
         else:

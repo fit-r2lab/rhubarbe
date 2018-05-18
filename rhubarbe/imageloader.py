@@ -86,10 +86,10 @@ class ImageLoader:
 
         mainjob = Job(self.run(reset), critical=True)
         displayjob = Job(self.display.run(), forever=True, critical=True)
-        scheduler = Scheduler(mainjob, displayjob)
+        scheduler = Scheduler(mainjob, displayjob, timeout=timeout)
 
         try:
-            is_ok = scheduler.orchestrate(timeout=timeout)
+            is_ok = scheduler.run()
             if not is_ok:
                 scheduler.debrief()
                 self.display.set_goodbye("rhubarbe-load failed: {}"
