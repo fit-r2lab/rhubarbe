@@ -1,3 +1,12 @@
+# 1.8.1 - 2018 May 18
+
+* emergency fix for a few lingering calls to orchestrate(timeout=timeout)
+* configurable access policy; only 'open' and 'closed' supported for now
+* for preplabs: configurable list of accounts that do not need a lease;
+  this extends the previously hard-wired 'root' account, and by default
+  it comes with 'root' and 'guest'
+* thoroughly made pylint-friendly
+
 # 1.7.3 - 2017 Nov 8
 
 * another bugfix; rhubarbe leases --check displayed current login name as None
@@ -48,7 +57,7 @@
 
 * bugfix in monitor that was leaking ssh connections and thus
   was ending up showing all nodes in green instead of ON
-* slightly longer monitor timeouts 
+* slightly longer monitor timeouts
 * preplab runs on etourdi
 
 # 1.4.4 - 2017 Mar 9
@@ -86,7 +95,7 @@
 
 # 1.3.5 - 2017 Jan 10
 
-* protect accountsmanager against a plcapi being down 
+* protect accountsmanager against a plcapi being down
 
 # 1.3.4 - 2017 Jan 4
 
@@ -193,7 +202,7 @@
 * imagefile=$(rhubarbe images -e name) allows to resolve a name
   (as if passed to load -i)
 * in case of several matches **the most recent** is used
-* don't use 0.9.19 
+* don't use 0.9.19
 
 # 0.9.18 - 2016 Sep 29
 
@@ -206,7 +215,7 @@
 
 # 0.9.16 - 2016 Sep 24
 
-* rework of rhubarbe wait 
+* rework of rhubarbe wait
 * rework of rhubarbe on/off/reset/status/info/usrp*
 * both are now more efficient
 * both now use an asynciojobs engine
@@ -217,7 +226,7 @@
 
 * revisited `rhubarbe wait` to make it use a 1s timeout when trying to ssh connect
 * in the mix, rwait now works with --curses, and has a new --silent
-* wait uses asyniojobs to nicely handle the endless display task 
+* wait uses asyniojobs to nicely handle the endless display task
 
 # 0.9.12 - 2016 Sep 5
 
@@ -334,7 +343,7 @@
 
 # 0.7.9 - 2016 Feb 15
 
-* bugfix, method name change had not properly propagated 
+* bugfix, method name change had not properly propagated
 
 # 0.7.8 - 2016 Feb 12
 
@@ -344,4 +353,4 @@
 
 * monitor to also advertise to sidecar current leases on chan-leases
 * new CHANGELOG.md
-* new MANIFEST.in (for now only COPYING and README.md) 
+* new MANIFEST.in (for now only COPYING and README.md)
