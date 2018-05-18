@@ -26,7 +26,8 @@ from .plcapiproxy import PlcApiProxy
 # adapted from historical planetlab nodemanager
 
 def replace_file_with_string(destination_path, new_contents,
-                             owner=None, chmod=None, remove_if_empty=False):
+                             owner=None, chmod=None,
+                             remove_if_empty=False):
     """
     Replace a file with new contents
     checks for changes
@@ -81,7 +82,8 @@ class Accounts:
         if self._proxy is None:
             # also set debug=True if needed
             self._proxy = PlcApiProxy(self.plcapiurl,
-                                      email=self.email, password=self.password)
+                                      email=self.email,
+                                      password=self.password)
         return self._proxy
 
     @staticmethod
@@ -131,9 +133,9 @@ class Accounts:
         config_bases = ['fit', 'data']
         #
         config_pattern = """Host {base}*
-    StrictHostKeyChecking no
-    UserKnownHostsFile=/dev/null
-    CheckHostIP=no
+StrictHostKeyChecking no
+UserKnownHostsFile=/dev/null
+CheckHostIP=no
 """
 
         ssh_config = "\n".join(
@@ -205,8 +207,8 @@ class Accounts:
                     self.create_ssh_config(slicename)
             except Exception as exc:
                 logger.exception("could not properly deal "
-                                 "with active slice {x} (e={e})"
-                                 .format(x=slicename, e=exc))
+                                 "with active slice {x} (e={exc})"
+                                 .format(x=slicename, exc=exc))
 
         # apply all authorized_keys
         for slicename, keys in slice_auth_s.items():
