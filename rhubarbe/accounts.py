@@ -199,7 +199,7 @@ CheckHostIP=no
         keys = self.proxy().GetKeys()
 
         current_leases = []
-        if policy == 'closed':
+        if policy == 'leased':
             now = int(time.time())
             current_leases = self.proxy().GetLeases(
                 {'alive': now}, ['name'])
@@ -227,6 +227,9 @@ CheckHostIP=no
             slicename = sliceobj['name']
             # policy-dependant
             if policy == 'closed':
+                authorized_keys = ""
+
+            elif policy == 'leased':
                 authorized_keys = ""
                 if slicename in current_slicenames:
                     authorized_keys = self.authorized_key_lines(
@@ -284,7 +287,7 @@ CheckHostIP=no
             cycle = Config().value('accounts', 'cycle')
         cycle = int(cycle)
         policy = Config().value('accounts', 'access_policy')
-        if policy not in ('open', 'closed'):
+        if policy not in ('open', 'leased', 'closed'):
             logger.error("Unknown policy {} - using 'closed'"
                          .format(policy))
             policy = 'closed'
