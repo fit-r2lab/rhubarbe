@@ -442,7 +442,7 @@ depending on the context
             current_time = time.strftime("%H:%M")
             answer = input("{} - Enter command "
                            "([l]ist, [a]dd, [u]pdate, "
-                           "[d]elete, [r]efresh, [h]elp, [q]uit : "
+                           "[d]elete, [r]efresh, [q]uit : "
                            .format(current_time))
             char = answer[0].lower() if answer else 'l'
             if char == 'l':
@@ -470,11 +470,9 @@ depending on the context
             elif char == 'r':
                 await self.refresh()
                 self.print()
-            elif char == 'h':
-                print(help_message)
             elif char == 'q':
                 print('bye')
                 break
             else:
-                print("Command not understood {}".format(answer))
+                print(help_message)
         return 0
