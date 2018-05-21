@@ -35,7 +35,10 @@ def replace_file_with_string(destination_path, new_contents,
     can handle chmod/chown if requested
     can also remove resulting file if contents are void, if requested
 
-    returns True if a change occurred, or the file is deleted
+    returns
+      * True if a change occurred, or the file is deleted
+      * False if the file has no change
+      * None if the file could not be created (e.g. directory missing)
     """
     try:
         with destination_path.open() as previous:
@@ -56,6 +59,7 @@ def replace_file_with_string(destination_path, new_contents,
         # we're done and have nothing to do
         return False
     # overwrite file: create a temp in the same directory
+    try:
     with destination_path.open('w') as new:
         new.write(new_contents)
     if chmod:
@@ -63,6 +67,9 @@ def replace_file_with_string(destination_path, new_contents,
     if owner:
         os.system("chown {} {}".format(owner, destination_path))
     return True
+    except IOError as exc:
+        logger.error("Cannot create {}".format(destination_path))
+        return None
 
 ####################
 
