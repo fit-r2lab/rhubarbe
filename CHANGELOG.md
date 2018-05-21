@@ -1,3 +1,17 @@
+# 2.0.0 - 2018 May 21
+
+* new access policy; we now have three of them which are
+  * `open`: all slices can enter at any time
+  * `leased` : only the slice that currently has the lease can enter
+    (formerly known as `closed`)
+  * `closed` : no slice can enter at any time
+* use setuptools instead of distutils for setup.py
+* no more runner script bin/rhubarbe, see rhubarbe/__main__.py instead
+* `/etc/rhubarbe/rhubarbe.conf` no longer used, ships as a resource (under config/)
+* new subcommand template to expose the json templates
+  instead of storing them in `/etc/rhubarbe`
+
+
 # 1.8.1 - 2018 May 18
 
 * emergency fix for a few lingering calls to orchestrate(timeout=timeout)
