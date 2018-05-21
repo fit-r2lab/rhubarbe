@@ -19,6 +19,8 @@ import asyncio
 
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
+from pkg_resources import resource_string
+
 from asynciojobs import Scheduler, Job
 
 from rhubarbe.config import Config
@@ -786,6 +788,45 @@ def config(*argv):
     the_config = Config()
     the_config.display(args.sections)
     return 0
+
+####################
+
+
+@subcommand
+def template(*argv):
+    usage = """
+    Show the template file to create the nodes and phones inventory
+    under /etc/rhubarbe
+    """
+    parser = ArgumentParser(usage=usage,
+                            formatter_class=ArgumentDefaultsHelpFormatter)
+    parser.add_argument(
+        "-n", "--nodes", dest='nodes',
+        action='store_true', default=False,
+        help="Show template for /etc/rhubarbe/inventory-nodes.json")
+    parser.add_argument(
+        "-p", "--phones", dest='phones',
+        action='store_true', default=False,
+        help="Show template for /etc/rhubarbe/inventory-phones.json")
+    args = parser.parse_args(argv)
+
+    def show_template(nodes_or_phones):
+        template = resource_string('rhubarbe',
+                                   "config/inventory-{}.json.template"
+                                   .format(nodes_or_phones))
+        print("# =========="
+              " template for /etc/rhubarbe/inventory-{}.json"
+              .format(nodes_or_phones))
+        print(template.decode(encoding='utf-8'))
+
+    # pick -n by default
+    if not args.nodes and not args.phones:
+        args.nodes = True
+
+    for nodes_or_phones in ('nodes', 'phones'):
+        selected = getattr(args, nodes_or_phones)
+        if selected:
+            show_template(nodes_or_phones)
 
 ####################
 

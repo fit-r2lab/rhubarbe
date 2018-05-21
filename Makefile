@@ -30,7 +30,7 @@ testpypi:
 
 ##########
 pyfiles:
-	@git ls-files | grep '\.py$$' 
+	@git ls-files | grep '\.py$$'
 
 pep8:
 	$(MAKE) pyfiles | xargs flake8 --max-line-length=80 --exclude=__init__.py
@@ -58,7 +58,7 @@ endif
 
 # installing in /tmp/rhubarbe-sync for testing
 sync:
-	@echo 'export PYTHONPATH=/tmp/rhubarbe-sync; alias rhu=/tmp/rhubarbe-sync/bin/rhubarbe'
+	@echo 'export PYTHONPATH=/tmp/rhubarbe-sync; alias rhu=/tmp/rhubarbe-sync/rhubarbe/__main__.py'
 	rsync -av --relative $$(git ls-files) root@$(DEST):/tmp/rhubarbe-sync/
 
 both: preplab faraday

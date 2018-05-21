@@ -8,6 +8,8 @@ import socket
 import configparser
 from pathlib import Path
 
+from pkg_resources import resource_exists, resource_filename
+
 from rhubarbe.singleton import Singleton
 from rhubarbe.logger import logger
 
@@ -17,16 +19,21 @@ from rhubarbe.logger import logger
 # r1705 else after return
 # pylint: disable=c0111,w1202,r1705
 
+# http://setuptools.readthedocs.io/en/latest/pkg_resources.html
+# says to not use os.path to check for resources
+DEFAULT_EXISTS = resource_exists('rhubarbe', 'config/rhubarbe.conf')
+DEFAULT_LOCATION = resource_filename('rhubarbe', 'config/rhubarbe.conf')
+
 LOCATIONS = [
     # all the files found in these locations are considered
     # and are all loaded in this order, so the last ones
     # overwrite the first ones
     # path, mandatory
-    ("/etc/rhubarbe/rhubarbe.conf", True),
-    ("/etc/rhubarbe/rhubarbe.conf.local", False),
-    (str(Path.home()/".rhubarbe.conf"), False),
-    ("./rhubarbe.conf", False),
-    ("./rhubarbe.conf.local", False),
+    (DEFAULT_LOCATION, DEFAULT_EXISTS, True),
+    ("/etc/rhubarbe/rhubarbe.conf.local", None, False),
+    (str(Path.home() / ".rhubarbe.conf"), None, False),
+    ("./rhubarbe.conf", None, False),
+    ("./rhubarbe.conf.local", None, False),
 ]
 
 
@@ -40,8 +47,10 @@ class Config(metaclass=Singleton):
         self.parser = configparser.ConfigParser()
         self.files = []
         # load all configurations when they exist
-        for location, mandatory in LOCATIONS:
-            if os.path.exists(location):
+        for location, exists, mandatory in LOCATIONS:
+            if exists is None:
+                exists = Path(location).exists()
+            if exists:
                 self.files.append(location)
                 self.parser.read(location)
                 logger.info("Loaded config from {}".format(location))
