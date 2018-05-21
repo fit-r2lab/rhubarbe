@@ -1,3 +1,9 @@
+# 2.0.1 - 2018 May 21
+
+* bugfix in accountsmanager:
+  * consider only login entries that have a valid homedir
+  * protect replace_file_with_string against non-existing dir
+
 # 2.0.0 - 2018 May 21
 
 * new access policy; we now have three of them which are
