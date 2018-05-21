@@ -60,13 +60,13 @@ def replace_file_with_string(destination_path, new_contents,
         return False
     # overwrite file: create a temp in the same directory
     try:
-    with destination_path.open('w') as new:
-        new.write(new_contents)
-    if chmod:
-        destination_path.chmod(chmod)
-    if owner:
-        os.system("chown {} {}".format(owner, destination_path))
-    return True
+        with destination_path.open('w') as new:
+            new.write(new_contents)
+        if chmod:
+            destination_path.chmod(chmod)
+        if owner:
+            os.system("chown {} {}".format(owner, destination_path))
+        return True
     except IOError as exc:
         logger.error("Cannot create {}".format(destination_path))
         return None
@@ -102,7 +102,8 @@ class Accounts:
         we leave alone individual accounts
         """
         return [record.pw_name for record in pwd.getpwall()
-                if '_' in record.pw_name]
+                if '_' in record.pw_name
+                and Path(record.pw_dir).exists()]
 
     @staticmethod
     def slices_with_authorized():
