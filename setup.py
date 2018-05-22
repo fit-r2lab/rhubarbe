@@ -10,7 +10,7 @@ packaging / installing
 
 import setuptools
 
-from rhubarbe.version import __version__ as rhubarbe_version
+from rhubarbe.version import __version__
 
 LONG_DESCRIPTION = \
     "See https://github.com/parmentelat/rhubarbe/blob/master/README.md"
@@ -51,22 +51,17 @@ all_commands = (
 
 setuptools.setup(
     name="rhubarbe",
-    version=rhubarbe_version,
     author="Thierry Parmentelat",
     author_email="thierry.parmentelat@inria.fr",
     description="Testbed Management Framework for R2Lab",
     long_description=LONG_DESCRIPTION,
     license="CC BY-SA 4.0",
-    url="https://github.com/parmentelat/rhubarbe/",
-    packages=['rhubarbe'],
-    install_requires=INSTALL_REQUIRES,
-    classifiers=[
-        "Development Status :: 4 - Beta",
-        "Environment :: Console",
-        "Intended Audience :: Information Technology",
-        "Programming Language :: Python :: 3.5",
-    ],
     keywords=['R2lab', 'networking testbed'],
+
+    packages=['rhubarbe'],
+    version=__version__,
+    python_requires=">=3.5",
+
     entry_points={
         'console_scripts': [
             '{} = rhubarbe.__main__:main'
@@ -76,4 +71,17 @@ setuptools.setup(
     package_data={
         'rhubarbe': ['config/*.conf', 'config/*.template'],
     },
+
+    install_requires=INSTALL_REQUIRES,
+
+    project_urls={
+        'source': "https://github.com/parmentelat/rhubarbe/",
+    },
+
+    classifiers=[
+        "Development Status :: 4 - Beta",
+        "Environment :: Console",
+        "Intended Audience :: Information Technology",
+        "Programming Language :: Python :: 3.5",
+    ],
 )
