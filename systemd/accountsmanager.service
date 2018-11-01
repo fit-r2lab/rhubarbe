@@ -4,6 +4,8 @@ Description=testbed accounts manager - manages unix accounts and their authorize
 
 [Service]
 ExecStart=/bin/bash -c "rhubarbe-accounts"
+Restart=always
+RestartSec=60s
 
 [Install]
 WantedBy=multi-user.target
