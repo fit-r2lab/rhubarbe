@@ -1,3 +1,10 @@
+# 2.0.2 - 2018 Nov 26
+
+* flush a couple ops-oriented changes
+  * make sure accountsmanager is always running even in case of temporary glitch
+  * 'make infra' to also restart monitorphones
+  * clean up of setup.py
+
 # 2.0.1 - 2018 May 21
 
 * bugfix in accountsmanager:
