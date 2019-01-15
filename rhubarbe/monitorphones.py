@@ -39,6 +39,7 @@ class MonitorPhone:                                     # pylint: disable=r0902
                  adb_bin, adb_id,
                  reconnectable, channel, verbose, cycle=2):
         self.id = id                                    # pylint: disable=c0103
+        # gateway is the macphone box in the middle
         self.gateway = SshProxy(
             hostname=gw_host,
             username=gw_user,
@@ -68,8 +69,11 @@ class MonitorPhone:                                     # pylint: disable=r0902
         # connect or reconnect if needed
         if not self.gateway.is_connected():
             try:
+                if self.verbose:
+                    logger.info(f"{self}: connecting to gateway "
+                                f"{self.gateway}")
                 await self.gateway.connect_lazy()
-                logger.info("Connected -> {}".format(self.gateway))
+                logger.info(f"Connected -> {self.gateway}")
             except Exception as exc:
                 logger.error("Could not connect -> {} (exc={})"
                              .format(self.gateway, exc))
@@ -81,6 +85,9 @@ class MonitorPhone:                                     # pylint: disable=r0902
             return
 
         try:
+            if self.verbose:
+                logger.info(f"{self}: retrieving airplane settings to gateway "
+                            f"{self.gateway}")
             self.gateway.formatter.start_capture()
             retcod = await self.gateway.run(
                 "{} shell \"settings get global airplane_mode_on\""
