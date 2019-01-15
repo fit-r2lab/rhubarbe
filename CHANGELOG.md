@@ -1,3 +1,10 @@
+# 2.0.3 - 2019 Jan 15
+
+* the various main() functions that create a Scheduler object
+  were written at a time where the default was critical=False
+  restore this default behaviour here; some of these tools are
+  used in the nightly check done on R2lab
+
 # 2.0.2 - 2018 Nov 26
 
 * flush a couple ops-oriented changes
