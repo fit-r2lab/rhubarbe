@@ -94,7 +94,9 @@ class ImageSaver:
         mainjob = Job(self.run(reset), critical=True)
         displayjob = Job(self.display.run(), forever=True, critical=True)
 
-        scheduler = Scheduler(mainjob, displayjob, timeout=timeout)
+        scheduler = Scheduler(mainjob, displayjob,
+                              timeout=timeout,
+                              critical=False)
 
         try:
             is_ok = scheduler.run()

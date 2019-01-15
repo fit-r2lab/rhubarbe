@@ -438,9 +438,10 @@ def wait(*argv):                                        # pylint: disable=r0914
     display = display_class(nodes, message_bus)
 
     # have the display class run forever until the other ones are done
-    scheduler = Scheduler(
-        Job(display.run(), forever=True, critical=True),
-        *jobs, timeout=args.timeout)
+    scheduler = Scheduler(Job(display.run(), forever=True, critical=True),
+                          *jobs,
+                          timeout=args.timeout,
+                          critical=False)
     try:
         orchestration = scheduler.run()
         if orchestration:

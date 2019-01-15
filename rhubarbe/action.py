@@ -56,9 +56,10 @@ class Action:
         jobs = [Job(self.get_and_show_verb(node, self.verb), critical=True)
                 for node in nodes]
         display = Display(nodes, message_bus)
-        scheduler = Scheduler(
-            Job(display.run(), forever=True, critical=True),
-            *jobs, timeout=timeout)
+        scheduler = Scheduler(Job(display.run(), forever=True, critical=True),
+                              *jobs,
+                              timeout=timeout,
+                              critical=False)
         try:
             if scheduler.run():
                 return True
