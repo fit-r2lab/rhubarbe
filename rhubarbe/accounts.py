@@ -5,6 +5,17 @@ takes care of the defined / authorized logins
 think of it as a dedicated nodemanager
 """
 
+# XXX:
+# current implementation drawbacks:
+# when migrating from an old box to a new box, it would make sense
+# for this tool to enforce things that are metastable
+# that is to say, moving stuff over from one box to the other
+# can result in the homedir being present but without the .ssh dir, or
+# with wrong ownership..
+# This currently is not well taken care of, because all is done once when
+# creating the account
+
+
 # c0111 no docstrings yet
 # w1202 logger & format
 # w0703 catch Exception
