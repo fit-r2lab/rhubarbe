@@ -1,5 +1,5 @@
 """
-The monitor cyclically checks for the status of all nodes,
+The nodes monitor cyclically checks for the status of all nodes,
 and reports it to the sidecar service
 """
 
@@ -30,7 +30,7 @@ from rhubarbe.config import Config
 from rhubarbe.node import Node
 from rhubarbe.ssh import SshProxy
 from rhubarbe.leases import Leases
-# use a dedicated logger for monitor
+# use a dedicated logger for monitors
 from rhubarbe.logger import monitor_logger as logger
 
 # turn off warnings that show up in monitor's journal
@@ -152,7 +152,7 @@ class ReconnectableSocketIO:
 class ReconnectableSocketIOMonitor(ReconnectableSocketIO):
     """
     A ReconnectableSocketIO
-    with a back link to a Monitor object,
+    with a back link to a MonitorNodes object,
     that can receive the 'on_channel' method
     """
 
@@ -399,9 +399,9 @@ class MonitorNode:
                     try:
                         await ssh.close()
                     except Exception:
-                        logger.exception("monitor oops 1")
+                        logger.exception("monitornodes oops 1")
                 except Exception:
-                    logger.exception("monitor remote_command failed")
+                    logger.exception("monitornodes remote_command failed")
             else:
                 self.set_info({'control_ssh': 'off'})
 
@@ -441,7 +441,7 @@ class MonitorNode:
             try:
                 await self.probe(ping_timeout, ssh_timeout)
             except Exception:
-                logger.exception("monitor oops 2")
+                logger.exception("monitornodes oops 2")
             await asyncio.sleep(cycle)
 
 
@@ -483,10 +483,10 @@ class MonitorLeases:                                    # pylint: disable=r0902
                 if self.verbose:
                     logger.info("Leases details: {}".format(omf_leases))
             except Exception:
-                logger.exception("monitor could not get leases")
+                logger.exception("monitornodes could not get leases")
 
 
-class Monitor:                                          # pylint: disable=r0902
+class MonitorNodes:                                          # pylint: disable=r0902
 
     def __init__(self, cmc_names, message_bus,          # pylint: disable=r0913
                  cycle, sidecar_url,
@@ -532,7 +532,7 @@ class Monitor:                                          # pylint: disable=r0902
 
     # xxx no way to select/disable the 2 components (nodes and leases) for now
     async def run(self):
-        logger.info("Starting monitor on {} nodes - report_wlan={}"
+        logger.info("Starting nodes on {} nodes - report_wlan={}"
                     .format(len(self.monitor_nodes), self.report_wlan))
         # run n+1 tasks in parallel
         # one for leases,

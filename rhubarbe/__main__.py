@@ -16,12 +16,12 @@ def main():
     args = None
     subcommand = None
     # can we find a supported subcommand in argv[0]
-    # i.e. when invoked as rhubarbe-monitor
+    # i.e. when invoked as rhubarbe-monitornodes
     for candidate in supported:
         # just checking 'candidate in sys.argv[0]'
         # does not work as it would e.g. find subcommand
-        # 'on' when trying to call monitor...
-        # instead, we check that the command ends with e.g. -monitor
+        # 'on' when trying to call monitornodes...
+        # instead, we check that the command ends with e.g. -monitornodes
         if sys.argv[0].endswith("-" + candidate):
             subcommand = candidate
             args = sys.argv[1:]
@@ -33,7 +33,7 @@ def main():
         print("{} needs a subcommand in {{{}}}"
               .format(command, ",".join(supported)))
         exit(1)
-        
+
     if not subcommand:
         subcommand = sys.argv[1]
         args = sys.argv[2:]

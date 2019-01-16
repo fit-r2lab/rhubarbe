@@ -74,7 +74,7 @@ preplab:
 ########## actually install
 infra:
 	apssh -t r2lab.infra pip3 install --upgrade rhubarbe
-	ssh root@faraday.inria.fr systemctl restart monitor
+	ssh root@faraday.inria.fr systemctl restart monitornodes
 	ssh root@faraday.inria.fr systemctl restart monitorphones
 	ssh root@faraday.inria.fr systemctl restart accountsmanager
 check:

@@ -34,7 +34,7 @@ class Node:                                             # pylint: disable=r0902
         self.status = None
         self.action = None
         self.mac = None
-        # for monitor
+        # for monitornodes
         self.id = int("".join([x for x in cmc_name      # pylint: disable=c0103
                                if x in "0123456789"]))
 

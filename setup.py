@@ -21,7 +21,7 @@ LONG_DESCRIPTION = \
 # from rhubarbe.main import supported_subcommands
 # instead, cut'n'paste from the rhubarbe help message
 rhubarbe_help = "nodes,status,on,off,reset,info,usrpstatus,usrpon,usrpoff,"\
-                "load,save,wait,monitor,monitorphones,accounts,leases,images,"\
+                "load,save,wait,monitornodes,monitorphones,accounts,leases,images,"\
                 "resolve,share,inventory,config,template,version"
 supported_subcommands = rhubarbe_help.split(",")
 
@@ -36,7 +36,7 @@ INSTALL_REQUIRES = [
     'aiohttp',
     'asyncssh',
     'progressbar33',
-    # for monitor
+    # for monitors
     'socketIO-client',
     'asynciojobs>=0.10',
     # not yet used

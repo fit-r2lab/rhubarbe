@@ -16,7 +16,7 @@ import logging.config
 
 # we essentially need
 # * one all-purpose logger that goes into ./rhubarbe.log
-# * one special logger for monitor that goes into /var/log/monitor.log
+# * one special logger for monitor*s that goes into /var/log/monitor.log
 # * one special logger for accounts that goes into /var/log/accounts.log
 
 # os.getlogin() is unreliable

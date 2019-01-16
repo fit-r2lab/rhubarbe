@@ -1,6 +1,6 @@
 # Summary
 
-`rhubarbe` is an `asyncio`/`python` module for loading images on a bunch of nodes using `frisbee`. It can be installed from `pypi` (see also `INSTALLING.md` for more details): 
+`rhubarbe` is an `asyncio`/`python` module for loading images on a bunch of nodes using `frisbee`. It can be installed from `pypi` (see also `INSTALLING.md` for more details):
 
     pip3 install rhubarbe
 
@@ -15,17 +15,17 @@ It is written in python3.5 on top of `asyncio`, and covers the following feature
 * `on`, `off`, and the like : managing nodes status through their CMC cards: status of the motherboard and of the USRP extension;
 * `load`, `save` , `images` : loading and saving images on nodes;
 * `leases` : displaying, and to some extent modifying, reservations on the testbed
-* `monitor` : feeding the sidecar server live info about the global testbed status (phones excluded)
+* `monitornodes` and `monitorphones`: feeding the sidecar server live info about the global testbed status (phones excluded)
 * `accounts` : propagates the changes in the PLCAPI into actual Unix accounts and related authorized keys.
 
 With these additional benefits:
 
 * single configuration file in `/etc/rhubarbe/rhubarbe.conf`, individual settings can be
-  overridden at either 
-  
+  overridden at either
+
   * system-level  in `/etc/rhubarbe/rhubarbe.conf.local`,
   * user-level  in `~/.rhubarbe.conf`, or
-  * directory-level in  `./rhubarbe.conf`; 
+  * directory-level in  `./rhubarbe.conf`;
 * all commands accept a timeout
 * all commands return a reliable code. When everything goes fine for all subject nodes they return 0, and 1 otherwise
 * `load` and `wait` come with a `curses` mode that lets you visualize every node individually; very helpful when something goes wrong with a large number of nodes, so you can pinpoint which node is not behaving as expected.
@@ -35,15 +35,15 @@ With these additional benefits:
 
 ## Image loading
 To load your `fedora-23` image on 18 nodes simultaneously:
-    
+
     rhubarbe load -i fedora-23 1-18 &
-   
+
 You can safely load another batch of nodes at the same time, maybe with a different bandwidth
-   
+
     rhubarbe load -i ubuntu-16.04 -b 200 19-36 &
 
 ## Controlling nodes
-To turn nodes on, or off, or to reset (send `Ctrl-Alt-Del`) a set of nodes, use the following commands. 
+To turn nodes on, or off, or to reset (send `Ctrl-Alt-Del`) a set of nodes, use the following commands.
 
     # turn on nodes 1 to 5
     rhubarbe on 1-5
@@ -63,22 +63,22 @@ Nodes that have a USRP hardware can have the USRP extension handled in a similar
     rhubarbe usrpoff 12
     # get status of the USRP extension on node 13
     rhubarbe usrpstatus 13
-    
+
 ## Waiting for a node
 
 To wait for nodes 1, 3, 5, 7 and 9 to be reachable through ssh :
 
     rhubarbe wait 1-9-2
 
-## Image saving    
+## Image saving
 To save the image of node 10, just do this
 
     rhubarbe save 10 -o image-name
-    
+
  or rather, if you'd like to specify a comment for bookkeeping :
- 
+
      rhubarbe save 10 -o image-name -c 'this will end up in /etc/rhubarbe-image right in the image'
-     
+
 
 # How to use
 
@@ -93,10 +93,10 @@ The python entry point is named `rhubarbe` but it should be called with an addit
 
 ## Invoking : node scope
 
-Most commands expect a list of nodes as its arguments 
+Most commands expect a list of nodes as its arguments
 
     $ rhubarbe load [-i filename] 1 4 5
-    
+
 The arguments, known as a *node_spec* can be individual nodes, ranges, or even steps, like e.g.
 
 * individual nodes
@@ -107,8 +107,8 @@ The arguments, known as a *node_spec* can be individual nodes, ranges, or even s
   *  1, 2, 3, 8, 9, 10
 * steps : in a python-like manner, from-to-step:
   * `$ rhubarbe load 1-10-2` on nodes
-  *  1 3 5 7 9 
-* all nodes 
+  *  1 3 5 7 9
+* all nodes
   * `$ rhubarbe load -a` on nodes
   * 1 through 37 on `faraday.inria.fr` (exact scope being defined in the configuration)
 * negation
@@ -119,7 +119,7 @@ The arguments, known as a *node_spec* can be individual nodes, ranges, or even s
   * `$ export NODES="12-15 18-24"`
   * `$ rhubarbe load`
   * `$ rhubarbe wait`
-    
+
 ## The `leases` subcommand
 
 As of version 0.7.3:
@@ -131,9 +131,9 @@ As of version 0.7.3:
 
 At this point:
 
-* all logging goes into a file named `rhubarbe.log`, 
+* all logging goes into a file named `rhubarbe.log`,
 * except for the monitoring tool that logs into `/var/log/monitor.log`
- 
+
 # Installation
 
 ## Core
@@ -141,7 +141,7 @@ At this point:
 You need `python-3.4` or higher, and installation can be achieved simply with
 
     pip3 install rhubarbe
-    
+
 ## Update
 
     pip3 install --upgrade rhubarbe
@@ -153,7 +153,7 @@ The following will be automatically installed by `pip3` if not yet installed:
 
 * `telnetlib3` for invoking `frisbee` on the nodes
 * `aiohttp` for talking to the CMC cards
-* `asyncssh` for talking to ssh (rhubarbe wait mostly for now); 
+* `asyncssh` for talking to ssh (rhubarbe wait mostly for now);
    * **ubuntu:** you may need to run `apt-get install libffi-dev` before `pip3 install asyncssh`
 * `progressbar33` is used in rendering progress bar in the regular monitor (i.e. without the -c option).
 
@@ -203,17 +203,17 @@ Configuration is done through a collection of files, which are loaded in this or
  * `~/.rhubarbe.conf`
  * `./rhubarbe.conf`
 
-So in essence, there is 
+So in essence, there is
 
- * a (mandatory) system-wide config `/etc/rhubarbe/rhubarbe.conf`, that ships with the `pip3` package and that contains all variable definitions; 
+ * a (mandatory) system-wide config `/etc/rhubarbe/rhubarbe.conf`, that ships with the `pip3` package and that contains all variable definitions;
  * given that `/etc/rhubarbe/rhubarbe.conf` is likely to be overwritten at anytime by `pip3 install`, you can store your own system-wide changes in the (optional) file `/etc/rhubarbe.conf.local`;
  * then each user may override any value she likes,
  * and finally one can be even more specific and configure things at a directory level.
 
  The first file will come with all the settings defined, but any of the other 3 does not need to be complete and can just redefine one variable if needed.
- 
+
 Format is known as a `.ini` file, should be straightforward. Just beware to **not mention quotes** around strings, as such quotes end up in the python string verbatim.
- 
+
 ## Authorization system
 
 Among things to be configured are, in the `plcapi` section:
@@ -223,10 +223,10 @@ Among things to be configured are, in the `plcapi` section:
 
 In other words, all this for now assumes the following:
 
-* You run an instance of a PLCAPI service at that URL, and 
+* You run an instance of a PLCAPI service at that URL, and
 * this API knows about one node whose hostname is specified above.
 
-This is an admittedly specific policy for R2Lab, since we want the reservations to be made on the testbed as a whole (to ensure reproducibility). 
+This is an admittedly specific policy for R2Lab, since we want the reservations to be made on the testbed as a whole (to ensure reproducibility).
 
 # A word on the `asyncio` module
 

@@ -1,8 +1,8 @@
 """
-The monitor cyclically checks for the status of all nodes,
+The phones monitor cyclically checks for the status of all phones,
 and reports it to the sidecar service
 
-This simple tool works a bit like rhubarbe.monitor but on the r2lab phones
+This simple tool works a bit like monitornodes, but on phones
 for now it probes for airplane_mode, but does not probe for the state of
 the wifi service because I could not get to work the magic sentences
 like 'adb shell svc enable wifi' and similar that I have found on the web
@@ -10,7 +10,7 @@ like 'adb shell svc enable wifi' and similar that I have found on the web
 it is a little off or ad hoc wrt to rest of rhubarbe
 it does make sense to add it here though, so it can leverage
 (*) sidecar_url as defined in config
-(*) and ReconnectableSocketIO from monitor
+(*) and ReconnectableSocketIO from monitornodes
 """
 
 # c0111 no docstrings yet
@@ -28,7 +28,7 @@ from rhubarbe.config import Config
 from rhubarbe.logger import monitor_logger as logger
 
 from rhubarbe.inventoryphones import InventoryPhones
-from rhubarbe.monitor import ReconnectableSocketIO
+from rhubarbe.monitornodes import ReconnectableSocketIO
 
 
 class MonitorPhone:                                     # pylint: disable=r0902

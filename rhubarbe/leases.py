@@ -145,7 +145,7 @@ class Leases:                                           # pylint: disable=r0902
         self.leases = None
         # the result of GetLeases - essentially as-is
         self.plc_leases = None
-        # xxx this is still used by monitor
+        # xxx this is still used by monitornodes
         # should be cleaned up
         self.resources = None
 

@@ -6,7 +6,7 @@ Description=testbed nodes probe - reports to sidecar using socketio
 # also available is
 #  --sidecar-url http://r2lab.inria.fr:999/
 [Service]
-ExecStart=/bin/bash -c "rhubarbe-monitor -a"
+ExecStart=/bin/bash -c "rhubarbe-monitornodes -a"
 
 [Install]
 WantedBy=multi-user.target

@@ -33,7 +33,7 @@ from rhubarbe.display_curses import DisplayCurses
 from rhubarbe.node import Node
 from rhubarbe.imageloader import ImageLoader
 from rhubarbe.imagesaver import ImageSaver
-from rhubarbe.monitor import Monitor
+from rhubarbe.monitornodes import MonitorNodes
 from rhubarbe.monitorphones import MonitorPhones
 from rhubarbe.accounts import Accounts
 from rhubarbe.ssh import SshProxy
@@ -598,7 +598,7 @@ def leases(*argv):
 
 
 @subcommand
-def monitor(*argv):                                     # pylint: disable=r0914
+def monitornodes(*argv):                                     # pylint: disable=r0914
 
     # xxx hacky - do a side effect in the logger module
     import rhubarbe.logger
@@ -637,12 +637,12 @@ def monitor(*argv):                                     # pylint: disable=r0914
 
     from rhubarbe.logger import logger
     logger.info({'selected_nodes': selector})
-    the_monitor = Monitor(selector.cmc_names(),
-                          message_bus=message_bus,
-                          cycle=args.cycle,
-                          sidecar_url=args.sidecar_url,
-                          report_wlan=args.report_wlan,
-                          verbose=args.verbose)
+    the_monitornodes = MonitorNodes(selector.cmc_names(),
+                                    message_bus=message_bus,
+                                    cycle=args.cycle,
+                                    sidecar_url=args.sidecar_url,
+                                    report_wlan=args.report_wlan,
+                                    verbose=args.verbose)
 
     # trap signals so we get a nice message in monitor.log
     import signal
@@ -658,7 +658,8 @@ def monitor(*argv):                                     # pylint: disable=r0914
 
     async def run():
         # run both the core and the log loop in parallel
-        await asyncio.gather(the_monitor.run(), the_monitor.log(),
+        await asyncio.gather(the_monitornodes.run(),
+                             the_monitornodes.log(),
                              display.run())
 
     try:
@@ -666,13 +667,13 @@ def monitor(*argv):                                     # pylint: disable=r0914
         loop.run_until_complete(task)
         return 0
     except KeyboardInterrupt:
-        logger.info("rhubarbe-monitor : keyboard interrupt - exiting")
+        logger.info("rhubarbe-monitornodes : keyboard interrupt - exiting")
         task.cancel()
         loop.run_forever()
         task.exception()
         return 1
     except asyncio.TimeoutError:
-        logger.info("rhubarbe-monitor : asyncio timeout expired")
+        logger.info("rhubarbe-monitornodes : asyncio timeout expired")
         return 1
     finally:
         loop.close()
