@@ -11,29 +11,17 @@ create/configure logger objects
 # r0903 too few public methods
 # pylint: disable=c0103, w0703
 
+import sys
+from pathlib import Path
+
 import logging
 import logging.config
 
-# we essentially need
-# * one all-purpose logger that goes into ./rhubarbe.log
-# * one special logger for monitor*s that goes into /var/log/monitor.log
-# * one special logger for accounts that goes into /var/log/accounts.log
-
-# os.getlogin() is unreliable
-# so instead let's see if we can write in /var/log
-try:
-    monitor_output = '/var/log/monitor.log'
-    with open(monitor_output, 'a') as f:
-        pass
-except Exception:
-    monitor_output = 'monitor.log'
-
-try:
-    accounts_output = '/var/log/accounts.log'
-    with open(accounts_output, 'a') as f:
-        pass
-except Exception:
-    accounts_output = 'accounts.log'
+# with systemd it's sooo simpler to log on stdout, that gets managed by journal
+# so, we essentially need
+# * one all-purpose logger that goes into $HOME/rhubarbe.log
+# * one special logger for monitor*s that goes onto stdout -> journal
+# * one special logger for accounts - ditto but with a shorter layout
 
 rhubarbe_logging_config = {
     'version': 1,
@@ -58,15 +46,15 @@ rhubarbe_logging_config = {
         },
         'monitor': {
             'level': 'INFO',
-            'class': 'logging.FileHandler',
+            'class': 'logging.StreamHandler',
             'formatter': 'standard',
-            'filename': monitor_output,
+            'stream': sys.stdout,
         },
         'accounts': {
             'level': 'INFO',
-            'class': 'logging.FileHandler',
+            'class': 'logging.StreamHandler',
             'formatter': 'shorter',
-            'filename': accounts_output,
+            'stream': sys.stdout,
         },
     },
     'loggers': {
