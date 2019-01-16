@@ -1,3 +1,7 @@
+# 2.1.1 - 2019 Jan 16
+
+* a few more bugfixes, including more sensible log scheme
+
 # 2.1.0 - 2019 Jan 16
 
 * monitor becomes monitornodes
