@@ -1,3 +1,8 @@
+# 2.1.0 - 2019 Jan 16
+
+* monitor becomes monitornodes
+* slowly becoming more friendly to nightly script
+
 # 2.0.3 - 2019 Jan 15
 
 * the various main() functions that create a Scheduler object
