@@ -99,7 +99,9 @@ class Display:                                          # pylint: disable=r0902
         if isinstance(message, dict) and 'ip' in message:
             ipaddr = message['ip']
             node = self.get_display_node(ipaddr)
-            if 'tick' in message:
+            if node is None:
+                logger.info(f"Unexpected message gave node=None in dispatch: {message}")
+            elif 'tick' in message:
                 self.dispatch_ip_tick_hook(ipaddr, node, message,
                                            timestamp, duration)
             elif 'percent' in message:
@@ -123,9 +125,11 @@ class Display:                                          # pylint: disable=r0902
 
     @staticmethod
     def message_to_text(message):
-        if not isinstance(message, dict):
+        if isinstance(message, str):
+            return message
+        elif not isinstance(message, dict):
             # should not happen
-            return "LITTERAL" + str(message)
+            return "UNEXPECTED" + str(message)
         elif 'info' in message:
             return message['info']
         elif 'authorization' in message:
