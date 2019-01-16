@@ -42,7 +42,7 @@ class Lease:
             # this is only to get __repr__ as short as possible
 
         except Exception as exc:
-            self.broken = "lease broken b/c of exception {}".format(exc)
+            self.broken = f"lease broken b/c of exception {exc}"
 
         if not self.subjects:
             self.broken = "(no component)"
@@ -51,9 +51,9 @@ class Lease:
     # one for rights (computed by caller - not shown if not provided)
     # one for situation wrt now: < for past, = for current, > for future
     def __repr__(self, rights_char=None):
-        rights_char = 'B' if self.broken \
-                      else rights_char if rights_char \
-            else '?'
+        rights_char = ('B' if self.broken
+                       else rights_char if rights_char
+                       else '?')
         now = time.time()
         if self.iuntil < now:
             time_char = '<'
@@ -61,17 +61,19 @@ class Lease:
             time_char = '='
         else:
             time_char = '>'
-        time_message = 'from {} until {}'.format(
-            self.human(self.ifrom, show_timezone=False),
-            self.human(self.iuntil, show_date=False))
+        # show second day only when they are different
+        second_day = not self.same_date(self.ifrom, self.iuntil)
+        time_message = (f"from {self.human(self.ifrom, show_timezone=False)}"
+                        f" until {self.human(self.iuntil, show_date=second_day)}")
         # usual case is that self.subjects == [leases_hostname]
-        if len(self.subjects) == 1 \
-           and self.subjects[0] == self.leases_hostname:
+        if (len(self.subjects) == 1
+            and self.subjects[0] == self.leases_hostname):
             scope = ""
         else:
-            scope = " -> {}".format(" & ".join(self.subjects))
-        return "{}{} {} {} {}".format(rights_char, time_char,
-                                      time_message, self.owner, scope)
+            msg = " & ".join(self.subjects)
+            scope = f" -> {msg}"
+        return (f"{rights_char}{time_char}"
+                f" {time_message} {self.owner} {scope}")
 
     def sort_key(self):
         """
@@ -85,12 +87,21 @@ class Lease:
         human-readable format
         """
         timeformat = ""
-        if show_date:
-            timeformat += "%m-%d @ "
         timeformat += "%H:%M"
+        if show_date:
+            timeformat += " [on %m-%d]"
         if show_timezone:
             timeformat += " %Z"
         return time.strftime(timeformat, time.localtime(epoch))
+
+    @staticmethod
+    def same_date(epoch1, epoch2):
+        """
+        Returns True if both instants belong in the same day
+        for local timezone
+        """
+        return (   time.strftime("%y-%m-%d", time.localtime(epoch1))
+                == time.strftime("%y-%m-%d", time.localtime(epoch2)))
 
     def booked_now_by(self, hostname, login):
         """
@@ -106,22 +117,20 @@ class Lease:
         """
         if self.broken:
             if DEBUG:
-                logger.info("ignoring broken lease {}".format(self))
+                logger.info(f"ignoring broken lease {self}")
             return False
         if not self.ifrom <= instant <= self.iuntil:
             if DEBUG:
-                logger.info("{} : wrong timerange".format(self))
+                logger.info(f"{self} : wrong timerange")
             return False
         if hostname not in self.subjects:
             if DEBUG:
-                logger.info("{} not among subjects {}"
-                            .format(hostname, self.subjects))
+                logger.info(f"{hostname} not among subjects {self.subjects}")
             return False
         if login is not None and not self.owner == login:
             if DEBUG:
                 logger.info(
-                    "login {} is not owner - actual owner is {}"
-                    .format(login, self.owner))
+                    f"login {login} is not owner - actual owner is {self.owner}")
             return False
         return self
 
@@ -151,11 +160,10 @@ class Leases:                                           # pylint: disable=r0902
 
     def __repr__(self):
         if self.leases is None:
-            return "<Leases from {} - **(UNFETCHED)**>"\
-                .format(self.plcapi_proxy)
+            return (f"<Leases from {self.plcapi_proxy} - **(UNFETCHED)**>")
         else:
-            return "<Leases from {} - {} lease(s)>"\
-                .format(self.plcapi_proxy, len(self.leases))
+            return (f"<Leases from {self.plcapi_proxy}"
+                    f" - {len(self.leases)} lease(s)>")
 
     async def feedback(self, field, msg):
         """
@@ -190,7 +198,7 @@ class Leases:                                           # pylint: disable=r0902
             return self._booked_now_by_login(login)
         except Exception as exc:
             await self.feedback('info',
-                                "Could not fetch leases : {}".format(exc))
+                                f"Could not fetch leases : {exc}")
             return False
 
     async def booked_now_by_anyone(self):
@@ -201,8 +209,7 @@ class Leases:                                           # pylint: disable=r0902
             await self.fetch_all()
             return self._booked_now_by_anyone()
         except Exception as exc:
-            await self.feedback('info', "Could not fetch leases : {}"
-                                .format(exc))
+            await self.feedback('info', f"Could not fetch leases : {exc}")
             return False
 
     # the following 2 methods assume the leases have been fetched
@@ -255,7 +262,7 @@ class Leases:                                           # pylint: disable=r0902
             logger.info("Leases are being fetched..")
             self.plc_leases = self.plcapi_proxy.GetLeases(
                 {'day': 0}, anonymous=True)
-            logger.info("{} leases received".format(len(self.plc_leases)))
+            logger.info(f"{len(self.plc_leases)} leases received")
             # decoded as a list of Lease objects
             self.leases = [Lease(resource) for resource in self.plc_leases]
             self.sort_leases()
@@ -266,11 +273,11 @@ class Leases:                                           # pylint: disable=r0902
 
         except Exception as exc:
             if DEBUG:
-                print("Leases.fetch: exception {}".format(exc))
+                print(f"Leases.fetch: exception {exc}")
             traceback.print_exc()
-            await self.feedback('leases_error',
-                                'cannot get leases from {} - exception {}'
-                                .format(self, exc))
+            await self.feedback(
+                'leases_error',
+                f"cannot get leases from {self} - exception {exc}")
 
     # this can be used with a fake message queue, it's synchroneous
     def print(self):
@@ -290,8 +297,8 @@ class Leases:                                           # pylint: disable=r0902
                     return '*'
                 return ' '
             for i, lease in enumerate(self.leases):
-                print("{:3d} {}".format(
-                    i + 1, lease.__repr__(rights_char=rights_char(lease))))
+                msg = lease.__repr__(rights_char=rights_char(lease))
+                print(f"{i+1:3d} {msg}")
 
     # material to create and modify leases
     @staticmethod
@@ -318,22 +325,21 @@ class Leases:                                           # pylint: disable=r0902
 
     @staticmethod
     def check_user(user):
-        return os.path.exists("/home/{}".format(user))
+        return os.path.exists(f"/home/{user}")
 
     async def _add_lease(self, owner, input_from, input_until):
         if owner != 'root':
             if not self.check_user(owner):
-                print("user {} not found under /home - giving up"
-                      .format(owner))
-                logger.error("Unknown user {}".format(owner))
+                print(f"user {owner} not found under /home - giving up")
+                logger.error(f"Unknown user {owner}")
                 return
         t_from = Leases.to_epoch(input_from)
         if not t_from:
-            print("invalid time from: {}".format(input_from))
+            print(f"invalid time from: {input_from}")
             return
         t_until = Leases.to_epoch(input_until)
         if not t_until:
-            print("invalid time until: {}".format(input_until))
+            print(f"invalid time until: {input_until}")
             return
         # just making sure
         try:
@@ -348,9 +354,9 @@ class Leases:                                           # pylint: disable=r0902
                 self.leases = None
             elif 'errors' in retcod and retcod['errors']:
                 for error in retcod['errors']:
-                    print("error: {}".format(error))
+                    print(f"error: {error}")
         except Exception as exc:
-            print('Error', "Cannot add lease - exc={}".format(exc))
+            print('Error', f"Cannot add lease - exc={exc}")
             traceback.print_exc()
 
     def get_lease_by_rank(self, lease_rank):
@@ -368,25 +374,25 @@ class Leases:                                           # pylint: disable=r0902
         if input_from:
             t_from = Leases.to_epoch(input_from)
             if not t_from:
-                print("invalid time from: {}".format(input_from))
+                print(f"invalid time from: {input_from}")
                 return
             update_fields['t_from'] = t_from
         if input_until:
             t_until = Leases.to_epoch(input_until)
             if not t_until:
-                print("invalid time until: {}".format(input_until))
+                print(f"invalid time until: {input_until}")
                 return
             update_fields['t_until'] = t_until
         # lease_rank could be a rank as displayed by self.print()
         the_lease = self.get_lease_by_rank(lease_rank)
         if not the_lease:
-            print("Cannot find lease with rank {}".format(lease_rank))
+            print(f"Cannot find lease with rank {lease_rank}")
             return
         lease_ids = [the_lease.lease_id]
         retcod = self.plcapi_proxy.UpdateLeases(lease_ids, update_fields)
         if 'errors' in retcod and retcod['errors']:
             for error in retcod['errors']:
-                print("error: {}".format(error))
+                print(f"error: {error}")
         else:
             print("OK")
             # force next reload
@@ -396,7 +402,7 @@ class Leases:                                           # pylint: disable=r0902
         # lease_rank could be a rank as displayed by self.print()
         the_lease = self.get_lease_by_rank(lease_rank)
         if not the_lease:
-            print("Cannot find lease with rank {}".format(lease_rank))
+            print(f"Cannot find lease with rank {lease_rank}")
             return
         lease_ids = [the_lease.lease_id]
         retcod = self.plcapi_proxy.DeleteLeases(lease_ids)
@@ -440,10 +446,9 @@ depending on the context
         # interactive mode
         while True:
             current_time = time.strftime("%H:%M")
-            answer = input("{} - Enter command "
-                           "([l]ist, [a]dd, [u]pdate, "
-                           "[d]elete, [r]efresh, [q]uit : "
-                           .format(current_time))
+            answer = input(f"{current_time} - Enter command "
+                           f"([l]ist, [a]dd, [u]pdate, "
+                           f"[d]elete, [r]efresh, [q]uit : ")
             char = answer[0].lower() if answer else 'l'
             if char == 'l':
                 self.print()
@@ -454,7 +459,7 @@ depending on the context
                     owner = self.login
                 time_from = input("From : ")
                 time_until = input("Until : ")
-                print("owner={}".format(owner))
+                print(f"owner={owner}")
                 await self._add_lease(owner, time_from, time_until)
                 await self.fetch_all()
             elif char == 'u':
