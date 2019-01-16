@@ -104,6 +104,12 @@ class SshProxy:
             # print('SshProxy.connect failed: {}'.format(e))
             self.conn, self.client = None, None
             return False
+        except ValueError as exc:
+            # seen raised by asyncssh for some reason,
+            # anyway bottom line is we can't connect
+            #
+            self.conn, self.client = None, None
+            return False
 
     async def run(self, command):
         """
@@ -188,5 +194,5 @@ if __name__ == '__main__':
             .run_until_complete(asyncio.gather(*tasks))
 
         for node, retcod in zip(nodes, retcods):
-            print("{}:{}".format(node, retcod))
+            print(f"{node}:{retcod}")
     main()
