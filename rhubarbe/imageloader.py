@@ -1,5 +1,5 @@
 """
-The logic for loading an image on a set of node
+The logic for loading an image on a set of nodes
 """
 
 # c0111 no docstrings yet
@@ -30,8 +30,10 @@ class ImageLoader:
         #
         self.frisbeed = None
 
+
     async def feedback(self, field, msg):
         await self.message_bus.put({field: msg})
+
 
     async def stage1(self):
         the_config = Config()
@@ -39,10 +41,12 @@ class ImageLoader:
         await asyncio.gather(*[node.reboot_on_frisbee(idle)
                                for node in self.nodes])
 
+
     async def start_frisbeed(self):
         self.frisbeed = Frisbeed(self.image, self.bandwidth, self.message_bus)
         ip_port = await self.frisbeed.start()
         return ip_port
+
 
     async def stage2(self, reset):
         """
@@ -58,6 +62,7 @@ class ImageLoader:
         self.frisbeed.stop_nowait()
         return all(results)
 
+
     # this is synchroneous
     def nextboot_cleanup(self):
         """
@@ -66,6 +71,7 @@ class ImageLoader:
         """
         for node in self.nodes:
             node.manage_nextboot_symlink('harddrive')
+
 
     async def run(self, reset):
         leases = Leases(self.message_bus)
@@ -81,6 +87,14 @@ class ImageLoader:
                if reset
                else self.feedback('info', "Skipping stage1"))
         return await self.stage2(reset)
+
+
+    def cleanup(self):
+        if self.frisbeed:
+            self.frisbeed.stop_nowait()
+        self.nextboot_cleanup()
+        self.display.epilogue()
+
 
     def main(self, reset, timeout):
 
@@ -103,7 +117,4 @@ class ImageLoader:
                 "rhubarbe-load : keyboard interrupt - exiting")
             return 1
         finally:
-            if self.frisbeed:
-                self.frisbeed.stop_nowait()
-            self.nextboot_cleanup()
-            self.display.epilogue()
+            self.cleanup()

@@ -19,6 +19,7 @@ from rhubarbe.config import Config
 
 
 class ImageSaver:
+
     def __init__(self, node, image, radical,            # pylint: disable=r0913
                  message_bus, display, comment):
         self.node = node
@@ -30,14 +31,17 @@ class ImageSaver:
         #
         self.collector = None
 
+
     async def feedback(self, field, msg):
         await self.message_bus.put({field: msg})
+
 
     # this is exactly as imageloader
     async def stage1(self):
         the_config = Config()
         idle = int(the_config.value('nodes', 'idle_after_reset'))
         await self.node.reboot_on_frisbee(idle)
+
 
     # this is synchroneous
     def nextboot_cleanup(self):
@@ -47,10 +51,12 @@ class ImageSaver:
         """
         self.node.manage_nextboot_symlink('harddrive')
 
+
     async def start_collector(self):
         self.collector = Collector(self.image, self.message_bus)
         port = await self.collector.start()
         return port
+
 
     async def stage2(self, reset):
         """
@@ -68,6 +74,7 @@ class ImageSaver:
         self.collector.stop_nowait()
         return result
 
+
     async def run(self, reset):
         leases = Leases(self.message_bus)
         await self.feedback('authorization', 'checking for a valid lease')
@@ -82,6 +89,7 @@ class ImageSaver:
                else self.feedback('info', "Skipping stage1"))
         return await self.stage2(reset)
 
+
     def mark_image_as_partial(self):
         # never mind if that fails, we might call this before
         # the file is created
@@ -89,6 +97,14 @@ class ImageSaver:
             os.rename(self.image, self.image + ".partial")
         except Exception:                               # pylint: disable=w0703
             pass
+
+
+    def cleanup(self):
+        if self.collector:
+            self.collector.stop_nowait()
+        self.nextboot_cleanup()
+        self.display.epilogue()
+
 
     def main(self, reset, timeout):
         mainjob = Job(self.run(reset), critical=True)
@@ -110,7 +126,4 @@ class ImageSaver:
             self.display.set_goodbye("rhubarbe-save : keyboard interrupt, bye")
             return 1
         finally:
-            if self.collector:
-                self.collector.stop_nowait()
-            self.nextboot_cleanup()
-            self.display.epilogue()
+            self.cleanup()
