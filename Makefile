@@ -45,6 +45,7 @@ tags:
 	git ls-files | xargs etags
 
 .PHONY: tags
+
 ############################## for deploying before packaging
 # default is to mess with our preplab and let the production
 # site do proper upgrades using pip3
@@ -61,15 +62,13 @@ sync:
 	@echo 'export PYTHONPATH=/tmp/rhubarbe-sync; alias rhu=/tmp/rhubarbe-sync/rhubarbe/__main__.py'
 	rsync -av --relative $$(git ls-files) root@$(DEST):/tmp/rhubarbe-sync/
 
-both: preplab faraday
-
 faraday:
 	$(MAKE) sync deployment=production
 
 preplab:
 	$(MAKE) sync deployment=preplab
 
-.PHONY: sync both faraday preplab
+.PHONY: sync faraday preplab
 
 ########## actually install
 infra:
