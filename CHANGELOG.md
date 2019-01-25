@@ -1,3 +1,7 @@
+# 3.0.1 - 2019 Jan 25
+
+* report to websockets-backed sidecar service, drop socket-io
+
 # 2.1.1 - 2019 Jan 16
 
 * a few more bugfixes, including more sensible log scheme
