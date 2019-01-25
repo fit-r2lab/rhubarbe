@@ -1,6 +1,7 @@
-# 3.0.1 - 2019 Jan 25
+# 3.0.2 - 2019 Jan 25
 
 * report to websockets-backed sidecar service, drop socket-io
+* 3.0.1 broken
 
 # 2.1.1 - 2019 Jan 16
 
