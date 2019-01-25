@@ -37,8 +37,8 @@ INSTALL_REQUIRES = [
     'asyncssh',
     'progressbar33',
     # for monitors
-    'socketIO-client',
     'asynciojobs>=0.10',
+    'r2lab>=0.5.0',
     # not yet used
     'aioxmlrpc',
 ]
