@@ -58,7 +58,7 @@ setuptools.setup(
     license="CC BY-SA 4.0",
     keywords=['R2lab', 'networking testbed'],
 
-    packages=['rhubarbe'],
+    packages=['rhubarbe', 'rhubarbe.monitor'],
     version=__version__,
     python_requires=">=3.5",
 
