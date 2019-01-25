@@ -1,12 +1,12 @@
 # this is meant to be installed under /etc/systemd/system
 [Unit]
-Description=testbed nodes probe - reports to sidecar using websockets
+Description=testbed leases probe - reports to sidecar using websockets
 
 # add -v option to get more details
 # also available is
-#  --sidecar-url http://r2lab.inria.fr:999/
+#  --sidecar-url wss://r2lab.inria.fr:999/
 [Service]
-ExecStart=/bin/bash -c "rhubarbe-monitornodes -a"
+ExecStart=/bin/bash -c "rhubarbe-monitorleases -v"
 
 [Install]
 WantedBy=multi-user.target

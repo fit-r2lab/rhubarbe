@@ -11,161 +11,16 @@ and reports it to the sidecar service
 
 import time
 import re
-import json
 import asyncio
-from urllib.parse import urlparse
-
-import urllib3
-
-# to connect to sidecar
-# at first I would have preferred an asyncio-friendly library
-# for talking socket.io; however I could not find one, and
-# websockets did not offer something like 'emit' out of the box
-# so, we're still using this synchroneous one
-# using .on to arm callbacks, and occasionally calling wait
-# to give a chance for the callback to trigger
-from socketIO_client import SocketIO, LoggingNamespace
 
 from rhubarbe.config import Config
 from rhubarbe.node import Node
 from rhubarbe.ssh import SshProxy
-from rhubarbe.leases import Leases
 # use a dedicated logger for monitors
 from rhubarbe.logger import monitor_logger as logger
 
-# turn off warnings that show up in monitor's journal
-# https://urllib3.readthedocs.io/en/latest/advanced-usage.html#ssl-warnings
-# worth a try someday..
-urllib3.disable_warnings()
-
-# the channel that allows to fuse the leases acquisition cycle
-# not too clean of course...
-BACK_CHANNEL = Config().value('sidecar', 'channel_leases_request')
-
-
-class ReconnectableSocketIO:
-    """
-    can emit a message to a socketio service, or reconnect to it
-    NOTE that this implementation is not robust, in the sense
-    that when we attempt to emit a message to a disconnected service,
-    this message is dropped
-    """
-
-    def __init__(self, url, verbose=False):
-        self.url = url
-        # parse url
-        parsed = urlparse(url)
-        self.scheme, self.hostname, self.port \
-            = parsed.scheme, parsed.hostname, parsed.port or 80
-        self.verbose = verbose
-        # internal stuff
-        self.socketio = None
-        self.counters = {'connect': 0}
-
-    def __repr__(self):
-        return "socket.io server at {} ({} connections)"\
-            .format(self.url, self.counters['connect'])
-
-    # at some point we were running into the same issue as this one:
-    # https://github.com/liris/websocket-client/issues/222
-    # hopefully this harmless glitch has gone away
-    def connect(self):
-        action = "connect" if self.socketio is None else "reconnect"
-        try:
-            logger.info("{}ing to {}".format(action, self))
-            # this might be due to miscconfiguration
-            if self.scheme not in ('http', 'https'):
-                logger.error("unsupported scheme {} - "
-                             "malformed socketio URL: {}"
-                             .format(self.scheme, self.url))
-            if self.scheme == 'http':
-                host_part = self.hostname
-                extras = {}
-            else:
-                host_part = "https://{}".format(self.hostname)
-                extras = {'verify': False}
-            self.socketio = SocketIO(host_part,
-                                     self.port,
-                                     LoggingNamespace,
-                                     **extras)
-            channel = BACK_CHANNEL
-
-            def closure(*args):
-                return self.on_channel(channel, *args)
-            self.socketio.on(channel, closure)
-            self.counters['connect'] += 1
-            logger.info("{}ed to {}".format(action, self))
-        except Exception as exc:
-            logger.error("Connection lost to {} (e={})".format(self, exc))
-            logger.exception("Exception stack:")
-            self.socketio = None
-
-    @staticmethod
-    def on_channel(channel, *args):
-        # not supposed to run - should be redefined
-        logger.warning("ReconnectableSocketIO.on_channel, channel={}, args={}"
-                       .format(channel, args))
-
-    def get_counter(self, channel):
-        return self.counters.get(channel, 0)
-
-    def emit_info(self, channel, info, wrap_in_list):
-        # info can be a list (e.g. for leases)
-        # or a dict, with or without an 'id' field
-        if self.verbose:
-            msg = "len={}".format(len(info)) if isinstance(info, list) \
-                  else "id={}".format(info.get('id', '[none]'))
-            logger.info("{} emitting {} -> {}"
-                        .format(channel, msg, info))
-
-        # wrap info as single elt in a list
-        emitted_info = info if not wrap_in_list else [info]
-        message = json.dumps(emitted_info)
-        if self.socketio is None:
-            self.connect()
-        try:
-            self.socketio.emit(channel, message,
-                               ReconnectableSocketIO.callback)
-            self.counters.setdefault(channel, 0)
-            self.counters[channel] += 1
-        except Exception:
-            # make sure we reconnect later on
-            self.socketio = None
-            label = "{}: {}".format(info.get('id', 'none'),
-                                    one_char_summary(info))
-            logger.error("Dropped message on {} - channel {} - msg {}"
-                         .format(self, channel, label))
-            logger.exception("Dropped because of this exception:")
-
-    def wait(self, wait):
-        if self.socketio:
-            try:
-                self.socketio.wait(wait)
-            except Exception:
-                pass
-
-    @staticmethod
-    def callback(*args, **kwds):
-        logger.info('on socketIO response args={} kwds={}'.format(args, kwds))
-
-
-class ReconnectableSocketIOMonitor(ReconnectableSocketIO):
-    """
-    A ReconnectableSocketIO
-    with a back link to a MonitorNodes object,
-    that can receive the 'on_channel' method
-    """
-
-    def __init__(self, monitor, *args, **kwds):
-        self.monitor = monitor
-        ReconnectableSocketIO.__init__(self, *args, **kwds)
-
-    def on_channel(self, channel, *args):
-        """
-        triggers on_channel back on monitor object
-        """
-        self.monitor.on_channel(channel, *args)
-
+# connect to sidecar
+from rhubarbe.monitor.sidecar import ReconnectableSidecar
 
 # translate info into a single char for logging
 def one_char_summary(info):
@@ -192,12 +47,11 @@ class MonitorNode:
     """
 
     def __init__(self, node, reconnectable,             # pylint: disable=r0913
-                 channel, report_wlan=True, verbose=False):
+                 report_wlan=False, verbose=False):
         # a rhubarbe.node.Node instance
         self.node = node
         self.report_wlan = report_wlan
         self.reconnectable = reconnectable
-        self.channel = channel
         self.verbose = verbose
         # current info - will be reported to sidecar
         self.info = {'id': node.id}
@@ -219,19 +73,18 @@ class MonitorNode:
             if k.startswith('wlan'):
                 self.info[k] = 0.
 
-    def report_info(self):
+    async def report_info(self):
         """
         Send info to sidecar
         """
-        self.reconnectable.emit_info(self.channel, self.info,
-                                     wrap_in_list=True)
+        await self.reconnectable.emit_info(self.info)
 
-    def set_info_and_report(self, *overrides):
+    async def set_info_and_report(self, *overrides):
         """
         Convenience to set info and immediately report
         """
         self.set_info(*overrides)
-        self.report_info()
+        await self.report_info()
 
     ubuntu_matcher = re.compile(r"DISTRIB_RELEASE=(?P<ubuntu_version>[0-9.]+)")
     fedora_matcher = re.compile(r"Fedora release (?P<fedora_version>\d+)")
@@ -350,10 +203,10 @@ class MonitorNode:
         # get CMC status
         status = await self.node.get_status()
         if status == "off":
-            self.set_info_and_report({'cmc_on_off': 'off'}, padding_dict)
+            await self.set_info_and_report({'cmc_on_off': 'off'}, padding_dict)
             return
         elif status != "on":
-            self.set_info_and_report({'cmc_on_off': 'fail'}, padding_dict)
+            await self.set_info_and_report({'cmc_on_off': 'fail'}, padding_dict)
             return
         if self.verbose:
             logger.info("entering pass2, info={}".format(self.info))
@@ -407,7 +260,7 @@ class MonitorNode:
 
         # if we could ssh then we're done
         if self.info['control_ssh'] == 'on':
-            self.report_info()
+            await self.report_info()
             return
 
         if self.verbose:
@@ -427,10 +280,10 @@ class MonitorNode:
             # failure occurs through timeout
             await asyncio.wait_for(subprocess.wait(),
                                    timeout=ping_timeout)
-            self.set_info_and_report({'control_ping': 'on'})
+            await self.set_info_and_report({'control_ping': 'on'})
             return
         except asyncio.TimeoutError:
-            self.set_info_and_report({'control_ping': 'off'})
+            await self.set_info_and_report({'control_ping': 'off'})
             return
 
     async def probe_forever(self, cycle, ping_timeout, ssh_timeout):
@@ -445,52 +298,11 @@ class MonitorNode:
             await asyncio.sleep(cycle)
 
 
-class MonitorLeases:                                    # pylint: disable=r0902
-
-    def __init__(self, message_bus, reconnectable,      # pylint: disable=r0913
-                 channel, cycle, step, wait, verbose):
-        self.message_bus = message_bus
-        self.reconnectable = reconnectable
-        self.channel = channel
-        self.cycle = float(cycle)
-        self.step = float(step)
-        self.wait = float(wait)
-        self.verbose = verbose
-
-    def on_back_channel(self, *args):
-        # when anything is received on the backchannel, we go to fast track
-        logger.info("MonitorLeases.on_back_channel, args={}".format(args))
-        self.fast_track = True                          # pylint: disable=w0201
-
-    async def run_forever(self):
-        leases = Leases(self.message_bus)
-        while True:
-            self.fast_track = False                     # pylint: disable=w0201
-            trigger = time.time() + self.cycle
-            # check for back_channel every 15 ms
-            while not self.fast_track and time.time() < trigger:
-                await asyncio.sleep(self.step)
-                # give a chance to socketio events to trigger
-                self.reconnectable.wait(self.wait)
-
-            try:
-                await leases.refresh()
-                # xxx this is fragile
-                omf_leases = leases.resources
-                self.reconnectable.emit_info(self.channel, omf_leases,
-                                             wrap_in_list=False)
-                logger.info("advertising {} leases".format(len(omf_leases)))
-                if self.verbose:
-                    logger.info("Leases details: {}".format(omf_leases))
-            except Exception:
-                logger.exception("monitornodes could not get leases")
-
-
-class MonitorNodes:                                          # pylint: disable=r0902
+class MonitorNodes:                                     # pylint: disable=r0902
 
     def __init__(self, cmc_names, message_bus,          # pylint: disable=r0913
-                 cycle, sidecar_url,
-                 report_wlan=True, verbose=False):
+                 sidecar_url, cycle,
+                 report_wlan=False, verbose=False):
         self.cycle = cycle
         self.report_wlan = report_wlan
         self.verbose = verbose
@@ -502,26 +314,15 @@ class MonitorNodes:                                          # pylint: disable=r
 
         # socket IO pipe
         self.reconnectable = \
-            ReconnectableSocketIOMonitor(self, sidecar_url, verbose)
+            ReconnectableSidecar(sidecar_url, 'nodes')
 
         # the nodes part
-        self.main_channel = Config().value('sidecar', 'channel_nodes')
         nodes = [Node(cmc_name, message_bus) for cmc_name in cmc_names]
         self.monitor_nodes = [
             MonitorNode(node=node, reconnectable=self.reconnectable,
-                        channel=self.main_channel,
                         report_wlan=self.report_wlan,
                         verbose=verbose)
             for node in nodes]
-
-        # the leases part
-        cycle = Config().value('monitor', 'cycle_leases')
-        step = Config().value('monitor', 'step_leases')
-        wait = Config().value('monitor', 'wait_leases')
-        channel = Config().value('sidecar', 'channel_leases')
-        self.monitor_leases = MonitorLeases(
-            message_bus, self.reconnectable, channel, cycle,
-            step=step, wait=wait, verbose=verbose)
 
     def on_channel(self, channel, *args):
         if channel == BACK_CHANNEL:
@@ -530,15 +331,13 @@ class MonitorNodes:                                          # pylint: disable=r
             logger.error("received data on unexpected channel {}"
                          .format(channel))
 
-    # xxx no way to select/disable the 2 components (nodes and leases) for now
-    async def run(self):
+    async def run_forever(self):
         logger.info("Starting nodes on {} nodes - report_wlan={}"
                     .format(len(self.monitor_nodes), self.report_wlan))
         # run n+1 tasks in parallel
         # one for leases,
         # plus one per node
         return asyncio.gather(
-            self.monitor_leases.run_forever(),
             *[monitor_node.probe_forever(self.cycle,
                                          ping_timeout=self.ping_timeout,
                                          ssh_timeout=self.ssh_timeout)
@@ -550,7 +349,7 @@ class MonitorNodes:                                          # pylint: disable=r
         while True:
             line = "".join([one_char_summary(mnode.info)
                             for mnode in self.monitor_nodes])
-            current = self.reconnectable.get_counter(self.main_channel)
+            current = self.reconnectable.get_counter()
             delta = "+ {}".format(current-previous)
             line += " {} emits ({})".format(current, delta)
             previous = current
@@ -565,13 +364,13 @@ if __name__ == '__main__':
         message_bus = asyncio.Queue()
 
         test_url = Config().value('sidecar', 'url')
-        reconnectable = ReconnectableSocketIOMonitor(None, test_url,
-                                                     verbose=True)
-        monitor_leases = MonitorLeases(message_bus,
-                                       reconnectable=reconnectable,
-                                       channel='info:leases',
-                                       cycle=10, step=1, wait=.1, verbose=True)
+        reconnectable = ReconnectableSidecar(
+            test_url,'nodes')
+        monitor_nodes = MonitorNodes(
+            ["reboot01", "reboot02"],
+            message_bus,
+            test_url)
         loop = asyncio.get_event_loop()
-        loop.run_until_complete(asyncio.gather(monitor_leases.run_forever()))
+        loop.run_until_complete(monitor_nodes.run_forever())
 
     main()

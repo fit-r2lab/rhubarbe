@@ -6,11 +6,6 @@ This simple tool works a bit like monitornodes, but on phones
 for now it probes for airplane_mode, but does not probe for the state of
 the wifi service because I could not get to work the magic sentences
 like 'adb shell svc enable wifi' and similar that I have found on the web
-
-it is a little off or ad hoc wrt to rest of rhubarbe
-it does make sense to add it here though, so it can leverage
-(*) sidecar_url as defined in config
-(*) and ReconnectableSocketIO from monitornodes
 """
 
 # c0111 no docstrings yet
@@ -28,7 +23,7 @@ from rhubarbe.config import Config
 from rhubarbe.logger import monitor_logger as logger
 
 from rhubarbe.inventoryphones import InventoryPhones
-from rhubarbe.monitornodes import ReconnectableSocketIO
+from rhubarbe.monitor.sidecar import ReconnectableSidecar
 
 
 class MonitorPhone:                                     # pylint: disable=r0902
@@ -37,7 +32,7 @@ class MonitorPhone:                                     # pylint: disable=r0902
     def __init__(self, id,                       # pylint: disable=r0913, w0622
                  gw_host, gw_user, gw_key,
                  adb_bin, adb_id,
-                 reconnectable, channel, verbose, cycle=2):
+                 reconnectable, verbose, cycle=2):
         self.id = id                                    # pylint: disable=c0103
         # gateway is the macphone box in the middle
         self.gateway = SshProxy(
@@ -50,7 +45,6 @@ class MonitorPhone:                                     # pylint: disable=r0902
         self.adb_bin = adb_bin
         self.adb_id = adb_id
         self.reconnectable = reconnectable
-        self.channel = channel
         self.cycle = cycle
         self.info = {'id': self.id}
         self.verbose = verbose
@@ -60,9 +54,8 @@ class MonitorPhone:                                     # pylint: disable=r0902
                 .format(self.id, self.gateway.username, self.gateway.hostname,
                         self.gateway.keys[0]))
 
-    def emit(self):
-        self.reconnectable.emit_info(self.channel, self.info,
-                                     wrap_in_list=True)
+    async def emit(self):
+        await self.reconnectable.emit_info(self.info)
 
     async def probe(self):
 
@@ -78,7 +71,7 @@ class MonitorPhone:                                     # pylint: disable=r0902
                 logger.error("Could not connect -> {} (exc={})"
                              .format(self.gateway, exc))
                 self.info['airplane_mode'] = 'fail'
-                self.emit()
+                await self.emit()
 
         if not self.gateway.is_connected():
             logger.error("Not connected to gateway - aborting")
@@ -108,7 +101,7 @@ class MonitorPhone:                                     # pylint: disable=r0902
             self.info['airplane_mode'] = 'fail'
             # force ssh reconnect
             self.gateway.conn = None
-        self.emit()
+        await self.emit()
 
     async def probe_forever(self):
         while True:
@@ -119,17 +112,15 @@ class MonitorPhone:                                     # pylint: disable=r0902
 class MonitorPhones:                                     # pylint:disable=r0903
     def __init__(self, verbose, sidecar_url, cycle):
         self.verbose = verbose
-        main_channel = Config().value('sidecar', 'channel_phones')
 
         phone_specs = InventoryPhones().all_phones()
 
-        reconnectable = ReconnectableSocketIO(sidecar_url)
+        reconnectable = ReconnectableSidecar(sidecar_url, 'phones')
         # xxx this is fragile
         # we rely on the fact that the items in the inventory
         # match the args of MonitorPhone's constructor
         self.phones = [
             MonitorPhone(reconnectable=reconnectable,
-                         channel=main_channel,
                          verbose=verbose,
                          cycle=cycle,
                          **spec)

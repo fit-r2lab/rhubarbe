@@ -33,8 +33,9 @@ from rhubarbe.display_curses import DisplayCurses
 from rhubarbe.node import Node
 from rhubarbe.imageloader import ImageLoader
 from rhubarbe.imagesaver import ImageSaver
-from rhubarbe.monitornodes import MonitorNodes
-from rhubarbe.monitorphones import MonitorPhones
+from rhubarbe.monitor.nodes import MonitorNodes
+from rhubarbe.monitor.phones import MonitorPhones
+from rhubarbe.monitor.leases import MonitorLeases
 from rhubarbe.accounts import Accounts
 from rhubarbe.ssh import SshProxy
 from rhubarbe.leases import Leases
@@ -598,7 +599,7 @@ def leases(*argv):
 
 
 @subcommand
-def monitornodes(*argv):                                     # pylint: disable=r0914
+def monitornodes(*argv):                                # pylint: disable=r0914
 
     # xxx hacky - do a side effect in the logger module
     import rhubarbe.logger
@@ -606,8 +607,8 @@ def monitornodes(*argv):                                     # pylint: disable=r
     # xxx hacky
 
     usage = """
-    Cyclic probe all selected nodes to report real-time status
-    at a sidecar service over socketIO
+    Cyclic probe all selected nodes, and reports
+    real-time status at a sidecar service over websockets
     """
     the_config = Config()
     parser = ArgumentParser(usage=usage,
@@ -618,7 +619,7 @@ def monitornodes(*argv):                                     # pylint: disable=r
                         help="Delay to wait between 2 probes of each node")
     parser.add_argument("-u", "--sidecar-url", dest="sidecar_url",
                         default=Config().value('sidecar', 'url'),
-                        help="url for thesidecar server")
+                        help="url for the sidecar server")
     parser.add_argument("-w", "--wlan", dest="report_wlan",
                         default=False, action='store_true',
                         help="ask for probing of wlan traffic rates")
@@ -658,7 +659,7 @@ def monitornodes(*argv):                                     # pylint: disable=r
 
     async def run():
         # run both the core and the log loop in parallel
-        await asyncio.gather(the_monitornodes.run(),
+        await asyncio.gather(the_monitornodes.run_forever(),
                              the_monitornodes.log(),
                              display.run())
 
@@ -690,8 +691,8 @@ def monitorphones(*argv):
     # xxx hacky
 
     usage = """
-    Cyclic probe all known phones to report real-time status
-    at a sidecar service over socketIO
+    Cyclic probe all known phones, and reports real-time status
+    at a sidecar service over websockets
     """
     the_config = Config()
     parser = ArgumentParser(usage=usage,
