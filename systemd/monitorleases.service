@@ -7,6 +7,8 @@ Description=testbed leases probe - reports to sidecar using websockets
 #  --sidecar-url wss://r2lab.inria.fr:999/
 [Service]
 ExecStart=/bin/bash -c "rhubarbe-monitorleases -v"
+Restart=always
+RestartSec=60s
 
 [Install]
 WantedBy=multi-user.target

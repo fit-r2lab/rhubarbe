@@ -7,6 +7,8 @@ Description=testbed nodes probe - reports to sidecar using websockets
 #  --sidecar-url http://r2lab.inria.fr:999/
 [Service]
 ExecStart=/bin/bash -c "rhubarbe-monitornodes -a"
+Restart=always
+RestartSec=60s
 
 [Install]
 WantedBy=multi-user.target
