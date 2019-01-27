@@ -312,7 +312,7 @@ class MonitorNodes:                                     # pylint: disable=r0902
         self.ssh_timeout = float(Config().value('networking', 'ssh_timeout'))
         self.log_period = float(Config().value('monitor', 'log_period'))
 
-        # socket IO pipe
+        # websockets
         self.reconnectable = \
             ReconnectableSidecar(sidecar_url, 'nodes')
 
@@ -365,7 +365,7 @@ if __name__ == '__main__':
 
         test_url = Config().value('sidecar', 'url')
         reconnectable = ReconnectableSidecar(
-            test_url,'nodes')
+            test_url, 'nodes')
         monitor_nodes = MonitorNodes(
             ["reboot01", "reboot02"],
             message_bus,

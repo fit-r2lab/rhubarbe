@@ -3,7 +3,7 @@
 Description=testbed accounts manager - manages unix accounts and their authorized_keys
 
 [Service]
-ExecStart=/bin/bash -c "rhubarbe-accounts"
+ExecStart=/bin/bash -c "rhubarbe-accountsmanager"
 Restart=always
 RestartSec=60s
 

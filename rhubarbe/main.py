@@ -36,7 +36,7 @@ from rhubarbe.imagesaver import ImageSaver
 from rhubarbe.monitor.nodes import MonitorNodes
 from rhubarbe.monitor.phones import MonitorPhones
 from rhubarbe.monitor.leases import MonitorLeases
-from rhubarbe.accounts import Accounts
+from rhubarbe.monitor.accountsmanager import AccountsManager
 from rhubarbe.ssh import SshProxy
 from rhubarbe.leases import Leases
 from rhubarbe.inventory import Inventory
@@ -148,8 +148,8 @@ def cmc_verb(verb, resa_policy, *argv):
     .format(verb=verb)
     if resa_policy == 'enforce':
         usage += "\n    {policy}".format(policy=RESERVATION_REQUIRED)
-    the_config = Config()
-    default_timeout = the_config.value('nodes', 'cmc_default_timeout')
+    config = Config()
+    default_timeout = config.value('nodes', 'cmc_default_timeout')
 
     parser = ArgumentParser(usage=usage,
                             formatter_class=ArgumentDefaultsHelpFormatter)
@@ -228,8 +228,8 @@ def bye(*argv):
     usage = """
     Turn off whole testbed
     """
-    the_config = Config()
-    default_timeout = the_config.value('nodes', 'cmc_default_timeout')
+    config = Config()
+    default_timeout = config.value('nodes', 'cmc_default_timeout')
     parser = ArgumentParser(usage=usage,
                             formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument("-t", "--timeout", action='store',
@@ -270,22 +270,22 @@ def load(*argv):
     Load an image on selected nodes in parallel
     {resa}
     """.format(resa=RESERVATION_REQUIRED)
-    the_config = Config()
-    the_config.check_binaries()
-    the_imagesrepo = ImagesRepo()
+    config = Config()
+    config.check_binaries()
+    imagesrepo = ImagesRepo()
 
     parser = ArgumentParser(usage=usage,
                             formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument("-i", "--image", action='store',
-                        default=the_imagesrepo.default(),
+                        default=imagesrepo.default(),
                         help="Specify image to load")
     parser.add_argument("-t", "--timeout", action='store',
-                        default=the_config.value('nodes',
+                        default=config.value('nodes',
                                                  'load_default_timeout'),
                         type=float,
                         help="Specify global timeout for the whole process")
     parser.add_argument("-b", "--bandwidth", action='store',
-                        default=the_config.value('networking', 'bandwidth'),
+                        default=config.value('networking', 'bandwidth'),
                         type=int,
                         help="Set bandwidth in Mibps for frisbee uploading")
     parser.add_argument("-c", "--curses", action='store_true', default=False,
@@ -314,7 +314,7 @@ def load(*argv):
     logger.info("timeout is {}s".format(args.timeout))
     logger.info("bandwidth is {} Mibps".format(args.bandwidth))
 
-    actual_image = the_imagesrepo.locate_image(args.image, look_in_global=True)
+    actual_image = imagesrepo.locate_image(args.image, look_in_global=True)
     if not actual_image:
         print("Image file {} not found - emergency exit".format(args.image))
         exit(1)
@@ -340,8 +340,8 @@ def save(*argv):
     {resa}
     """.format(resa=RESERVATION_REQUIRED)
 
-    the_config = Config()
-    the_config.check_binaries()
+    config = Config()
+    config.check_binaries()
 
     parser = ArgumentParser(usage=usage,
                             formatter_class=ArgumentDefaultsHelpFormatter)
@@ -349,7 +349,7 @@ def save(*argv):
                         default=None, required=True,
                         help="Mandatory radical to name resulting image")
     parser.add_argument("-t", "--timeout", action='store',
-                        default=the_config.value('nodes',
+                        default=config.value('nodes',
                                                  'save_default_timeout'),
                         type=float,
                         help="Specify global timeout for the whole process")
@@ -375,8 +375,8 @@ def save(*argv):
     node = Node(cmc_name, message_bus)
     nodename = node.control_hostname()
 
-    the_imagesrepo = ImagesRepo()
-    actual_image = the_imagesrepo.where_to_save(nodename, args.radical)
+    imagesrepo = ImagesRepo()
+    actual_image = imagesrepo.where_to_save(nodename, args.radical)
     message_bus.put_nowait({'info': "Saving image {}".format(actual_image)})
     # curses has no interest here since we focus on one node
     display_class = Display
@@ -395,18 +395,18 @@ def wait(*argv):                                        # pylint: disable=r0914
     Wait for selected nodes to be reachable by ssh
     Returns 0 if all nodes indeed are reachable
     """
-    the_config = Config()
+    config = Config()
     parser = ArgumentParser(usage=usage,
                             formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument("-c", "--curses", action='store_true', default=False,
                         help="Use curses to provide term-based animation")
     parser.add_argument("-t", "--timeout", action='store',
-                        default=the_config.value('nodes',
+                        default=config.value('nodes',
                                                  'wait_default_timeout'),
                         type=float,
                         help="Specify global timeout for the whole process")
     parser.add_argument("-b", "--backoff", action='store',
-                        default=the_config.value('networking', 'ssh_backoff'),
+                        default=config.value('networking', 'ssh_backoff'),
                         type=float,
                         help="Specify backoff average between "
                         "attempts to ssh connect")
@@ -489,7 +489,7 @@ def images(*argv):
                         help="if provided, only images that contain "
                         "one of these strings are displayed")
     args = parser.parse_args(argv)
-    the_imagesrepo = ImagesRepo()
+    imagesrepo = ImagesRepo()
     if args.sort_size is not None:
         args.sort_by = 'size'
     elif args.sort_date is not None:
@@ -497,7 +497,7 @@ def images(*argv):
     else:
         args.sort_by = 'size'
     # if focus is an empty list, then everything is shown
-    the_imagesrepo.main(args.focus, args.verbose, args.sort_by, args.reverse)
+    imagesrepo.main(args.focus, args.verbose, args.sort_by, args.reverse)
     return 0
 
 ####################
@@ -520,9 +520,9 @@ def resolve(*argv):
     parser.add_argument("focus", nargs="*", type=str,
                         help="the names to resolve")
     args = parser.parse_args(argv)
-    the_imagesrepo = ImagesRepo()
+    imagesrepo = ImagesRepo()
     # if focus is an empty list, then everything is shown
-    the_imagesrepo.resolve(args.focus, args.verbose, args.reverse)
+    imagesrepo.resolve(args.focus, args.verbose, args.reverse)
     return 0
 
 ####################
@@ -564,8 +564,8 @@ def share(*argv):
     parser.add_argument("images", nargs="+", type=str)
     args = parser.parse_args(argv)
 
-    the_imagesrepo = ImagesRepo()
-    return the_imagesrepo.share(args.images, args.alias,
+    imagesrepo = ImagesRepo()
+    return imagesrepo.share(args.images, args.alias,
                                 args.dry_run, args.force, args.clean)
 
 
@@ -585,13 +585,13 @@ def leases(*argv):
     args = parser.parse_args(argv)
 
     message_bus = asyncio.Queue()
-    the_leases = Leases(message_bus)
+    leases = Leases(message_bus)
     if args.check:
-        access = check_reservation(the_leases, verbose=True)
+        access = check_reservation(leases, verbose=True)
         return 0 if access else 1
     else:
         loop = asyncio.get_event_loop()
-        loop.run_until_complete(the_leases.main(args.interactive))
+        loop.run_until_complete(leases.main(args.interactive))
         loop.close()
         return 0
 
@@ -610,11 +610,11 @@ def monitornodes(*argv):                                # pylint: disable=r0914
     Cyclic probe all selected nodes, and reports
     real-time status at a sidecar service over websockets
     """
-    the_config = Config()
+    config = Config()
     parser = ArgumentParser(usage=usage,
                             formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument('-c', "--cycle",
-                        default=the_config.value('monitor', 'cycle_nodes'),
+                        default=config.value('monitor', 'cycle_nodes'),
                         type=float,
                         help="Delay to wait between 2 probes of each node")
     parser.add_argument("-u", "--sidecar-url", dest="sidecar_url",
@@ -638,7 +638,7 @@ def monitornodes(*argv):                                # pylint: disable=r0914
 
     from rhubarbe.logger import logger
     logger.info({'selected_nodes': selector})
-    the_monitornodes = MonitorNodes(selector.cmc_names(),
+    monitornodes = MonitorNodes(selector.cmc_names(),
                                     message_bus=message_bus,
                                     cycle=args.cycle,
                                     sidecar_url=args.sidecar_url,
@@ -659,8 +659,8 @@ def monitornodes(*argv):                                # pylint: disable=r0914
 
     async def run():
         # run both the core and the log loop in parallel
-        await asyncio.gather(the_monitornodes.run_forever(),
-                             the_monitornodes.log(),
+        await asyncio.gather(monitornodes.run_forever(),
+                             monitornodes.log(),
                              display.run())
 
     try:
@@ -688,17 +688,18 @@ def monitorphones(*argv):
     # xxx hacky - do a side effect in the logger module
     import rhubarbe.logger
     rhubarbe.logger.logger = rhubarbe.logger.monitor_logger
+    from rhubarbe.logger import logger
     # xxx hacky
 
     usage = """
     Cyclic probe all known phones, and reports real-time status
     at a sidecar service over websockets
     """
-    the_config = Config()
+    config = Config()
     parser = ArgumentParser(usage=usage,
                             formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument('-c', "--cycle",
-                        default=the_config.value('monitor', 'cycle_phones'),
+                        default=config.value('monitor', 'cycle_phones'),
                         type=float,
                         help="Delay to wait between 2 probes of each phone")
     parser.add_argument("-u", "--sidecar-url", dest="sidecar_url",
@@ -707,10 +708,9 @@ def monitorphones(*argv):
     parser.add_argument("-v", "--verbose", action='store_true')
     args = parser.parse_args(argv)
 
-    from rhubarbe.logger import logger
     logger.info("Using all phones")
     loop = asyncio.get_event_loop()
-    the_monitorphones = MonitorPhones(**vars(args))
+    monitorphones = MonitorPhones(**vars(args))
 
     # trap signals so we get a nice message in monitor.log
     import signal
@@ -725,7 +725,7 @@ def monitorphones(*argv):
                                 functools.partial(exiting, signame))
 
     try:
-        task = asyncio.ensure_future(the_monitorphones.run())
+        task = asyncio.ensure_future(monitorphones.run())
         loop.run_until_complete(task)
         return 0
     except KeyboardInterrupt:
@@ -744,7 +744,68 @@ def monitorphones(*argv):
 
 
 @subcommand
-def accounts(*argv):
+def monitorleases(*argv):
+
+    # xxx hacky - do a side effect in the logger module
+    import rhubarbe.logger
+    rhubarbe.logger.logger = rhubarbe.logger.monitor_logger
+    from rhubarbe.logger import logger
+
+    usage="""
+    Cyclic check of leases. See config for defaults.
+    """
+    config = Config()
+    parser = ArgumentParser(
+        usage=usage, formatter_class=ArgumentDefaultsHelpFormatter)
+    parser.add_argument("-u", "--sidecar-url", dest="sidecar_url",
+                        default=Config().value('sidecar', 'url'),
+                        help="url for the sidecar server")
+    parser.add_argument("-v", "--verbose", default=False, action='store_true')
+    args = parser.parse_args(argv)
+
+    loop = asyncio.get_event_loop()
+    message_bus = asyncio.Queue()
+
+
+    monitorleases = MonitorLeases(
+        message_bus, args.sidecar_url, args.verbose)
+
+    import signal
+    import functools
+
+    def exiting(signame):
+        logger.info("Received signal {} - exiting".format(signame))
+        loop.stop()
+        exit(1)
+    for signame in ('SIGHUP', 'SIGQUIT', 'SIGINT', 'SIGTERM'):
+        loop.add_signal_handler(getattr(signal, signame),
+                                functools.partial(exiting, signame))
+
+    async def run():
+        # run both the core and the log loop in parallel
+        await monitorleases.run_forever()
+
+    try:
+        task = asyncio.ensure_future(run())
+        loop.run_until_complete(task)
+        return 0
+    except KeyboardInterrupt:
+        logger.info("rhubarbe-monitornodes : keyboard interrupt - exiting")
+        task.cancel()
+        loop.run_forever()
+        task.exception()
+        return 1
+    except asyncio.TimeoutError:
+        logger.info("rhubarbe-monitornodes : asyncio timeout expired")
+        return 1
+    finally:
+        loop.close()
+
+
+
+####################
+@subcommand
+def accountsmanager(*argv):
 
     usage = "The core of the accounts manager; reserved to root"
 
@@ -756,8 +817,8 @@ def accounts(*argv):
                         default=None)
     args = parser.parse_args(argv)
 
-    the_accounts = Accounts()
-    return the_accounts.main(args.cycle)
+    accounts_manager = AccountsManager()
+    return accounts_manager.main(args.cycle)
 
 ####################
 
@@ -770,8 +831,8 @@ def inventory(*argv):
     parser = ArgumentParser(usage=usage,
                             formatter_class=ArgumentDefaultsHelpFormatter)
     parser.parse_args(argv)
-    the_inventory = Inventory()
-    the_inventory.display(verbose=True)
+    inventory = Inventory()
+    inventory.display(verbose=True)
     return 0
 
 ####################
@@ -788,8 +849,8 @@ def config(*argv):
                         type=str,
                         help="config section(s) to display")
     args = parser.parse_args(argv)
-    the_config = Config()
-    the_config.display(args.sections)
+    config = Config()
+    config.display(args.sections)
     return 0
 
 ####################

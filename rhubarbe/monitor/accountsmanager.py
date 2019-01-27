@@ -29,8 +29,8 @@ import pwd
 from pathlib import Path
 
 from rhubarbe.logger import accounts_logger as logger
-from .config import Config
-from .plcapiproxy import PlcApiProxy
+from rhubarbe.config import Config
+from rhubarbe.plcapiproxy import PlcApiProxy
 
 
 ####################
@@ -85,7 +85,7 @@ def replace_file_with_string(destination_path, new_contents,
 ####################
 
 
-class Accounts:
+class AccountsManager:
 
     def __init__(self):
         the_config = Config()
@@ -300,8 +300,8 @@ CheckHostIP=no
         Corner cases:
         * cycle = None : fetch value from config_bases
         * cycle = 0 : run just once (for debug mostly)
-
         """
+
         if cycle is None:
             cycle = Config().value('accounts', 'cycle')
         cycle = int(cycle)

@@ -16,7 +16,7 @@ It is written in python3.5 on top of `asyncio`, and covers the following feature
 * `load`, `save` , `images` : loading and saving images on nodes;
 * `leases` : displaying, and to some extent modifying, reservations on the testbed
 * `monitornodes` and `monitorphones`: feeding the sidecar server live info about the global testbed status (phones excluded)
-* `accounts` : propagates the changes in the PLCAPI into actual Unix accounts and related authorized keys.
+* `accountsmanager` : propagates the changes in the PLCAPI into actual Unix accounts and related authorized keys.
 
 With these additional benefits:
 

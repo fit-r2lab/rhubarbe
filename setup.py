@@ -20,9 +20,12 @@ LONG_DESCRIPTION = \
 # avoid this; we may need this early, when requirements are not met yet
 # from rhubarbe.main import supported_subcommands
 # instead, cut'n'paste from the rhubarbe help message
-rhubarbe_help = "nodes,status,on,off,reset,info,usrpstatus,usrpon,usrpoff,"\
-                "load,save,wait,monitornodes,monitorphones,accounts,leases,images,"\
-                "resolve,share,inventory,config,template,version"
+rhubarbe_help = (
+    "nodes,status,on,off,reset,info,usrpstatus,usrpon,usrpoff,"
+    "load,save,wait,images,resolve,share,"
+    "inventory,config,template,version,"
+    "monitornodes,monitorphones,monitorleases,accountsmanager"
+)
 supported_subcommands = rhubarbe_help.split(",")
 
 # requirements
