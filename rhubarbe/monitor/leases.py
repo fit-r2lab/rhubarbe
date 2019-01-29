@@ -18,33 +18,29 @@ class MonitorLeases:                                    # pylint: disable=r0902
         self.verbose = verbose
 
         # websockets
-        print(f"URL={sidecar_url}")
         self.reconnectable = \
             ReconnectableSidecar(sidecar_url, 'leases')
 
         self.cycle = float(Config().value('monitor', 'cycle_leases'))
         self.step = float(Config().value('monitor', 'step_leases'))
-#        self.wait = float(Config().value('monitor', 'wait_leases'))
 
-    def on_back_channel(self, *args):
+
+    def on_back_channel(self, umbrella):
         # when anything is received on the backchannel, we go to fast track
-        logger.info("MonitorLeases.on_back_channel, args={}".format(args))
+        logger.info(f"MonitorLeases.on_back_channel, umbrella={umbrella}")
         self.fast_track = True                          # pylint: disable=w0201
 
-    async def run_forever(self):
+
+    async def mainloop(self):
         leases = Leases(self.message_bus)
         if self.verbose:
             logger.info("Entering monitor on leases")
         while True:
             self.fast_track = False                     # pylint: disable=w0201
             trigger = time.time() + self.cycle
-            # xxx - remove me - tmp ; speed it up
-            trigger = time.time() + 10
             # check for back_channel every 15 ms
             while not self.fast_track and time.time() < trigger:
                 await asyncio.sleep(self.step)
-#                # give a chance to socketio events to trigger
-#                self.reconnectable.wait(self.wait)
 
             try:
                 if self.verbose:
@@ -58,3 +54,12 @@ class MonitorLeases:                                    # pylint: disable=r0902
                     logger.info("Leases details: {}".format(omf_leases))
             except Exception:
                 logger.exception("monitornodes could not get leases")
+
+    async def run_forever(self):
+        def closure(umbrella):
+            return self.on_back_channel(umbrella)
+        await asyncio.gather(
+            self.mainloop(),
+            self.reconnectable.keep_connected(),
+            self.reconnectable.watch_back_channel('leases', closure)
+        )

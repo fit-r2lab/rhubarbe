@@ -115,17 +115,19 @@ class MonitorPhones:                                     # pylint:disable=r0903
 
         phone_specs = InventoryPhones().all_phones()
 
-        reconnectable = ReconnectableSidecar(sidecar_url, 'phones')
+        self.reconnectable = ReconnectableSidecar(sidecar_url, 'phones')
         # xxx this is fragile
         # we rely on the fact that the items in the inventory
         # match the args of MonitorPhone's constructor
         self.phones = [
-            MonitorPhone(reconnectable=reconnectable,
+            MonitorPhone(reconnectable=self.reconnectable,
                          verbose=verbose,
                          cycle=cycle,
                          **spec)
             for spec in phone_specs]
 
-    async def run(self):
-        await asyncio.gather(*[phone.probe_forever()
-                               for phone in self.phones])
+    async def run_forever(self):
+        await asyncio.gather(
+            *[phone.probe_forever()
+              for phone in self.phones],
+            self.reconnectable.keep_connected())

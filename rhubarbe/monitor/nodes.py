@@ -331,7 +331,9 @@ class MonitorNodes:                                     # pylint: disable=r0902
             *[monitor_node.probe_forever(self.cycle,
                                          ping_timeout=self.ping_timeout,
                                          ssh_timeout=self.ssh_timeout)
-              for monitor_node in self.monitor_nodes]
+              for monitor_node in self.monitor_nodes],
+            self.reconnectable.keep_connected(),
+            self.log(),
         )
 
     async def log(self):
@@ -339,28 +341,9 @@ class MonitorNodes:                                     # pylint: disable=r0902
         while True:
             line = "".join([one_char_summary(mnode.info)
                             for mnode in self.monitor_nodes])
-            current = self.reconnectable.get_counter()
+            current = self.reconnectable.counter
             delta = "+ {}".format(current-previous)
             line += " {} emits ({})".format(current, delta)
             previous = current
             logger.info(line)
             await asyncio.sleep(self.log_period)
-
-
-if __name__ == '__main__':
-
-    def main():
-        # rebootnames = sys.argv[1:]
-        message_bus = asyncio.Queue()
-
-        test_url = Config().value('sidecar', 'url')
-        reconnectable = ReconnectableSidecar(
-            test_url, 'nodes')
-        monitor_nodes = MonitorNodes(
-            ["reboot01", "reboot02"],
-            message_bus,
-            test_url)
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(monitor_nodes.run_forever())
-
-    main()

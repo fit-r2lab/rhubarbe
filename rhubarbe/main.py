@@ -34,6 +34,7 @@ from rhubarbe.node import Node
 from rhubarbe.imageloader import ImageLoader
 from rhubarbe.imagesaver import ImageSaver
 from rhubarbe.monitor.nodes import MonitorNodes
+from rhubarbe.monitor.loop import MonitorLoop
 from rhubarbe.monitor.phones import MonitorPhones
 from rhubarbe.monitor.leases import MonitorLeases
 from rhubarbe.monitor.accountsmanager import AccountsManager
@@ -604,7 +605,7 @@ def monitornodes(*argv):                                # pylint: disable=r0914
     # xxx hacky - do a side effect in the logger module
     import rhubarbe.logger
     rhubarbe.logger.logger = rhubarbe.logger.monitor_logger
-    # xxx hacky
+    from rhubarbe.logger import logger
 
     usage = """
     Cyclic probe all selected nodes, and reports
@@ -613,71 +614,46 @@ def monitornodes(*argv):                                # pylint: disable=r0914
     config = Config()
     parser = ArgumentParser(usage=usage,
                             formatter_class=ArgumentDefaultsHelpFormatter)
-    parser.add_argument('-c', "--cycle",
-                        default=config.value('monitor', 'cycle_nodes'),
-                        type=float,
-                        help="Delay to wait between 2 probes of each node")
-    parser.add_argument("-u", "--sidecar-url", dest="sidecar_url",
-                        default=Config().value('sidecar', 'url'),
-                        help="url for the sidecar server")
-    parser.add_argument("-w", "--wlan", dest="report_wlan",
-                        default=False, action='store_true',
-                        help="ask for probing of wlan traffic rates")
+    parser.add_argument(
+        '-c', "--cycle",
+        default=config.value('monitor', 'cycle_nodes'),
+        type=float,
+        help="Delay to wait between 2 probes of each node")
+    parser.add_argument(
+        "-u", "--sidecar-url", dest="sidecar_url",
+        default=Config().value('sidecar', 'url'),
+        help="url for the sidecar server")
+    parser.add_argument(
+        "-w", "--wlan", dest="report_wlan",
+        default=False, action='store_true',
+        help="ask for probing of wlan traffic rates")
     parser.add_argument("-v", "--verbose",
                         action='store_true', default=False)
     add_selector_arguments(parser)
     args = parser.parse_args(argv)
 
     selector = selected_selector(args)
-    loop = asyncio.get_event_loop()
     message_bus = asyncio.Queue()
 
     # xxx having to feed a Display instance with nodes
     # at creation time is a nuisance
     display = Display([], message_bus)
 
-    from rhubarbe.logger import logger
     logger.info({'selected_nodes': selector})
     monitornodes = MonitorNodes(selector.cmc_names(),
-                                    message_bus=message_bus,
-                                    cycle=args.cycle,
-                                    sidecar_url=args.sidecar_url,
-                                    report_wlan=args.report_wlan,
-                                    verbose=args.verbose)
+                                message_bus=message_bus,
+                                cycle=args.cycle,
+                                sidecar_url=args.sidecar_url,
+                                report_wlan=args.report_wlan,
+                                verbose=args.verbose)
 
-    # trap signals so we get a nice message in monitor.log
-    import signal
-    import functools
-
-    def exiting(signame):
-        logger.info("Received signal {} - exiting".format(signame))
-        loop.stop()
-        exit(1)
-    for signame in ('SIGHUP', 'SIGQUIT', 'SIGINT', 'SIGTERM'):
-        loop.add_signal_handler(getattr(signal, signame),
-                                functools.partial(exiting, signame))
-
-    async def run():
+    async def async_main():
         # run both the core and the log loop in parallel
         await asyncio.gather(monitornodes.run_forever(),
-                             monitornodes.log(),
                              display.run())
 
-    try:
-        task = asyncio.ensure_future(run())
-        loop.run_until_complete(task)
-        return 0
-    except KeyboardInterrupt:
-        logger.info("rhubarbe-monitornodes : keyboard interrupt - exiting")
-        task.cancel()
-        loop.run_forever()
-        task.exception()
-        return 1
-    except asyncio.TimeoutError:
-        logger.info("rhubarbe-monitornodes : asyncio timeout expired")
-        return 1
-    finally:
-        loop.close()
+    MonitorLoop("monitornodes").run(async_main(), logger)
+    return 0
 
 ####################
 
@@ -689,7 +665,6 @@ def monitorphones(*argv):
     import rhubarbe.logger
     rhubarbe.logger.logger = rhubarbe.logger.monitor_logger
     from rhubarbe.logger import logger
-    # xxx hacky
 
     usage = """
     Cyclic probe all known phones, and reports real-time status
@@ -698,47 +673,26 @@ def monitorphones(*argv):
     config = Config()
     parser = ArgumentParser(usage=usage,
                             formatter_class=ArgumentDefaultsHelpFormatter)
-    parser.add_argument('-c', "--cycle",
-                        default=config.value('monitor', 'cycle_phones'),
-                        type=float,
-                        help="Delay to wait between 2 probes of each phone")
-    parser.add_argument("-u", "--sidecar-url", dest="sidecar_url",
-                        default=Config().value('sidecar', 'url'),
-                        help="url for the sidecar server")
-    parser.add_argument("-v", "--verbose", action='store_true')
+    parser.add_argument(
+        "-c", "--cycle",
+        default=config.value('monitor', 'cycle_phones'),
+        type=float,
+        help="Delay to wait between 2 probes of each phone")
+    parser.add_argument(
+        "-u", "--sidecar-url", dest="sidecar_url",
+        default=Config().value('sidecar', 'url'),
+        help="url for the sidecar server")
+    parser.add_argument(
+        "-v", "--verbose", action='store_true')
     args = parser.parse_args(argv)
 
     logger.info("Using all phones")
-    loop = asyncio.get_event_loop()
     monitorphones = MonitorPhones(**vars(args))
 
-    # trap signals so we get a nice message in monitor.log
-    import signal
-    import functools
-
-    def exiting(signame):
-        logger.info("Received signal {} - exiting".format(signame))
-        loop.stop()
-        exit(1)
-    for signame in ('SIGHUP', 'SIGQUIT', 'SIGINT', 'SIGTERM'):
-        loop.add_signal_handler(getattr(signal, signame),
-                                functools.partial(exiting, signame))
-
-    try:
-        task = asyncio.ensure_future(monitorphones.run())
-        loop.run_until_complete(task)
-        return 0
-    except KeyboardInterrupt:
-        logger.info("rhubarbe-monitorphones : keyboard interrupt - exiting")
-        task.cancel()
-        loop.run_forever()
-        task.exception()
-        return 1
-    except asyncio.TimeoutError:
-        logger.info("rhubarbe-monitor : asyncio timeout expired")
-        return 1
-    finally:
-        loop.close()
+    MonitorLoop("monitorphones").run(
+        monitorphones.run_forever(),
+        logger)
+    return 0
 
 ####################
 
@@ -752,58 +706,35 @@ def monitorleases(*argv):
     from rhubarbe.logger import logger
 
     usage="""
-    Cyclic check of leases. See config for defaults.
+    Cyclic check of leases; also reacts to 'request' messages on 
+    the sidecar channel, which triggers leases acquisition right away.
+    See config for defaults.
     """
     config = Config()
     parser = ArgumentParser(
         usage=usage, formatter_class=ArgumentDefaultsHelpFormatter)
-    parser.add_argument("-u", "--sidecar-url", dest="sidecar_url",
-                        default=Config().value('sidecar', 'url'),
-                        help="url for the sidecar server")
-    parser.add_argument("-v", "--verbose", default=False, action='store_true')
+    parser.add_argument(
+        "-u", "--sidecar-url", dest="sidecar_url",
+        default=Config().value('sidecar', 'url'),
+        help="url for the sidecar server")
+    parser.add_argument(
+        "-v", "--verbose", default=False, action='store_true')
     args = parser.parse_args(argv)
 
-    loop = asyncio.get_event_loop()
     message_bus = asyncio.Queue()
 
 
     monitorleases = MonitorLeases(
         message_bus, args.sidecar_url, args.verbose)
 
-    import signal
-    import functools
-
-    def exiting(signame):
-        logger.info("Received signal {} - exiting".format(signame))
-        loop.stop()
-        exit(1)
-    for signame in ('SIGHUP', 'SIGQUIT', 'SIGINT', 'SIGTERM'):
-        loop.add_signal_handler(getattr(signal, signame),
-                                functools.partial(exiting, signame))
-
-    async def run():
-        # run both the core and the log loop in parallel
-        await monitorleases.run_forever()
-
-    try:
-        task = asyncio.ensure_future(run())
-        loop.run_until_complete(task)
-        return 0
-    except KeyboardInterrupt:
-        logger.info("rhubarbe-monitornodes : keyboard interrupt - exiting")
-        task.cancel()
-        loop.run_forever()
-        task.exception()
-        return 1
-    except asyncio.TimeoutError:
-        logger.info("rhubarbe-monitornodes : asyncio timeout expired")
-        return 1
-    finally:
-        loop.close()
-
-
+    MonitorLoop("monitorleases").run(
+        monitorleases.run_forever(),
+        logger)
+    return 0
 
 ####################
+
+
 @subcommand
 def accountsmanager(*argv):
 
