@@ -38,7 +38,7 @@ class MonitorLeases:                                    # pylint: disable=r0902
         while True:
             self.fast_track = False                     # pylint: disable=w0201
             trigger = time.time() + self.cycle
-            # check for back_channel every 15 ms
+            # check for back_channel every 50 ms
             while not self.fast_track and time.time() < trigger:
                 await asyncio.sleep(self.step)
 

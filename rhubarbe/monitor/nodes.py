@@ -324,18 +324,6 @@ class MonitorNodes:                                     # pylint: disable=r0902
                         verbose=verbose)
             for node in nodes]
 
-    async def run_forever(self):
-        logger.info("Starting nodes on {} nodes - report_wlan={}"
-                    .format(len(self.monitor_nodes), self.report_wlan))
-        return asyncio.gather(
-            *[monitor_node.probe_forever(self.cycle,
-                                         ping_timeout=self.ping_timeout,
-                                         ssh_timeout=self.ssh_timeout)
-              for monitor_node in self.monitor_nodes],
-            self.reconnectable.keep_connected(),
-            self.log(),
-        )
-
     async def log(self):
         previous = 0
         while True:
@@ -347,3 +335,15 @@ class MonitorNodes:                                     # pylint: disable=r0902
             previous = current
             logger.info(line)
             await asyncio.sleep(self.log_period)
+
+    async def run_forever(self):
+        logger.info("Starting nodes on {} nodes - report_wlan={}"
+                    .format(len(self.monitor_nodes), self.report_wlan))
+        return asyncio.gather(
+            *[monitor_node.probe_forever(self.cycle,
+                                         ping_timeout=self.ping_timeout,
+                                         ssh_timeout=self.ssh_timeout)
+              for monitor_node in self.monitor_nodes],
+            self.reconnectable.keep_connected(),
+            self.log(),
+        )

@@ -8,6 +8,9 @@ from r2lab import SidecarAsyncClient
 
 from rhubarbe.logger import monitor_logger as logger
 
+#import logging
+#logger.setLevel(logging.DEBUG)
+
 class ReconnectableSidecar:
 
     def __init__(self, url, category, keep_period=1):
@@ -30,12 +33,12 @@ class ReconnectableSidecar:
         if not self.proto:
             logger.warning(f"dropping message {infos}")
             return False
-        logger.info(f"Sending {infos}")
+        logger.debug(f"Sending {infos}")
         # xxx use Payload
         payload = dict(category=self.category, action='info', message=infos)
         # xxx try/except here
         try:
-            sent = await self.proto.send(json.dumps(payload))
+            await self.proto.send(json.dumps(payload))
             self.counter += 1
         except ConnectionRefusedError:
             logger.warning(f"Could not send {self.category} - dropped")
