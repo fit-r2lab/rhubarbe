@@ -324,19 +324,9 @@ class MonitorNodes:                                     # pylint: disable=r0902
                         verbose=verbose)
             for node in nodes]
 
-    def on_channel(self, channel, *args):
-        if channel == BACK_CHANNEL:
-            self.monitor_leases.on_back_channel(*args)
-        else:
-            logger.error("received data on unexpected channel {}"
-                         .format(channel))
-
     async def run_forever(self):
         logger.info("Starting nodes on {} nodes - report_wlan={}"
                     .format(len(self.monitor_nodes), self.report_wlan))
-        # run n+1 tasks in parallel
-        # one for leases,
-        # plus one per node
         return asyncio.gather(
             *[monitor_node.probe_forever(self.cycle,
                                          ping_timeout=self.ping_timeout,
