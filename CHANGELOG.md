@@ -1,7 +1,7 @@
-# 3.0.3 - 2019 Jan 27
+# 3.0.4 - 2019 Jan 29
 
 * report to websockets-backed sidecar service, drop socket-io
-* 3.0.1 and 3.0.2 mostly broken
+* earler 3.0.x all more or less broken
 
 # 2.1.1 - 2019 Jan 16
 
