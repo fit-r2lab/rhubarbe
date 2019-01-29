@@ -20,7 +20,7 @@ from rhubarbe.ssh import SshProxy
 from rhubarbe.logger import monitor_logger as logger
 
 # connect to sidecar
-from rhubarbe.monitor.sidecar import ReconnectableSidecar
+from rhubarbe.monitor.reconnectable import ReconnectableSidecar
 
 # translate info into a single char for logging
 def one_char_summary(info):

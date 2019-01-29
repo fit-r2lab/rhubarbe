@@ -23,7 +23,7 @@ from rhubarbe.config import Config
 from rhubarbe.logger import monitor_logger as logger
 
 from rhubarbe.inventoryphones import InventoryPhones
-from rhubarbe.monitor.sidecar import ReconnectableSidecar
+from rhubarbe.monitor.reconnectable import ReconnectableSidecar
 
 
 class MonitorPhone:                                     # pylint: disable=r0902

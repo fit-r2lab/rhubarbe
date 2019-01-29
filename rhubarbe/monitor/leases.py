@@ -7,7 +7,7 @@ from rhubarbe.logger import monitor_logger as logger
 from rhubarbe.config import Config
 from rhubarbe.leases import Leases
 
-from rhubarbe.monitor.sidecar import ReconnectableSidecar
+from rhubarbe.monitor.reconnectable import ReconnectableSidecar
 
 class MonitorLeases:                                    # pylint: disable=r0902
 

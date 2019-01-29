@@ -18,6 +18,7 @@ class ReconnectableSidecar:
         # caller MUST run keep_connected() 
         self.proto = None
         self.counter = 0
+        logger.info(f"reconnectable sidecar to {url} ")
 
     
     async def emit_info(self, info):
