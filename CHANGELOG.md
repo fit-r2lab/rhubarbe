@@ -1,3 +1,7 @@
+# 3.0.6 - 2019 Feb 14
+
+* default is to use fedora style for netcat
+
 # 3.0.5 - 2019 Jan 29
 
 * report to websockets-backed sidecar service, drop socket-io
