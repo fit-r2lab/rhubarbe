@@ -129,6 +129,10 @@ class Node:                                             # pylint: disable=r0902
                     if strip_result:
                         text = text.strip()
                     setattr(self, verb, text)
+        except aiohttp.client_exceptions.ClientConnectorError:
+            logger.info(f"cannot connect to {url}")
+            setattr(self, verb, None)
+            return None
         except Exception:
             import traceback
             traceback.print_exc()
