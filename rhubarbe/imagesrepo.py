@@ -11,10 +11,16 @@ The contents of one directory that holds images
 
 import sys
 import os
-import os.path
-import glob
 import time
 import re
+#import os.path
+# should go away too
+import glob
+from pathlib import Path
+
+# to indicate that 0 is OK and others are KO
+from typing import List
+OsRetcod = int
 
 from rhubarbe.config import Config
 from rhubarbe.singleton import Singleton
@@ -39,20 +45,17 @@ hostname_glob_pattern_f = "{regularname}[0-9][0-9]"
 class ImagesRepo(metaclass=Singleton):
     def __init__(self):
         the_config = Config()
-        self.repo = the_config.value('frisbee', 'images_dir')
+        self.repo = Path(the_config.value('frisbee', 'images_dir'))
         self.default_name = the_config.value('frisbee', 'default_image')
         # for building hostname patterns
         self.regularname = the_config.value('testbed', 'regularname')
 
     suffix = ".ndz"
 
-    def default(self):
-        return os.path.join(self.repo, self.default_name)
+    def default(self) -> str:
+        return str(self.repo / self.default_name)
 
-    def add_extension(self, file):
-        return file + self.suffix
-
-    def where_to_save(self, nodename, radical):
+    def where_to_save(self, nodename, radical) -> str:
         """
         given a nodename, plus a user-provided image name
         computes the actual path where to store an image
@@ -66,25 +69,25 @@ class ImagesRepo(metaclass=Singleton):
 
         # root stores stuff directly in the repo
         if os.getuid() == 0:
-            return os.path.join(self.repo, base)
+            return str(self.repo / base)
         # regular users store where they are
         # a more sophisticated approach would be to split radical
         # to find about another directory, but well..
         return base
 
-    def radical_part(self, incoming):
+    def radical_part(self, path):
         """
         incoming can be a filename, possibly without an extension
         the saving__ blabla is extracted and only the part
         given at save-time is returned
         it is kind of the reverse of where_to_save
         """
-        incoming = os.path.basename(incoming)
-        incoming = os.path.splitext(incoming)[0]
-        parts = [saving_keyword,
-                 hostname_glob_pattern_f.format(regularname=self.regularname),
-                 date_glob_pattern,
-                 "(?P<radical>.+)"]
+        incoming = path.name.replace(self.suffix, "")
+        parts = [
+            saving_keyword,
+            hostname_glob_pattern_f.format(regularname=self.regularname),
+            date_glob_pattern,
+            "(?P<radical>.+)"]
         glob_pattern = re.compile(saving_sep.join(parts))
         match = glob_pattern.match(incoming)
         if match:
@@ -92,13 +95,24 @@ class ImagesRepo(metaclass=Singleton):
         return incoming
 
     class ImageInfo:                              # pylint: disable=r0902,r0903
-        def __init__(self, repo, filename):
-            # a valid path
-            self.repo = repo
-            self.filename = filename
+        def __init__(self, repo, filename=None):
+            if filename is not None:
+                # a valid path
+                self.repo = repo
+                self.filename = filename
+            else:
+                self.repo = repo.parent
+                self.filename = repo.name
             self.fill_info()
 
         def fill_info(self):
+            try:
+                with open(self.filename) as fake:
+                    fake.read(1)
+                self.readable = True
+            except:
+                self.readable = False
+                return
             self.radical = self.repo.radical_part(self.filename)
             stat = os.stat(self.filename)
             self.mtime = stat.st_mtime
@@ -108,16 +122,17 @@ class ImagesRepo(metaclass=Singleton):
             self.is_latest = None
 
         def __str__(self):
-            return "{}{} {} {}".format(
+            return "{}{}{}{} {}".format(
                 "*" if self.is_latest else " ",
                 "O" if self.is_official else " ",
+                "!" if not self.readable else " ",
                 self.filename,
                 ImagesRepo.bytes2human(self.size))
 
     def _locate_infos(self, input_name, look_in_global):
         """
         search an image from its name
-        * input_name:   a filename, possibly witout extension,
+        * input_name: a filename, possibly without extension,
           possibly without saving_blabla
         * look_in_global: do we search in the global repo or just in .
 
@@ -138,37 +153,42 @@ class ImagesRepo(metaclass=Singleton):
         # when look_in_global is set, but we are already in the repo:
         # turn it off
         if (look_in_global and
-                os.path.abspath(os.getcwd()) == os.path.abspath(self.repo)):
+            Path(".").absolute() == self.repo.absolute()):
             look_in_global = False
 
         # existing filename ?
         candidate = input_name
-        if os.path.exists(candidate):
-            return [ImagesRepo.ImageInfo(self, candidate)]
-        if look_in_global and not os.path.isabs(input_name):
-            candidate = os.path.join(self.repo, input_name)
-            if os.path.exists(candidate):
-                return [ImagesRepo.ImageInfo(self, candidate)]
+        local_info = self.ImageInfo(Path('.'), input_name)
+        if local_info.readable:
+            return [local_info]
+        if look_in_global and not Path(input_name).is_absolute():
+            global_info = self.ImageInfo(self.repo, input_name)
+            if global_info.readable:
+                return [global_info]
 
         # it's not a plain filename, so explore more options
         glob_pattern = (
-            saving_keyword + saving_sep +
-            hostname_glob_pattern_f.format(regularname=self.regularname) +
-            saving_sep + date_glob_pattern + saving_sep + input_name)
-        patterns = [self.add_extension(input_name),
-                    self.add_extension(glob_pattern)]
+            saving_sep.join([
+                saving_keyword,
+                hostname_glob_pattern_f.format(regularname=self.regularname),
+                date_glob_pattern,
+                input_name
+            ]))
+        globs = [Path(".").glob(input_name + self.suffix),
+                 Path(".").glob(glob_pattern + self.suffix)]
         if debug:
             print("glob_pattern", glob_pattern)
-        if look_in_global and not os.path.isabs(input_name):
-            repo_file = os.path.join(self.repo, input_name)
-            repo_pattern = os.path.join(self.repo, glob_pattern)
-            patterns += [self.add_extension(repo_file),
-                         self.add_extension(repo_pattern)]
+        if look_in_global and not Path(input_name).is_absolute():
+            globs += [self.repo.glob(input_name + self.suffix),
+                      self.repo.glob(glob_pattern + self.suffix)]
         # run these patterns
         found = []
-        for pattern in patterns:
-            found += glob.glob(pattern)
-        return [ImagesRepo.ImageInfo(self, filename) for filename in found]
+        from itertools import chain
+        for matched in chained(*globs):
+            info = self.ImageInfo(matched)
+            if info.readable:
+                found.append(info)
+        return found
 
     def _locate_infos_sorted(self, input_name, look_in_global=True):
         details = self._locate_infos(input_name, look_in_global)
@@ -184,7 +204,7 @@ class ImagesRepo(metaclass=Singleton):
         is_root = (real == 0) and (effective == 0) and (saved == 0)
         return is_root
 
-    def locate_image(self, image_name, look_in_global=None):
+    def locate_image(self, image_name, look_in_global=None) -> str:
         if look_in_global is None:
             look_in_global = self.is_root()
         infos = self._locate_infos_sorted(image_name, look_in_global)
@@ -209,32 +229,23 @@ class ImagesRepo(metaclass=Singleton):
         return repr_format.format(symbol=symbols[0], value=n)
 
     # entry point for rhubarbe images
-    def main(self, focus, verbose=False, sort_by='date', reverse=False):
-        self.display(focus, verbose=verbose, sort_by=sort_by, reverse=reverse,
-                     human_readable=True)
-
-    # rhubarbe resolve
-    def resolve(self, focus, verbose, reverse):
-        for incoming in focus:
-            infos = self._locate_infos_sorted(incoming)
-            if not infos:
-                print("Image {} not found".format(incoming), file=sys.stderr)
-            else:
-                if not verbose:
-                    # main purpose is to print out the right name
-                    for info in infos:
-                        if info.is_latest:
-                            print(info.filename)
-                else:
-                    print(8*'*', "image {}".format(incoming))
-                    # it comes in the wrong order, latest first
-                    if not reverse:
-                        infos.reverse()
-                    for info in infos:
-                        print(info)
+    def images(self, focus, verbose=False,
+               sort_by='date', reverse=False,
+               *, show_local, show_global) -> OsRetcod:
+        return self.display(focus, verbose=verbose, sort_by=sort_by,
+                            reverse=reverse, human_readable=True,
+                            show_local=show_local, show_global=show_global)
 
     def display(self, focus, verbose,        # pylint:disable=r0912,r0913,r0914
-                sort_by, reverse, human_readable):
+                sort_by, reverse, human_readable,
+                *, show_local, show_global) -> OsRetcod:
+        # temporarily
+        return self._gather(focus, verbose, sort_by, reverse, human_readable,
+                            path=None)
+
+    def _gather(self, focus, verbose,        # pylint:disable=r0912,r0913,r0914
+                sort_by, reverse, human_readable,
+                *, path) -> List[ImageInfo]:
         # show available images in some sensible way
         #
         # (*) focus: a list of re patterns
@@ -342,9 +353,30 @@ class ImagesRepo(metaclass=Singleton):
                     shown = True
                 else:
                     print("{:>31} {:40}".format("a.k.a.", prefix))
+        return 0
+
+    # rhubarbe resolve
+    def resolve(self, focus, verbose, reverse) -> OsRetcod:
+        for incoming in focus:
+            infos = self._locate_infos_sorted(incoming)
+            if not infos:
+                print("Image {} not found".format(incoming), file=sys.stderr)
+            else:
+                if not verbose:
+                    # main purpose is to print out the right name
+                    for info in infos:
+                        if info.is_latest:
+                            print(info.filename)
+                else:
+                    print(8*'*', "image {}".format(incoming))
+                    # it comes in the wrong order, latest first
+                    if not reverse:
+                        infos.reverse()
+                    for info in infos:
+                        print(info)
 
     def share(self, images, alias,           # pylint:disable=r0912,r0913,r0914
-              dry_run, force, clean):
+              dry_run, force, clean) -> OsRetcod:
         """
         A utility to install one or several images in the shared repo
 

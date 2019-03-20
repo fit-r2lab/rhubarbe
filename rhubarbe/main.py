@@ -486,6 +486,9 @@ def images(*argv):
                         action='store_true', default=False,
                         help="show all files, including the ones "
                         "that do not have a symlink/alias")
+    parser.add_argument("-g","--global-only",
+                        action="store_true", default=False,
+                        help="displays only globally shared images")
     parser.add_argument("focus", nargs="*", type=str,
                         help="if provided, only images that contain "
                         "one of these strings are displayed")
@@ -498,8 +501,11 @@ def images(*argv):
     else:
         args.sort_by = 'size'
     # if focus is an empty list, then everything is shown
-    imagesrepo.main(args.focus, args.verbose, args.sort_by, args.reverse)
-    return 0
+    return imagesrepo.images(
+        args.focus, args.verbose,
+        args.sort_by, args.reverse,
+        show_local=not args.global_only, show_global=True,
+    )
 
 ####################
 
@@ -523,8 +529,7 @@ def resolve(*argv):
     args = parser.parse_args(argv)
     imagesrepo = ImagesRepo()
     # if focus is an empty list, then everything is shown
-    imagesrepo.resolve(args.focus, args.verbose, args.reverse)
-    return 0
+    return imagesrepo.resolve(args.focus, args.verbose, args.reverse)
 
 ####################
 
@@ -706,7 +711,7 @@ def monitorleases(*argv):
     from rhubarbe.logger import logger
 
     usage="""
-    Cyclic check of leases; also reacts to 'request' messages on 
+    Cyclic check of leases; also reacts to 'request' messages on
     the sidecar channel, which triggers leases acquisition right away.
     See config for defaults.
     """
