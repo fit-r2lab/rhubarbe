@@ -319,6 +319,8 @@ def load(*argv):
     if not actual_image:
         print("Image file {} not found - emergency exit".format(args.image))
         exit(1)
+    # result is an ImagePath
+    actual_image = str(actual_image)
 
     # send feedback
     message_bus.put_nowait({'loading_image': actual_image})
@@ -473,22 +475,26 @@ def images(*argv):
     """
     parser = ArgumentParser(usage=usage,
                             formatter_class=ArgumentDefaultsHelpFormatter)
+    parser.add_argument("-l", "--labeled-only", dest="labeled",
+                        action='store_true', default=False,
+                        help="""if specified, only images that have at least
+                        one symlink to them are shown""")
+    parser.add_argument("-p", "--public-only",
+                        action="store_true", default=False,
+                        help="displays only publicly visible images")
     parser.add_argument("-s", "--size", dest='sort_size',
                         action='store_true', default=None,
-                        help="sort by size (default)")
+                        help="sort by size (default is by name)")
     parser.add_argument("-d", "--date", dest='sort_date',
                         action='store_true', default=None,
                         help="sort by date")
     parser.add_argument("-r", "--reverse",
                         action='store_true', default=False,
                         help="reverse sort")
-    parser.add_argument("-v", "--verbose",
+    parser.add_argument("-n", "--narrow",
                         action='store_true', default=False,
-                        help="show all files, including the ones "
-                        "that do not have a symlink/alias")
-    parser.add_argument("-g","--global-only",
-                        action="store_true", default=False,
-                        help="displays only globally shared images")
+                        help="""default is to show full paths, with this option
+                        only radicals are displayed""")
     parser.add_argument("focus", nargs="*", type=str,
                         help="if provided, only images that contain "
                         "one of these strings are displayed")
@@ -499,37 +505,36 @@ def images(*argv):
     elif args.sort_date is not None:
         args.sort_by = 'date'
     else:
-        args.sort_by = 'size'
+        args.sort_by = 'name'
+
     # if focus is an empty list, then everything is shown
     return imagesrepo.images(
-        args.focus, args.verbose,
-        args.sort_by, args.reverse,
-        show_local=not args.global_only, show_global=True,
-    )
+        args.focus, args.sort_by, args.reverse,
+        args.labeled, args.public_only, args.narrow)
+
 
 ####################
 
 
 @subcommand
 def resolve(*argv):
-    usage = """
-    For each input, find out any display
+    usage = """for each input, find out and display
     what file exactly would be used if used with load
     and possible siblings if verbose mode is selected
     """
 
     parser = ArgumentParser(usage=usage,
                             formatter_class=ArgumentDefaultsHelpFormatter)
-    parser.add_argument("-r", "--reverse", action='store_true', default=False,
-                        help="reverse sort")
+#    parser.add_argument("-r", "--reverse", action='store_true', default=False,
+#                        help="reverse sort")
     parser.add_argument("-v", "--verbose", action='store_true', default=False,
                         help="show all files (i.e. with all symlinks)")
-    parser.add_argument("focus", nargs="*", type=str,
-                        help="the names to resolve")
+    parser.add_argument("focus", type=str,
+                        help="the image radical name to resolve")
     args = parser.parse_args(argv)
     imagesrepo = ImagesRepo()
     # if focus is an empty list, then everything is shown
-    return imagesrepo.resolve(args.focus, args.verbose, args.reverse)
+    return imagesrepo.resolve(args.focus, args.verbose)
 
 ####################
 
@@ -540,8 +545,9 @@ def share(*argv):
     Install privately-stored images into the global images repo
     Destination name is derived from the radical provided at save-time
       i.e. trailing part after saving__<date>__
-    When only one image is provided it is possible to specify
-      another destination name with -o
+
+    With the -a option, it is possible to make the new image
+    **also** visible under that alias name.
 
     If your account is enabled in /etc/sudoers.d/rhubarbe-share,
     the command will actually perform the mv operation
@@ -551,8 +557,7 @@ def share(*argv):
                             formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument("-a", "--alias-name", dest='alias',
                         action='store', default=None,
-                        help="create a symlink of that name "
-                        "(ignored with more than one image)")
+                        help="also create a symlink of that name")
     # default=None so that imagesrepo.share can compute a default
     parser.add_argument("-n", "--dry-run",
                         default=None, action='store_true',
@@ -566,13 +571,13 @@ def share(*argv):
                         help="""Will remove other matches than the one that
                         gets promoted. In other words, useful when one name
                         has several matches and only the last one is desired.
-                        Typically after a successful (re)save""")
-    parser.add_argument("images", nargs="+", type=str)
+                        Typically after a successful rsave""")
+    parser.add_argument("image", type=str)
     args = parser.parse_args(argv)
 
     imagesrepo = ImagesRepo()
-    return imagesrepo.share(args.images, args.alias,
-                                args.dry_run, args.force, args.clean)
+    return imagesrepo.share(
+        args.image, args.alias, args.dry_run, args.force, args.clean)
 
 
 @subcommand

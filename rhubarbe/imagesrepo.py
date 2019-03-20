@@ -7,211 +7,108 @@ The contents of one directory that holds images
 # w1202 logger & format
 # w0703 catch Exception
 # r1705 else after return
-# pylint: disable=c0111, c0103
+# pylint: disable=c0111, r1705
 
 import sys
 import os
 import time
 import re
-#import os.path
-# should go away too
-import glob
+# could not just inherit Path, too cumbersome...
 from pathlib import Path
+#from itertools import chain
+from collections import defaultdict
 
-# to indicate that 0 is OK and others are KO
-from typing import List
-OsRetcod = int
+from typing import Iterator, List
 
 from rhubarbe.config import Config
 from rhubarbe.singleton import Singleton
 
-debug = False
+# to indicate that 0 is OK and others are KO
+OsRetcod = int
+
+DEBUG = False
 
 # use __ instead of == because = ruins bash completion
-saving_keyword = 'saving'
-saving_sep = '__'
-saving_time_format = "%Y-%m-%d@%H-%M"
+SUFFIX = ".ndz"
+SAVING = 'saving'
+SEP = '__'
+TIME_FORMAT = "%Y-%m-%d@%H-%M"
 
-sep_re_pattern = "[-_=]{2}"
-date_re_pattern = "[0-9]{4}-[0-9]{2}-[0-9]{2}@[0-9]{2}.[0-9]{2}"
+SEP_RE_PATTERN = "[-_=]{2}"
+DATE_RE_PATTERN = "[0-9]{4}-[0-9]{2}-[0-9]{2}@[0-9]{2}.[0-9]{2}"
 # this will be fed into .format() - needs double {{ and }}
-hostname_re_pattern_f = "{regularname}[0-9]{{2}}"
+HOSTNAME_RE_PATTERN_F = "{regularname}[0-9]{{2}}"
 
-sep_glob_pattern = "[-_=]" * 2
-date_glob_pattern = "[0-9-@]" * 16
-hostname_glob_pattern_f = "{regularname}[0-9][0-9]"
+SEP_GLOB_PATTERN = "[-_=]" * 2
+DATE_GLOB_PATTERN = "[0-9-@]" * 16
+HOSTNAME_GLOB_PATTERN_F = "{regularname}[0-9][0-9]"
 
 
-class ImagesRepo(metaclass=Singleton):
-    def __init__(self):
-        the_config = Config()
-        self.repo = Path(the_config.value('frisbee', 'images_dir'))
-        self.default_name = the_config.value('frisbee', 'default_image')
-        # for building hostname patterns
-        self.regularname = the_config.value('testbed', 'regularname')
+def root_privileges():
+    # surprisingly, even when running under sudo we have all 3 set to 0
+    real, effective, saved = os.getresuid()         # pylint: disable=e1101
+    is_root = (real == 0) and (effective == 0) and (saved == 0)
+    return is_root
 
-    suffix = ".ndz"
 
-    def default(self) -> str:
-        return str(self.repo / self.default_name)
+class ImagePath:                                 # pylint: disable=r0902, r0903
+    def __init__(self, repo, path):
+        self.repo = repo
+        self.path = Path(path)
+        # pylint: disable=w0212
+        self.radical = self.repo._radical_part(self.path)
+        self.stem = self.path.stem
+        self.is_official = self.radical == self.stem
+        self.readable = None
+        self._infos()
 
-    def where_to_save(self, nodename, radical) -> str:
-        """
-        given a nodename, plus a user-provided image name
-        computes the actual path where to store an image
-        * behaviour depends on actual id:
-          root stores in global repo, regular users store in '.'
-        * name always contains nodename and date
-        """
-        parts = [saving_keyword, nodename,
-                 time.strftime(saving_time_format), radical]
-        base = saving_sep.join(parts) + self.suffix
+    def _infos(self):
+        try:
+            with self.path.open():
+                pass
+            self.readable = True
+        except OSError:
+            self.readable = False
+            return
+        stat = self.path.stat()
+        self.mtime = stat.st_mtime
+        self.size = stat.st_size
+        self.inode = stat.st_ino
+        self.is_alias = self.path.is_symlink()
 
-        # root stores stuff directly in the repo
-        if os.getuid() == 0:
-            return str(self.repo / base)
-        # regular users store where they are
-        # a more sophisticated approach would be to split radical
-        # to find about another directory, but well..
-        return base
+    def __str__(self):
+        return str(self.path)
 
-    def radical_part(self, path):
-        """
-        incoming can be a filename, possibly without an extension
-        the saving__ blabla is extracted and only the part
-        given at save-time is returned
-        it is kind of the reverse of where_to_save
-        """
-        incoming = path.name.replace(self.suffix, "")
-        parts = [
-            saving_keyword,
-            hostname_glob_pattern_f.format(regularname=self.regularname),
-            date_glob_pattern,
-            "(?P<radical>.+)"]
-        glob_pattern = re.compile(saving_sep.join(parts))
-        match = glob_pattern.match(incoming)
-        if match:
-            return match.group('radical')
-        return incoming
+    def __repr__(self):
+        return self._to_display(show_path=True)
 
-    class ImageInfo:                              # pylint: disable=r0902,r0903
-        def __init__(self, repo, filename=None):
-            if filename is not None:
-                # a valid path
-                self.repo = repo
-                self.filename = filename
-            else:
-                self.repo = repo.parent
-                self.filename = repo.name
-            self.fill_info()
+    def __eq__(self, other):
+        return self.path == other.path
 
-        def fill_info(self):
-            try:
-                with open(self.filename) as fake:
-                    fake.read(1)
-                self.readable = True
-            except:
-                self.readable = False
-                return
-            self.radical = self.repo.radical_part(self.filename)
-            stat = os.stat(self.filename)
-            self.mtime = stat.st_mtime
-            self.size = stat.st_size
-            self.basename = os.path.splitext(os.path.basename(self.filename))
-            self.is_official = self.radical == self.basename
-            self.is_latest = None
-
-        def __str__(self):
-            return "{}{}{}{} {}".format(
-                "*" if self.is_latest else " ",
-                "O" if self.is_official else " ",
-                "!" if not self.readable else " ",
-                self.filename,
-                ImagesRepo.bytes2human(self.size))
-
-    def _locate_infos(self, input_name, look_in_global):
-        """
-        search an image from its name
-        * input_name: a filename, possibly without extension,
-          possibly without saving_blabla
-        * look_in_global: do we search in the global repo or just in .
-
-        returns a list of ImageInfo objects
-        (filename, radical, is_default, is_latest)
-        where
-        * filename is a valid filename that can be open()
-        * radical
-        is_default is a boolean that says if this is the
-
-        If the image name actually denotes a filename (i.e. with .ndz) then
-        no completion takes place
-
-        Otherwise, all 'saving' images are also considered
-        and the latest one is picked
-        """
-
-        # when look_in_global is set, but we are already in the repo:
-        # turn it off
-        if (look_in_global and
-            Path(".").absolute() == self.repo.absolute()):
-            look_in_global = False
-
-        # existing filename ?
-        candidate = input_name
-        local_info = self.ImageInfo(Path('.'), input_name)
-        if local_info.readable:
-            return [local_info]
-        if look_in_global and not Path(input_name).is_absolute():
-            global_info = self.ImageInfo(self.repo, input_name)
-            if global_info.readable:
-                return [global_info]
-
-        # it's not a plain filename, so explore more options
-        glob_pattern = (
-            saving_sep.join([
-                saving_keyword,
-                hostname_glob_pattern_f.format(regularname=self.regularname),
-                date_glob_pattern,
-                input_name
-            ]))
-        globs = [Path(".").glob(input_name + self.suffix),
-                 Path(".").glob(glob_pattern + self.suffix)]
-        if debug:
-            print("glob_pattern", glob_pattern)
-        if look_in_global and not Path(input_name).is_absolute():
-            globs += [self.repo.glob(input_name + self.suffix),
-                      self.repo.glob(glob_pattern + self.suffix)]
-        # run these patterns
-        found = []
-        from itertools import chain
-        for matched in chained(*globs):
-            info = self.ImageInfo(matched)
-            if info.readable:
-                found.append(info)
-        return found
-
-    def _locate_infos_sorted(self, input_name, look_in_global=True):
-        details = self._locate_infos(input_name, look_in_global)
-        details.sort(key=lambda info: info.mtime, reverse=True)
-        if details:
-            details[0].is_latest = True                 # pylint: disable=w0201
-        return details
+    def _to_display(self, show_path, radical_width=None, prefix=''):
+        # date/time on 10+1+5 = 16
+        # 1 sep
+        # size on 8
+        # 2 sep
+        # radical on 30 : 56
+        # 2 sep
+        radical_width = (radical_width if radical_width is not None
+                         else len(self.radical))
+        result = prefix
+        date = time.strftime("%Y-%m-%d %H:%M", time.localtime(self.mtime))
+        if not self.is_alias:
+            result += f"{date:<16s} "
+            result += f"{self.bytes2human(self.size):>8s}"
+        else:
+            result += f"{'':<16s} "
+            result += f"{'aka':>8s}"
+        result += f"  {self.radical:{radical_width}}"
+        if show_path and not self.is_alias:
+            result += f"  {self.path}"
+        return result
 
     @staticmethod
-    def is_root():
-        # surprisingly, even when running under sudo we have all 3 set to 0
-        real, effective, saved = os.getresuid()         # pylint: disable=e1101
-        is_root = (real == 0) and (effective == 0) and (saved == 0)
-        return is_root
-
-    def locate_image(self, image_name, look_in_global=None) -> str:
-        if look_in_global is None:
-            look_in_global = self.is_root()
-        infos = self._locate_infos_sorted(image_name, look_in_global)
-        return infos[0].filename if infos else []
-
-    @staticmethod
-    def bytes2human(n, repr_format="{value:.3f} {symbol}"):
+    def bytes2human(size, repr_format="{value:.2f}{symbol}"):
         """
         >>> bytes2human(10000)
         '9K'
@@ -220,269 +117,325 @@ class ImagesRepo(metaclass=Singleton):
         """
         symbols = ('B', 'K', 'M', 'G', 'T', 'P', 'E', 'Z', 'Y')
         prefix = {}
-        for i, s in enumerate(symbols[1:]):
-            prefix[s] = 1 << (i+1)*10
+        for i, symbol in enumerate(symbols[1:]):
+            prefix[symbol] = 1 << (i+1)*10
         for symbol in reversed(symbols[1:]):
-            if n >= prefix[symbol]:
-                value = float(n) / prefix[symbol]
+            if size >= prefix[symbol]:
+                value = float(size) / prefix[symbol]
                 return repr_format.format(value=value, symbol=symbol)
-        return repr_format.format(symbol=symbols[0], value=n)
+        return repr_format.format(symbol=symbols[0], value=size)
 
-    # entry point for rhubarbe images
-    def images(self, focus, verbose=False,
-               sort_by='date', reverse=False,
-               *, show_local, show_global) -> OsRetcod:
-        return self.display(focus, verbose=verbose, sort_by=sort_by,
-                            reverse=reverse, human_readable=True,
-                            show_local=show_local, show_global=show_global)
 
-    def display(self, focus, verbose,        # pylint:disable=r0912,r0913,r0914
-                sort_by, reverse, human_readable,
-                *, show_local, show_global) -> OsRetcod:
-        # temporarily
-        return self._gather(focus, verbose, sort_by, reverse, human_readable,
-                            path=None)
+class ImageCluster:
+    """
+    a cluster is a set of ImagePath that share the same actual file
+    typically it is one plain file and n-1 symlinks
+    """
+    def __init__(self, repo, image_paths):
+        self.repo = repo
+        self.image_paths = image_paths
+        inodes = {path.inode for path in self.image_paths}
+        if len(inodes) != 1:
+            print("OOPS, wrong clustering!")
+        # the image_path that is no symlink/alias
+        self.regular = None
+        self.aliases = 0
+        for path in self.image_paths:
+            if not path.is_alias:
+                self.regular = path
+            else:
+                self.aliases += 1
+        if not self.regular:
+            print(f"OOPS - no regular file found in cluster "
+                  f"with {self.image_paths[0]}")
+        self.image_paths.sort(
+            key=lambda image_path: image_path.mtime, reverse=True)
 
-    def _gather(self, focus, verbose,        # pylint:disable=r0912,r0913,r0914
-                sort_by, reverse, human_readable,
-                *, path) -> List[ImageInfo]:
-        # show available images in some sensible way
-        #
-        # (*) focus: a list of re patterns
-        # (.) if empty, everything is displayed
-        # (.) otherwise only files that match one of these names
-        #        are displayed (together with their symlinks)
-        # (*) sort_by, reverse: how to sort
-        # (*) human_readable: bool, show raw size or use units like MB or Gb
-        #
-        # We want to show all the names attached to a given image
-        # through symlinks;  this is why all the filenames are
-        # grouped by clusters; there is one cluster per real image file
-        #
-        # so what we do is
-        # (1) scan all files and gather them by clusters
-        #     that point at the same file
-        #     for this we use a (inode, mtime) tuple, same value = same file
-        # (2) for each cluster, we distinguish between
-        #     'single' clusters, i.e. an iamge file without any symlink
-        #     'annotated' clusters have at least one symlink
-        #
-        # default behaviour is to show only annotated images
-        # when verbose is turned on, all clusters are shown
 
-        print("==================== Images repository {}".format(self.repo))
-        if not verbose:
-            print("==== use with --verbose to see images without a symlink")
-        if focus:
-            print("==== images matching any of", " ".join(focus))
+    def __iter__(self):
+        return iter(self.image_paths)
 
-        # gather one info per file, with
-        # a key (inode, mtime, size) (same key = same file),
-        # prefix (filename, no extension),
-        # isalias
-        infos = []
-        for path in glob.glob("{}/*.ndz".format(self.repo)):
-            prefix = os.path.basename(path).replace(".ndz", "")
-            try:
-                stat = os.stat(path)
-            except Exception:                           # pylint: disable=w0703
-                print("WARNING - Cannot stat {} (dangling symlink ?) - ignored"
-                      .format(path))
+    def __repr__(self):
+        return repr(self.regular)
+
+
+    def _display(self, long_format, radical_width):
+        # pylint: disable=w0212
+        print(self.regular._to_display(long_format, radical_width))
+        for image_path in self.image_paths:
+            if image_path == self.regular:
                 continue
-            stat_tuple = (stat.st_size, stat.st_mtime, stat.st_ino, )
-            info = {'stat_tuple': stat_tuple, 'prefix': prefix,
-                    'isalias': os.path.islink(path)}
-            infos.append(info)
-        # gather by same file (same stat_tuple)
-        clusters = {}
-        for info in infos:
-            stat_tuple = info['stat_tuple']
-            clusters.setdefault(stat_tuple, [])
-            clusters[stat_tuple].append(info)
+            print(image_path._to_display(long_format, radical_width))
 
-        # sort infos in one cluster, so that real files show up first
-        def sort_info(info):
-            return info['isalias']
-        for cluster in clusters.values():
-            cluster.sort(key=sort_info)
+    def _max_radical(self):
+        return max(len(image.radical) for image in self)
 
-        # sort clusters
-        cluster_items = list(clusters.items())
 
-        def sort_clusters(k_v):
-            # k_v is a tuple with a key and a list of infos
-            # k_v[0] is a key
-            return k_v[0][0] if sort_by == 'size' \
-                else k_v[0][1]
-        cluster_items.sort(key=sort_clusters, reverse=reverse)
+class ImagesRepo(metaclass=Singleton):
+    def __init__(self):
+        the_config = Config()
+        self.public = Path(the_config.value('frisbee', 'images_dir'))
+        self.default_name = the_config.value('frisbee', 'default_image')
+        # for building hostname patterns
+        regularname = the_config.value('testbed', 'regularname')
+        self._radical_re_matcher = re.compile(
+            SEP.join([
+                f"{SAVING}",
+                f"{regularname}[0-9][0-9]",
+                f"{DATE_RE_PATTERN}",
+                f"(?P<radical>.+)",
+                ]))
 
+
+    def default(self) -> str:
+        return str(self.public / self.default_name)
+
+    @staticmethod
+    def where_to_save(nodename, radical) -> str:
+        """
+        given a nodename, plus a user-provided image name
+        computes the actual path where to store an image
+        as of 3.0.7, root is deemed to not be likely to build images
+        so no more special case for uid==0
+        """
+        stem = SEP.join([SAVING, nodename,
+                         time.strftime(TIME_FORMAT), radical])
+        return stem + SUFFIX
+
+    def _radical_part(self, path):
+        """
+        incoming can be a filename, possibly without an extension
+        the saving__ blabla is extracted and only the part
+        given at save-time is returned
+        it is kind of the reverse of where_to_save
+        """
+        stem = Path(path).stem
+        match = self._radical_re_matcher.match(stem)
+        if match:
+            return match.group('radical')
+        return stem
+
+    def _iterate_images(self, directory, predicate) -> Iterator[ImagePath]:
+        """
+        returns an iterator on ImagePath objects
+        in this directory so that bool(predicate(image_path)) is True
+        """
+        directory = Path(directory)
+        for filename in directory.glob(f"*{SUFFIX}"):
+            image_path = ImagePath(self, filename)
+            if predicate(image_path):
+                yield image_path
+
+    def locate_all_images(self, radical, look_in_global) -> List[ImagePath]:
+        match = lambda image_path: image_path.radical == radical
+        candidates = list(self._iterate_images(".", match))
+        if look_in_global:
+            candidates += list(self._iterate_images(self.public, match))
+        candidates.sort(key=lambda info: info.mtime, reverse=True)
+        return candidates
+
+
+    def locate_image(self, radical, look_in_global) -> ImagePath:
+        all_matches = self.locate_all_images(radical, look_in_global)
+        return all_matches[0] if all_matches else None
+
+
+    def _search_clusters(self, *, show_dot, show_public,
+                         cluster_predicate, image_predicate,
+                         sort_clusters=None, reverse=False):
+        """
+        search for images in either '.' and public dirs,
+        that satisfy the image predicate
+        then groups them by clusters
+        filters out the ones that don't match
+        sort the clusters
+        displays them
+        """
+        candidates = []
+        if show_dot:
+            candidates += list(self._iterate_images(".", image_predicate))
+        if show_public:
+            candidates += list(self._iterate_images(
+                self.public, image_predicate))
+        clusters_hash = defaultdict(list)
+        for image in candidates:
+            clusters_hash[image.inode].append(image)
+        clusters = [ImageCluster(self, images)
+                    for (inode, images) in clusters_hash.items()]
+        clusters = [cluster for cluster in clusters
+                    if cluster_predicate(cluster)]
+        # sort_clusters is applied to ImageCluster objects
+        if sort_clusters:
+            clusters.sort(key=sort_clusters, reverse=reverse)
+        return clusters
+
+
+    def images(self, focus, sort_by, reverse,           # pylint: disable=r0913
+               labeled, public_only, narrow):
+        show_dot = not public_only
+        show_public = True
+        long_format = not narrow
         # is a given cluster filtered by focus
-        def in_focus(cluster, focus):
+        def in_focus(cluster):
             # an empty focus means to show all
             if not focus:
                 return True
             # in this context a cluster is just a list of infos
-            for info in cluster:
+            for image_path in cluster:
                 for filtr in focus:
                     # rough : no regexp, just find the filter or not
-                    if info['prefix'].find(filtr) >= 0:
+                    if str(image_path).find(filtr) >= 0:
                         return True
             return False
+        def select_labeled(cluster):
+            if not labeled:
+                return True
+            # else we select only the ones that have an alias
+            return cluster.aliases >= 1
+        def cluster_predicate(cluster):
+            return select_labeled(cluster) and in_focus(cluster)
+        def cluster_key(cluster):
+            if sort_by == 'size':
+                return cluster.regular.size
+            elif sort_by == 'date':
+                return cluster.regular.mtime
+            elif sort_by == 'name':
+                return cluster.regular.radical
+            else:
+                return 1
 
-        for stat_tuple, cluster in cluster_items:
-            # skip the cluster if not in focus
-            if not in_focus(cluster, focus):
-                continue
-            # without the verbose flag, show only clusters
-            # that have at least one symlink
-            if not verbose:
-                # do we have at least one symlink ?
-                if not any([info['isalias'] for info in cluster]):
-                    # ignoring single clusters in non-verbose mode
-                    continue
-            shown = False
-            for info in cluster:
-                (size, mtime, _) = info['stat_tuple']
-                print_size = size if not human_readable \
-                    else ImagesRepo.bytes2human(size)
-                date = time.strftime("%Y-%m-%d %H:%M", time.localtime(mtime))
-                prefix = info['prefix']
-                if not shown:
-                    print("{:<18}{:>12}B {:40}"
-                          .format(date, print_size, prefix))
-                    shown = True
-                else:
-                    print("{:>31} {:40}".format("a.k.a.", prefix))
+        clusters = self._search_clusters(
+            show_dot=show_dot, show_public=show_public,
+            cluster_predicate=cluster_predicate,
+            image_predicate=lambda x: True,
+            sort_clusters=cluster_key, reverse=reverse)
+        # pylint: disable=w0212
+        radical_width = max((cluster._max_radical() for cluster in clusters),
+                            default=0)
+        for cluster in clusters:
+            # pylint: disable=w0212
+            cluster._display(long_format, radical_width)
+
+
+    def resolve(self, focus, verbose):
+        """
+        default output is just **one** readable path
+        in verbose mode, the whole cluster(s) are displayed
+        """
+        def cluster_matches(cluster):
+            return any(image.radical == focus for image in cluster)
+
+        true_function = lambda x: True
+        clusters = self._search_clusters(
+            show_dot=True, show_public=True,
+            cluster_predicate=cluster_matches,
+            image_predicate=true_function,
+            sort_clusters=lambda cluster: cluster.regular.mtime, reverse=False)
+        if not clusters:
+            return 1
+        if not verbose:
+            print(clusters[-1].regular.path)
+            return 0
+        # verbose mode: list all clusters like in rimages
+        # pylint: disable=w0212
+        radical_width = max((cluster._max_radical() for cluster in clusters),
+                            default=0)
+        for cluster in clusters:
+            # pylint: disable=w0212
+            cluster._display(True, radical_width)
         return 0
 
-    # rhubarbe resolve
-    def resolve(self, focus, verbose, reverse) -> OsRetcod:
-        for incoming in focus:
-            infos = self._locate_infos_sorted(incoming)
-            if not infos:
-                print("Image {} not found".format(incoming), file=sys.stderr)
-            else:
-                if not verbose:
-                    # main purpose is to print out the right name
-                    for info in infos:
-                        if info.is_latest:
-                            print(info.filename)
-                else:
-                    print(8*'*', "image {}".format(incoming))
-                    # it comes in the wrong order, latest first
-                    if not reverse:
-                        infos.reverse()
-                    for info in infos:
-                        print(info)
 
-    def share(self, images, alias,           # pylint:disable=r0912,r0913,r0914
+    def share(self, image, alias,           # pylint:disable=r0912,r0913,r0914
               dry_run, force, clean) -> OsRetcod:
         """
         A utility to install one or several images in the shared repo
 
         Parameters:
-          images: a list of image names (not searched in global repo)
-            to transfer
-          alias: a name for the installed image -
-            only if a single image is provided
+          image: a local image name (not searched in global repo)
+            to promote in the public repo
+          alias: a name for the installed image
 
-        Each provided image gets renamed into the radical of origin name,
+        image gets renamed into the radical from the origin name,
         i.e. with the extra saving__*blabla removed
-
-        (.) When a single image is given, and 'alias' is set,
-            then a symlink from alias to radical is created
 
         (.) identity
         root is allowed to override destination, not regular users
+        thus this needs to be run under sudo, only privileged slices
+        are so allowed
 
         # return 0 if all goes well, 1 otherwise
         """
 
-        # check args
-        if len(images) > 1 and alias:
-            print("alias can be specified only with one image")
-            return 1
-
-        is_root = self.is_root()
+        is_root = root_privileges()
         # compute dry_run if not set on the command line
         if dry_run is None:
             dry_run = False if is_root else True
 
         # first pass
         # compute a list of tuples (origin, destination)
-        for image in images:
-            moves = []
-            removes = []   # list of tuples
-            symlinks = []  # list of tuples
-            origin = self.locate_image(image, look_in_global=is_root)
-            if not origin:
-                print("Could not find image {} - ignored".format(image))
-                continue
-            matching_infos = \
-                self._locate_infos_sorted(self.radical_part(origin),
-                                          look_in_global=is_root)
-            # at this point there's at most one that is marked official
-            # but if the user has given us a full path, that's the one
-            # that is going to be official, so must not be removed either
-            for info in matching_infos:
-                if info.filename == origin:
-                    info.is_official = True              # pylint:disable=w0201
+        moves = []
+        removes = []   # list of tuples
+        symlinks = []  # list of tuples
 
-            radical = self.radical_part(origin)
-            if not radical:
-                print("WARNING: Could not guess radical part in {}\n"
-                      "  you will need to give one with -d".format(origin))
-                continue
-            destination = os.path.join(self.repo, radical + ".ndz")
-            if os.path.exists(destination) and not force:
-                print("WARNING: Destination {} already exists - ignored"
-                      .format(destination))
+        origin = self.locate_image(image, look_in_global=is_root)
+        if not origin:
+            print("Could not find image {} - ignored".format(image))
+            return 1
+        radical = origin.radical
+        matches = self.locate_all_images(image, look_in_global=is_root)
+
+        destination = self.public / (radical + SUFFIX)
+        if destination.exists() and not force:
+            print("WARNING: Destination {} already exists - ignored"
+                  .format(destination))
+        else:
+            moves.append((origin, destination))  # append a tuple
+        if alias:
+            symlinks.append((radical + SUFFIX,   # ditto
+                             self.public / (alias + SUFFIX)))
+        else:
+            print("Warning : share without an alias")
+        if clean:
+            # item # 0 is the one selected for being moved
+            for match in matches:
+                if match == origin:
+                    continue
+                if match.is_official:
+                    continue
+                removes.append(match)
+
+        matches.reverse()
+        for index, match in enumerate(matches):
+            prefix = '* ' if (index == len(matches) - 1) else '  '
+            print(match._to_display(
+                show_path=True, radical_width=len(radical), prefix=prefix))
+
+        def do_dry_run(*args):
+            print("DRY-RUN: would do: ", end="")
+            print(*args)
+
+        for remove in removes:
+            if dry_run:
+                do_dry_run(f"rm {remove}")
             else:
-                moves.append((origin, destination))  # append a tuple
-            if alias:
-                symlinks.append((radical + ".ndz",   # ditto
-                                 os.path.join(self.repo, alias + ".ndz")))
+                print(f"Removing {remove}")
+                remove.unlink()
+
+        for origin, destination in moves:
+            if dry_run:
+                do_dry_run(f"mv {origin} {destination}")
             else:
-                print("Warning : share without an alias")
-            if clean:
-                # item # 0 is the one selected for being moved
-                for info in matching_infos[1:]:
-                    # among the other ones, DON't remove the official
-                    # since it's useless - or harmful
-                    if not info.is_official:
-                        removes.append(info.filename)
+                print(f"Moving {origin} -> {destination}")
+                origin.rename(destination)
 
-            print(8*'*', image)
-            matching_infos.reverse()
-            for info in matching_infos:
-                print(info)
-
-            def do_dry_run(*args):
-                print("DRY-RUN: would do")
-                print(*args)
-
-            for remove in removes:
-                if dry_run:
-                    do_dry_run("rm {}".format(remove))
-                else:
-                    print("Removing {}".format(remove))
-                    os.unlink(remove)
-
-            for origin, destination in moves:
-                if dry_run:
-                    do_dry_run("mv {} {}".format(origin, destination))
-                else:
-                    print("Moving {} -> {}".format(origin, destination))
-                    os.rename(origin, destination)
-
-            for origin, destination in symlinks:
-                if dry_run:
-                    do_dry_run("ln -sf {} {}".format(origin, destination))
-                else:
-                    print("Creating symlink {} -> {}".
-                          format(destination, origin))
-                    if os.path.exists(destination):
-                        os.unlink(destination)
-                    os.symlink(origin, destination)
+        for origin, destination in symlinks:
+            if dry_run:
+                do_dry_run(f"ln -sf {origin} {destination}")
+            else:
+                print(f"Creating symlink {destination} -> {origin}")
+                if destination.exists():
+                    destination.unlink()
+                origin.symlink(destination)
 
         return 0
