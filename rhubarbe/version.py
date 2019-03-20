@@ -1,3 +1,3 @@
 # pylint: disable=c0111
 
-__version__ = "3.0.6"
+__version__ = "3.1.0"
