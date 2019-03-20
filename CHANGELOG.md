@@ -1,8 +1,9 @@
-# 3.1.0 - 2019 Mar 20
+# 3.1.1 - 2019 Mar 20
 
 * rewrote the images repository, i.e. images, resolve and share subcommands
 * default for images is now to list all images (not only the labeled ones, use -l for that)
 * also default is to display the full path (use -n/--narrow to cut that off)
+* 3.1.0 broken
 
 # 3.0.6 - 2019 Feb 14
 
