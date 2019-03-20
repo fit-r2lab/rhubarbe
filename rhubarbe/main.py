@@ -512,7 +512,6 @@ def images(*argv):
         args.focus, args.sort_by, args.reverse,
         args.labeled, args.public_only, args.narrow)
 
-
 ####################
 
 
@@ -578,6 +577,8 @@ def share(*argv):
     imagesrepo = ImagesRepo()
     return imagesrepo.share(
         args.image, args.alias, args.dry_run, args.force, args.clean)
+
+####################
 
 
 @subcommand

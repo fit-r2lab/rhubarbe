@@ -382,7 +382,10 @@ class ImagesRepo(metaclass=Singleton):
         removes = []   # list of tuples
         symlinks = []  # list of tuples
 
-        origin = self.locate_image(image, look_in_global=is_root)
+        # if that's a filename, let's use it
+        origin = ImagePath(self, image)
+        if not origin.readable:
+            origin = self.locate_image(image, look_in_global=is_root)
         if not origin:
             print("Could not find image {} - ignored".format(image))
             return 1
