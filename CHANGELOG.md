@@ -1,3 +1,7 @@
+# 3.1.2 - 2019 Mar 20
+
+* rhubarbe share works on a plain filename too
+
 # 3.1.1 - 2019 Mar 20
 
 * rewrote the images repository, i.e. images, resolve and share subcommands
