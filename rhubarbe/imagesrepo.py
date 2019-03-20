@@ -383,15 +383,16 @@ class ImagesRepo(metaclass=Singleton):
         symlinks = []  # list of tuples
 
         # if that's a filename, let's use it
-        origin = ImagePath(self, image)
-        if not origin.readable:
-            origin = self.locate_image(image, look_in_global=is_root)
-        if not origin:
+        image_path = ImagePath(self, image)
+        if not image_path.readable:
+            image_path = self.locate_image(image, look_in_global=is_root)
+        if not image_path:
             print("Could not find image {} - ignored".format(image))
             return 1
-        radical = origin.radical
-        matches = self.locate_all_images(image, look_in_global=is_root)
+        radical = image_path.radical
+        matches = self.locate_all_images(radical, look_in_global=is_root)
 
+        origin = image_path.path
         destination = self.public / (radical + SUFFIX)
         if destination.exists() and not force:
             print("WARNING: Destination {} already exists - ignored"
