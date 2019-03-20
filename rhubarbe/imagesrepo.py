@@ -59,6 +59,7 @@ class ImagePath:                                 # pylint: disable=r0902, r0903
         self.radical = self.repo._radical_part(self.path)
         self.stem = self.path.stem
         self.is_official = self.radical == self.stem
+        # just in case
         self.readable = None
         self._infos()
 
@@ -259,6 +260,9 @@ class ImagesRepo(metaclass=Singleton):
                 self.public, image_predicate))
         clusters_hash = defaultdict(list)
         for image in candidates:
+            if not image.readable:
+                print(f"WARNING: ignoring unredable image {image}")
+                continue
             clusters_hash[image.inode].append(image)
         clusters = [ImageCluster(self, images)
                     for (inode, images) in clusters_hash.items()]
