@@ -8,7 +8,7 @@ rhubarbe load
 # w1202 logger & format
 # w0703 catch Exception
 # r1705 else after return
-# pylint: disable=c0111,w0201,r1705,w1201,w1202
+# pylint: disable=c0111, w0201, r1705, w1201, w1202, w1203
 
 from pathlib import Path
 
@@ -82,7 +82,7 @@ class Frisbeed:
                 )
             await asyncio.sleep(1)
             # after such a short time, frisbeed should not have returned yet
-            # if is has, we try our luck on another couple (ip, port)
+            # if it has, we try our luck on another couple (ip, port)
             command_line = " ".join(command)
             if self.subprocess.returncode is None:
                 self.multicast_group = multicast_group
@@ -90,12 +90,10 @@ class Frisbeed:
                 await self.feedback('info', "started {}".format(self))
                 return multicast_group, multicast_port
             else:
-                logger.warning("failed to start frisbeed with {}"
-                               .format(command_line))
-        logger.critical("Could not find a free "
-                        "IP multicast address + port to start frisbeed")
-        raise Exception("Could not start frisbee server; "
-                        "no available IP multicast address + port")
+                logger.warning(f"failed to start frisbeed with `{command_line}`"
+                               f" -> {self.subprocess.returncode}")
+        logger.critical(f"could not start frisbee server !!! on {self.image}")
+        raise Exception(f"could not start frisbee server !!! on {self.image}")
 
     def stop_nowait(self):
         # make it idempotent
