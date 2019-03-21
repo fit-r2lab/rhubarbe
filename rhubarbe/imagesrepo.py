@@ -374,13 +374,13 @@ class ImagesRepo(metaclass=Singleton):
         is_root = root_privileges()
         # compute dry_run if not set on the command line
         if dry_run is None:
-            dry_run = False if is_root else True
+            dry_run = not is_root
+            if dry_run:
+                print("WARNING: without sudo you can only dry-run")
 
-        # first pass
-        # compute a list of tuples (origin, destination)
-        moves = []
-        removes = []   # list of tuples
-        symlinks = []  # list of tuples
+        if not dry_run and not is_root:
+            print("You need to run rhubarbe-share under sudo")
+            return 1
 
         # if that's a filename, let's use it
         image_path = ImagePath(self, image)
@@ -392,6 +392,13 @@ class ImagesRepo(metaclass=Singleton):
         radical = image_path.radical
         matches = self.locate_all_images(radical, look_in_global=is_root)
 
+        # first pass
+        # compute a list of tuples (origin, destination)
+        # all these objects are plain pathlib.Path instances
+        moves = []     # list of tuples oldname, newname
+        symlinks = []  # list of tuples plainfile, symlink
+        removes = []
+
         origin = image_path.path
         destination = self.public / (radical + SUFFIX)
         if destination.exists() and not force:
@@ -399,11 +406,12 @@ class ImagesRepo(metaclass=Singleton):
                   .format(destination))
         else:
             moves.append((origin, destination))  # append a tuple
+
         if alias:
-            symlinks.append((radical + SUFFIX,   # ditto
-                             self.public / (alias + SUFFIX)))
+            symlinks.append((destination, self.public / (alias + SUFFIX)))
         else:
             print("Warning : share without an alias")
+
         if clean:
             # item # 0 is the one selected for being moved
             for match in matches:
@@ -411,7 +419,7 @@ class ImagesRepo(metaclass=Singleton):
                     continue
                 if match.is_official:
                     continue
-                removes.append(match)
+                removes.append(match.path)
 
         matches.reverse()
         for index, match in enumerate(matches):
@@ -419,31 +427,31 @@ class ImagesRepo(metaclass=Singleton):
             print(match._to_display(
                 show_path=True, radical_width=len(radical), prefix=prefix))
 
-        def do_dry_run(*args):
+        def show_dry_run(*args):
             print("DRY-RUN: would do: ", end="")
             print(*args)
 
         for remove in removes:
             if dry_run:
-                do_dry_run(f"rm {remove}")
+                show_dry_run(f"rm {remove}")
             else:
                 print(f"Removing {remove}")
                 remove.unlink()
 
         for origin, destination in moves:
             if dry_run:
-                do_dry_run(f"mv {origin} {destination}")
+                show_dry_run(f"mv {origin} {destination}")
             else:
                 print(f"Moving {origin} -> {destination}")
                 origin.rename(destination)
 
-        for origin, destination in symlinks:
+        for plainfile, symlink in symlinks:
             if dry_run:
-                do_dry_run(f"ln -sf {origin} {destination}")
+                show_dry_run(f"ln -sf {plainfile} {symlink}")
             else:
-                print(f"Creating symlink {destination} -> {origin}")
-                if destination.exists():
-                    destination.unlink()
-                origin.symlink(destination)
+                print(f"Creating symlink {symlink} -> {plainfile}")
+                if symlink.exists():
+                    symlink.unlink()
+                symlink.symlink_to(plainfile)
 
         return 0

@@ -1,7 +1,7 @@
-# 3.1.3 - 2019 Mar 20
+# 3.1.4 - 2019 Mar 21
 
 * rhubarbe share works on a plain filename too
-* 3.1.2 was broken
+* 3.1.2 and 3.1.3 were broken
 
 # 3.1.1 - 2019 Mar 20
 
