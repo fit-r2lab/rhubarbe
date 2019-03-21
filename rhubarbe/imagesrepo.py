@@ -261,7 +261,7 @@ class ImagesRepo(metaclass=Singleton):
         clusters_hash = defaultdict(list)
         for image in candidates:
             if not image.readable:
-                print(f"WARNING: ignoring unredable image {image}")
+                print(f"WARNING: ignoring unreadable image {image}")
                 continue
             clusters_hash[image.inode].append(image)
         clusters = [ImageCluster(self, images)
@@ -398,6 +398,7 @@ class ImagesRepo(metaclass=Singleton):
         moves = []     # list of tuples oldname, newname
         symlinks = []  # list of tuples plainfile, symlink
         removes = []
+        chmods = []
 
         origin = image_path.path
         destination = self.public / (radical + SUFFIX)
@@ -406,11 +407,14 @@ class ImagesRepo(metaclass=Singleton):
                   .format(destination))
         else:
             moves.append((origin, destination))  # append a tuple
+            chmods.append(destination)
 
         if alias:
-            symlinks.append((destination, self.public / (alias + SUFFIX)))
+            symlink = self.public / (alias + SUFFIX)
+            symlinks.append((destination, symlink))
+            chmods.append(symlink)
         else:
-            print("Warning : share without an alias")
+            print("WARNING: you are sharing an image without an alias")
 
         if clean:
             # item # 0 is the one selected for being moved
@@ -453,5 +457,15 @@ class ImagesRepo(metaclass=Singleton):
                 if symlink.exists():
                     symlink.unlink()
                 symlink.symlink_to(plainfile)
+
+        for chmod in chmods:
+            if dry_run:
+                show_dry_run(f"chmod a+r {chmod}")
+                continue
+            omod = chmod.stat().st_mode
+            nmod = omod | 0o444
+            print(f"new mode for {chmod} is {oct(nmod)}")
+            chmod.chmod(nmod)
+
 
         return 0
