@@ -1,3 +1,7 @@
+# 3.1.6 - 2019 Mar 28
+
+* fix for when an actual filename is provided to either load or resolve
+
 # 3.1.5 - 2019 Mar 21
 
 * rhubarbe share works on a plain filename too
