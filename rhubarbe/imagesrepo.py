@@ -228,7 +228,8 @@ class ImagesRepo(metaclass=Singleton):
                 yield image_path
 
     def locate_all_images(self, radical, look_in_global) -> List[ImagePath]:
-        match = lambda image_path: image_path.radical == radical
+        match = lambda image_path: (image_path.radical == radical
+                                    or str(image_path) == radical)
         candidates = list(self._iterate_images(".", match))
         if look_in_global:
             candidates += list(self._iterate_images(self.public, match))
@@ -327,7 +328,8 @@ class ImagesRepo(metaclass=Singleton):
         in verbose mode, the whole cluster(s) are displayed
         """
         def cluster_matches(cluster):
-            return any(image.radical == focus for image in cluster)
+            return any(image.radical == focus
+                       or str(image) == focus for image in cluster)
 
         true_function = lambda x: True
         clusters = self._search_clusters(
