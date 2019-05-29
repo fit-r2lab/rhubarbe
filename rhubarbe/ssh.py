@@ -40,23 +40,22 @@ class MySSHClientSession(asyncssh.SSHClientSession):
 
     def connection_made(self, conn):                    # pylint: disable=w0221
         if DEBUG:
-            print('SSS CM: {} {}'.format(self.node, conn))
+            print(f'SSS CM: {self.node} {conn}')
 
     def connection_lost(self, exc):
         if exc:
             if DEBUG:
-                print('SSS CL: {} - exc={}'.format(self.node, exc))
+                print(f'SSS CL: {self.node} - exc={exc}')
 
     def eof_received(self):
         if DEBUG:
-            print('SSS EOF: {}'.format(self.node))
+            print(f'SSS EOF: {self.node}')
 
 
 class MySSHClient(asyncssh.SSHClient):
     def connection_made(self, conn):
         if DEBUG:
-            print('SSC Connection made to {}.'
-                  .format(conn.get_extra_info('peername')[0]))
+            print(f'SSC Connection made to {conn.get_extra_info('peername')[0]}.')
 
     def auth_completed(self):
         if DEBUG:
@@ -77,7 +76,7 @@ class SshProxy:
         self.conn, self.client = None, None
 
     def __repr__(self):
-        return "SshProxy {}".format(self.node)
+        return f"SshProxy {self.node}"
 
     # make this an asynchroneous context manager
     # async with SshProxy(...) as ssh:
@@ -159,8 +158,7 @@ class SshProxy:
             if self.verbose:
                 await self.node.feedback(
                     'ssh_status',
-                    "cannot connect, backing off for {:.3}s"
-                    .format(random_backoff))
+                    f"cannot connect, backing off for {random_backoff:.3}s")
             await asyncio.sleep(random_backoff)
 
 
@@ -179,9 +177,9 @@ if __name__ == '__main__':
                 return False
             out1 = await proxy.run(
                 'cat /etc/lsb-release /etc/fedora-release 2> /dev/null')
-            print("command1 returned {}".format(out1))
+            print(f"command1 returned {out1}")
             out2 = await proxy.run('hostname')
-            print("command2 returned {}".format(out2))
+            print(f"command2 returned {out2}")
             await proxy.close()
             return True
 

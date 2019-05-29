@@ -30,16 +30,15 @@ def main():
     # not found that way : subcommand must be argv[1]
     # so we need at least one argv left
     if not subcommand and len(sys.argv) <= 1:
-        print("{} needs a subcommand in {{{}}}"
-              .format(command, ",".join(supported)))
+        print(f"{command} needs a subcommand in {{{','.join(supported)}}}")
         exit(1)
 
     if not subcommand:
         subcommand = sys.argv[1]
         args = sys.argv[2:]
         if subcommand not in supported:
-            print("Unknown subcommand {} - use one among {{{}}}"
-                  .format(subcommand, ",".join(supported)))
+            print(f"Unknown subcommand {subcommand} "
+                  f"- use one among {{{','.join(supported)}}}")
             exit(1)
     # do it
     entry_point = getattr(rhubarbe.main, subcommand)
@@ -49,10 +48,10 @@ def main():
     except MisformedRange as e:
         print("ERROR: ", e)
         exit(1)
-    except Exception as e:
+    except Exception as exc:
         import traceback
         traceback.print_exc()
-        print("{} {} : Something went badly wrong : {}".format(command, subcommand, e))
+        print("{command} {subcommand} : Something went badly wrong : {exc}")
         exit(1)
 
 if __name__ == '__main__':

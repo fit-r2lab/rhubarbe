@@ -54,7 +54,7 @@ class DisplayCurses(Display):
         curses.endwin()
 
     def dispatch_hook(self, message, timestamp, duration):
-        timemsg = "{} {}".format(timestamp, duration)
+        timemsg = f"{timestamp} {duration}"
         text = self.message_to_text(message)
         self.screen.addstr(1, 1, timemsg)
         self.screen.addstr(1, self.offsetc+1, self.pad(text))
@@ -62,7 +62,7 @@ class DisplayCurses(Display):
 
     def dispatch_ip_hook(self, _, node,            # pylint:disable=w0221,r0913
                          message, timestamp, duration):
-        timemsg = "{} {} {}".format(timestamp, duration, node.name)
+        timemsg = f"{timestamp} {duration} {node.name}"
         text = self.message_to_text_ip(message, node, mention_node=False)
         text = str(text)
         line = (node.rank % self.usable_l) + 1
@@ -74,12 +74,12 @@ class DisplayCurses(Display):
     def dispatch_ip_percent_hook(self, _, node,    # pylint:disable=w0221,r0913
                                  message, timestamp, duration):
         # global area
-        timemsg = "{} {}".format(timestamp, duration)
+        timemsg = f"{timestamp} {duration}"
         text = self.node_percent_bar(int((self.total_percent)/len(self.nodes)))
         self.screen.addstr(2, 1, timemsg)
         self.screen.addstr(2, self.offsetc+1, self.pad(text))
         # node area
-        timemsg = "{} {} {}".format(timestamp, duration, node.name)
+        timemsg = f"{timestamp} {duration} {node.name}"
         barsize = self.node_percent_bar(node.percent)
         line = (node.rank % self.usable_l) + 1
         self.screen.addstr(line+self.offsetl, 1, timemsg)
@@ -92,7 +92,7 @@ class DisplayCurses(Display):
         avail = self.submaxc - 2 - 4
         left = int(percent*avail/100)
         middle = avail - left
-        right = "|{:02}%".format(percent) if percent != 100 else "||||"
+        right = f"|{percent:02}%" if percent != 100 else "||||"
         return left*'#' + middle*' ' + right
 
 #    def pad(self, text):

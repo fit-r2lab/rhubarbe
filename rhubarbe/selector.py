@@ -22,7 +22,7 @@ class MisformedRange(Exception):
         super().__init__(self)
 
     def __str__(self):
-        return "Misformed node range '{}'".format(self.rangetext)
+        return f"Misformed node range '{self.rangetext}'"
 
 
 class Selector:
@@ -69,7 +69,7 @@ class Selector:
                 # leads to a totally different behaviour
                 raise MisformedRange(comma)
             if len(items) >= 4:
-                print("Ignored arg {comma}".format(**locals()))
+                print(f"Ignored arg {comma}")
                 continue
             elif len(items) == 3:
                 lower, upper, step = items
@@ -85,12 +85,10 @@ class Selector:
 
     # generators
     def node_names(self):
-        return ("{}{:02}".format(self.regularname, i)
-                for i in sorted(self.set))
+        return (f"{self.regularname}{i:02}") for i in sorted(self.set))
 
     def cmc_names(self):
-        return ("{}{:02}".format(self.rebootname, i)
-                for i in sorted(self.set))
+        return (f"{self.rebootname}{i:02}" for i in sorted(self.set))
 
     def __len__(self):
         return len(self.set)

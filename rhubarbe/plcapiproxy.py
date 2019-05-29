@@ -42,8 +42,7 @@ class PlcApiProxy(ServerProxy):                         # pylint: disable=r0903
                 self.email = input("Enter plcapi email (login) : ")
             if not self.password:
                 self.password = getpass.getpass(
-                    "Enter plcapi password for {} : "
-                    .format(self.email))
+                    f"Enter plcapi password for {self.email} : ")
             return {'AuthMethod': 'password',
                     'Username': self.email,
                     'AuthString': self.password}
@@ -57,19 +56,18 @@ class PlcApiProxy(ServerProxy):                         # pylint: disable=r0903
         def fun(*args, anonymous=False, **kwds):
             if self.debug:
                 auth_msg = "[auth]" if not anonymous else "[anon]"
-                print("-> Sending {} {} on {} with args={} and kwds={}"
-                      .format(auth_msg, attr, self, args, kwds))
+                print(f"-> Sending {auth_msg} {attr} on {self} "
+                      f"with args={args} and kwds={kwds}")
             actual_fun = ServerProxy.__getattr__(
                 self, attr)
             try:
                 retcod = actual_fun(self.__auth__(anonymous), *args, **kwds)
                 if self.debug:
-                    print("<- Received {}".format(retcod))
+                    print(f"<- Received {retcod}")
                 return retcod
             except Exception as exc:
-                print("ignored exception in {} : {}"
-                      .format(attr, exc))
+                print(f"ignored exception in {attr} : {exc}")
         return fun
 
     def __str__(self):
-        return "PLCAPIproxy@{}".format(self.url)
+        return f"PLCAPIproxy@{self.url}"

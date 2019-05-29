@@ -82,8 +82,7 @@ def check_reservation(leases, *,                        # pylint: disable=w0621
         # we use another variable to avoid using nonlocal
         actual_login = login or leases.login
         if verbose:
-            print("Checking current reservation for {} : "
-                  .format(actual_login), end="")
+            print(f"Checking current reservation for {actual_login} : ", end="")
         is_fine = await leases.booked_now_by(login=actual_login,
                                              root_allowed=root_allowed)
         if is_fine:
@@ -93,8 +92,7 @@ def check_reservation(leases, *,                        # pylint: disable=w0621
             if verbose is None:
                 pass
             elif verbose:
-                print("WARNING: Access currently denied to {}"
-                      .format(actual_login))
+                print(f"WARNING: Access currently denied to {actual_login}")
             else:
                 print("access denied")
         return is_fine
@@ -144,11 +142,10 @@ def cmc_verb(verb, resa_policy, *argv):
     (*) 'warn': issue a warning when the lease is not there
     (*) 'none' - or anything else really: does not check the leases
     """
-    usage = """
-    Send verb '{verb}' to the CMC interface of selected nodes"""\
-    .format(verb=verb)
+    usage = f"""
+    Send verb '{verb}' to the CMC interface of selected nodes"""
     if resa_policy == 'enforce':
-        usage += "\n    {policy}".format(policy=RESERVATION_REQUIRED)
+        usage += f"\n    {RESERVATION_REQUIRED}"
     config = Config()
     default_timeout = config.value('nodes', 'cmc_default_timeout')
 
@@ -255,10 +252,8 @@ def bye(*argv):
     import os
     phones_inventory = InventoryPhones()
     for phone in phones_inventory.all_phones():
-        command = "ssh -i {key} {user}@{gateway} phone-off"\
-                  .format(key=phone['gw_key'],
-                          user=phone['gw_user'],
-                          gateway=phone['gw_host'])
+        command = (f"ssh -i {phone['gw_key']} "
+                   f"{phone['gw_user']}@{phone['gw_host']} phone-off")
         print(command)
         os.system(command)
 
@@ -267,10 +262,10 @@ def bye(*argv):
 
 @subcommand
 def load(*argv):
-    usage = """
+    usage = f"""
     Load an image on selected nodes in parallel
-    {resa}
-    """.format(resa=RESERVATION_REQUIRED)
+    {RESERVATION_REQUIRED}
+    """
     config = Config()
     config.check_binaries()
     imagesrepo = ImagesRepo()
@@ -312,12 +307,12 @@ def load(*argv):
     # send feedback
     message_bus.put_nowait({'selected_nodes': selector})
     from rhubarbe.logger import logger
-    logger.info("timeout is {}s".format(args.timeout))
-    logger.info("bandwidth is {} Mibps".format(args.bandwidth))
+    logger.info(f"timeout is {args.timeout}s")
+    logger.info(f"bandwidth is {args.bandwidth} Mibps")
 
     actual_image = imagesrepo.locate_image(args.image, look_in_global=True)
     if not actual_image:
-        print("Image file {} not found - emergency exit".format(args.image))
+        print(f"Image file {args.image} not found - emergency exit")
         exit(1)
     # result is an ImagePath
     actual_image = str(actual_image)
@@ -335,13 +330,13 @@ def load(*argv):
 
 @subcommand
 def save(*argv):
-    usage = """
+    usage = f"""
     Save an image from a node
     Mandatory radical needs to be provided with --output
       This info, together with nodename and date, is stored
       on resulting image in /etc/rhubarbe-image
-    {resa}
-    """.format(resa=RESERVATION_REQUIRED)
+    {RESERVATION_REQUIRED}
+    """
 
     config = Config()
     config.check_binaries()
@@ -380,7 +375,7 @@ def save(*argv):
 
     imagesrepo = ImagesRepo()
     actual_image = imagesrepo.where_to_save(nodename, args.radical)
-    message_bus.put_nowait({'info': "Saving image {}".format(actual_image)})
+    message_bus.put_nowait({'info': f"Saving image {actual_image}"})
     # curses has no interest here since we focus on one node
     display_class = Display
     display = display_class([node], message_bus)
@@ -430,8 +425,8 @@ def wait(*argv):                                        # pylint: disable=r0914
     if args.verbose:
         message_bus.put_nowait({'selected_nodes': selector})
     from rhubarbe.logger import logger
-    logger.info("wait: backoff is {} and global timeout is {}"
-                .format(args.backoff, args.timeout))
+    logger.info(f"wait: backoff is {args.backoff} "
+                f"and global timeout is {args.timeout}")
 
     nodes = [Node(cmc_name, message_bus)                # pylint: disable=w0621
              for cmc_name in selector.cmc_names()]
@@ -462,8 +457,7 @@ def wait(*argv):                                        # pylint: disable=r0914
         display.epilogue()
         if not args.silent:
             for ssh in sshs:
-                print("{}:ssh {}".format(ssh.node,
-                                         "OK" if ssh.status else "KO"))
+                print("{ssh.node}:ssh {'OK' if ssh.status else 'KO'}")
 
 ####################
 
@@ -817,12 +811,10 @@ def template(*argv):
     args = parser.parse_args(argv)
 
     def show_template(nodes_or_phones):
-        template = resource_string('rhubarbe',
-                                   "config/inventory-{}.json.template"
-                                   .format(nodes_or_phones))
+        template = resource_string(
+            'rhubarbe', f"config/inventory-{nodes_or_phones}.json.template")
         print("# =========="
-              " template for /etc/rhubarbe/inventory-{}.json"
-              .format(nodes_or_phones))
+              f" template for /etc/rhubarbe/inventory-{nodes_or_phones}.json")
         print(template.decode(encoding='utf-8'))
 
     # pick -n by default
@@ -840,5 +832,5 @@ def template(*argv):
 @subcommand
 def version(*_):
     from rhubarbe.version import __version__
-    print("rhubarbe version {}".format(__version__))
+    print(f"rhubarbe version {__version__}")
     return 0

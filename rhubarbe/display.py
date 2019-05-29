@@ -93,9 +93,8 @@ class Display:                                          # pylint: disable=r0902
     def dispatch(self, message):
         timestamp = time.strftime("%H:%M:%S")
         # in case the message is sent before the event loop has started
-        duration = "+{:03}s".format(int(time.time()-self._start_time)) \
-            if self._start_time is not None \
-            else 5*'-'
+        duration = (f"+{int(time.time()-self._start_time):03}s"
+                    if self._start_time is not None else 5*'-')
         if isinstance(message, dict) and 'ip' in message:
             ipaddr = message['ip']
             node = self.get_display_node(ipaddr)
@@ -111,10 +110,9 @@ class Display:                                          # pylint: disable=r0902
                 delta = node_current_percent - node_previous_percent
                 node.percent = node_current_percent
                 self.total_percent += delta
-                logger.info("{} percent: {}/100 (was {}), total {}/{}"
-                            .format(node.name, node_current_percent,
-                                    node_previous_percent,
-                                    self.total_percent, 100*len(self.nodes)))
+                logger.info(f"{node.name} percent: {node_current_percent}/100 "
+                            f"(was {node_previous_percent}), "
+                            f"total {self.total_percent}/{100*len(self.nodes)}")
                 self.dispatch_ip_percent_hook(ipaddr, node, message,
                                               timestamp, duration)
             else:
@@ -135,7 +133,7 @@ class Display:                                          # pylint: disable=r0902
         elif 'authorization' in message:
             return "AUTH: " + message['authorization']
         elif 'loading_image' in message:
-            return "Loading image {}".format(message['loading_image'])
+            return f"Loading image {message['loading_image']}"
         elif 'selected_nodes' in message:
             names = message['selected_nodes'].node_names()
             return ("Selection: " + " ".join(names)) \
@@ -149,7 +147,7 @@ class Display:                                          # pylint: disable=r0902
     def message_to_text_ip(self, message, node, mention_node=True):
         text = None
         if 'percent' in message:
-            text = "{:02}".format(message['percent'])
+            text = f"{message['percent']:02}"
         elif 'frisbee_retcod' in message:
             text = "Uploading successful" \
                 if message['frisbee_retcod'] == 0 \
@@ -157,13 +155,13 @@ class Display:                                          # pylint: disable=r0902
         else:
             for key in self.subkeys:
                 if key in message:
-                    text = "{} = {}".format(key, message[key])
+                    text = f"{key} = {message[key]}"
                     break
         if text is None:
             text = str(message)
         return text \
             if not mention_node \
-            else "{} : {}".format(node.name, text)
+            else f"{node.name} : {text}"
 
     def set_goodbye(self, message):
         self.goodbye_message = message
@@ -182,13 +180,13 @@ class Display:                                          # pylint: disable=r0902
 
     def dispatch_hook(self, message, timestamp, duration):
         text = self.message_to_text(message)
-        print("{} - {}: {}".format(timestamp, duration, text))
+        print(f"{timestamp} - {duration}: {text}")
 
     def dispatch_ip_hook(self, ipaddr, node,            # pylint: disable=w0613
                          message, timestamp, duration):
         text = self.message_to_text_ip(message, node, mention_node=False)
 
-        print("{} - {}: {} {}".format(timestamp, duration, node.name, text))
+        print(f"{timestamp} - {duration}: {node.name} {text}")
 
     def dispatch_ip_percent_hook(self, ipaddr, node,    # pylint: disable=w0613
                                  message, timestamp,    # pylint: disable=w0613

@@ -37,7 +37,7 @@ def local_interfaces():
         match = MATCHER.match(line)
         if match:
             interface = ipaddress.ip_interface(
-                "{}/{}".format(match.group('address'), match.group('mask')))
+                f"{match.group('address')}/{match.group('mask')}")
             if not interface.is_loopback:
                 _LOCAL_INTERFACES.append(interface)
     return _LOCAL_INTERFACES
@@ -50,8 +50,7 @@ def local_ip_on_same_network_as(peer):
     """
     for interface in local_interfaces():
         length = interface.network.prefixlen
-        peer_interface = ipaddress.ip_interface(
-            "{}/{}".format(peer, length))
+        peer_interface = ipaddress.ip_interface(f"{peer}/{length}")
         if peer_interface.network == interface.network:
             return str(interface.ip), str(length)
     return None
@@ -59,4 +58,4 @@ def local_ip_on_same_network_as(peer):
 
 if __name__ == '__main__':
     LOCAL_IP, MASK = local_ip_on_same_network_as("192.168.3.1")
-    print("found {}/{}".format(LOCAL_IP, MASK))
+    print(f"found {LOCAL_IP}/{MASK}")

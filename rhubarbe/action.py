@@ -38,10 +38,10 @@ class Action:
         # bound methods must not be passed the subject !
         await method()
         result = getattr(node, verb)
-        result = result if result is not None else "{} N/A".format(verb)
+        result = result if result is not None else f"{verb} N/A"
         for line in result.split("\n"):
             if line:
-                print("{}:{}".format(node.cmc_name, line))
+                print(f"{node.cmc_name}:{line}")
 
     # would make more sense to define this as a coroutine..
     def run(self, message_bus, timeout):
@@ -65,10 +65,8 @@ class Action:
                 return True
             else:
                 scheduler.debrief()
-                print("rhubarbe-{} failed: {}"
-                      .format(self.verb, scheduler.why()))
+                print(f"rhubarbe-{self.verb} failed: {scheduler.why()}")
                 return False
         except KeyboardInterrupt:
-            print("rhubarbe-{} : keyboard interrupt - exiting"
-                  .format(self.verb))
+            print(f"rhubarbe-{self.verb} : keyboard interrupt - exiting")
             return False

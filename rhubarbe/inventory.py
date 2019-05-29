@@ -58,9 +58,9 @@ class Inventory(metaclass=Singleton):
     def display(self, verbose=False):
         def cell_repr(key, value, verbose):
             if not verbose:
-                return "{}:{}".format(key, value['hostname'])
+                return f"{key}:{value['hostname']}"
             else:
-                return "{}:{}[{}]".format(key, value['hostname'], value['mac'])
+                return f"{key}:{value['hostname']}[{value['mac']}]"
         print(20*'-', "INVENTORY CONTENTS")
         for node in self._nodes:
             print(" ".join([cell_repr(k, v, verbose)

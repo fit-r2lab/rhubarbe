@@ -53,10 +53,10 @@ class Config(metaclass=Singleton):
             if exists:
                 self.files.append(location)
                 self.parser.read(location)
-                logger.info("Loaded config from {}".format(location))
+                logger.info(f"Loaded config from {location}")
             elif mandatory:
-                raise ConfigException("Missing mandatory config file {}"
-                                      .format(location))
+                raise ConfigException(
+                    f"Missing mandatory config file {location}")
         #
         self._hostname = None
 
@@ -71,17 +71,15 @@ class Config(metaclass=Singleton):
         if res is not None:
             return res
         else:
-            raise ConfigException("rhubarbe config: "
-                                  "missing entry section={} key={}"
-                                  .format(section, key))
+            raise ConfigException(
+                f"rhubarbe config: missing entry section={section} key={key}")
 
     def value(self, section, flag):
         if section not in self.parser:
-            raise ConfigException("No such section {} in config"
-                                  .format(section))
+            raise ConfigException(f"No such section {section} in config")
         config_section = self.parser[section]
         hostname = self.local_hostname()
-        key = "{flag}.{hostname}".format(flag=flag, hostname=hostname)
+        key = f"{flag}.{hostname}"
         return config_section.get(key, None) \
             or self.get_or_raise(config_section, section, flag)
 
@@ -107,15 +105,15 @@ class Config(metaclass=Singleton):
 
     def display(self, sections):
         for i, file in enumerate(self.files):
-            print("{}-th config file = {}".format(i+1, file))
+            print(f"{i+1}-th config file = {file}")
 
         def match(section, sections):
             return not sections or section in sections
         for sname, section in sorted(self.parser.items()):
             if match(sname, sections) and section:
-                print(10*'=', " section {}".format(sname))
+                print(10*'=', f" section {sname}")
                 for fname, value in sorted(section.items()):
-                    print("{} = {}".format(fname, value))
+                    print(f"{fname} = {value}")
 
     @staticmethod
     def check_file_in_path(binary):
@@ -135,9 +133,8 @@ class Config(metaclass=Singleton):
         for binary in binaries:
             checked = self.check_file_in_path(binary)
             if not checked:
-                message = "Binary {} not found in PATH".format(binary)
+                message = f"Binary {binary} not found in PATH"
                 logger.critical(message)
                 raise Exception(message)
             else:
-                print("Found binary {} as {}"
-                      .format(binary, checked))
+                print(f"Found binary {binary} as {checked}")
