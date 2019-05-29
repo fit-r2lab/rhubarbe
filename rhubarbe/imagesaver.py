@@ -66,7 +66,7 @@ class ImageSaver:
         reset node when finished unless reset is False
         """
         # start_frisbeed will return the ip+port to use
-        await self.feedback('info', "Saving image from {}".format(self.node))
+        await self.feedback('info', f"Saving image from {self.node}")
         port = await self.start_collector()
         result = await self.node.run_imagezip(port, reset,
                                               self.radical, self.comment)
@@ -118,8 +118,8 @@ class ImageSaver:
             is_ok = scheduler.run()
             if not is_ok:
                 scheduler.debrief()
-                self.display.set_goodbye("rhubarbe-save failed: {}"
-                                         .format(scheduler.why()))
+                self.display.set_goodbye(
+                    f"rhubarbe-save failed: {scheduler.why()}")
                 return 1
             return 0 if mainjob.result() else 1
         except KeyboardInterrupt:

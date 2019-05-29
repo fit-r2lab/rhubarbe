@@ -93,26 +93,23 @@ class ImageZip(TelnetProxy):
             date = time.strftime("%Y-%m-%d@%H:%M", time.localtime())
             who = os.getlogin()
             # create mount point if needed
-            format_cmd = '[ -d {mount_point} ] || mkdir {mount_point}; '
+            command += f'[ -d {mount_point} ] || mkdir {mount_point}; '
             # mount it, and only if successful ...
-            format_cmd += 'mount {root_partition} {mount_point} && '
+            command += f'mount {root_partition} {mount_point} && '
             # add to the stamp, and umount
             # beware of {{ and }} as these are formats
-            format_cmd += ('{{ echo "{date} - node {nodename} '
-                           ' - image {radical} - by {who}"')
+            command += (f'{{ echo "{date} - node {nodename} '
+                           f' - image {radical} - by {who}"')
             if comment:
-                format_cmd += '" - {}"'.format(comment)
-            format_cmd += ' >> {mount_point}/etc/rhubarbe-image ; '
-            format_cmd += 'umount {mount_point}; }} ; '
-            # replace {}
-            command += format_cmd.format(**locals())
-        command += "{imagezip} -o -z1 {hdd} - | {netcat} {server_ip} {port}"\
-            .format(**locals())
+                command += f'" - {comment}"'
+            command += f' >> {mount_point}/etc/rhubarbe-image ; '
+            command += f'umount {mount_point}; }} ; '
 
-        logger.info("on {} : running command {}"
-                    .format(self.control_ip, command))
-        await self.feedback('frisbee_status', "starting imagezip on {}"
-                            .format(self.control_ip))
+        command += f"{imagezip} -o -z1 {hdd} - | {netcat} {server_ip} {port}"
+
+        logger.info(f"on {self.control_ip} : running command {command}")
+        await self.feedback('frisbee_status',
+                            f"starting imagezip on {self.control_ip}")
 
         EOF = chr(4)
         EOL = '\n'

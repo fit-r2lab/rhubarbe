@@ -108,8 +108,8 @@ class ImageLoader:
             is_ok = scheduler.run()
             if not is_ok:
                 scheduler.debrief()
-                self.display.set_goodbye("rhubarbe-load failed: {}"
-                                         .format(scheduler.why()))
+                self.display.set_goodbye(
+                    f"rhubarbe-load failed: {scheduler.why()}")
                 return 1
             return 0 if mainjob.result() else 1
         except KeyboardInterrupt:

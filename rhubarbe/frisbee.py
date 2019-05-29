@@ -7,7 +7,7 @@ Parsing the output of the remote frisbee app
 # w1202 logger & format
 # w0703 catch Exception
 # r1705 else after return
-# pylint: disable=c0111,w0201,r1705,w1201,w1202
+# pylint: disable=c0111, w0201, r1705, w1201, w1202, w1203
 
 import re
 
@@ -65,9 +65,9 @@ class FrisbeeParser(telnetlib3.TerminalShell):
         match = self.matcher_new_style_progress.match(line)
         if match:
             if self.total_chunks == 0:
-                logger.error("ip={}: new frisbee: cannot report progress, "
-                             "missing total chunks"
-                             .format(self.ip()))
+                logger.error(
+                    "ip={self.ip()}: new frisbee: cannot report progress, "
+                    "missing total chunks")
                 return
             percent = int(100 * (1 - int(match.group('remaining_chunks'))
                                  / self.total_chunks))
@@ -86,11 +86,9 @@ class FrisbeeParser(telnetlib3.TerminalShell):
         #
         match = self.matcher_final_report.match(line)
         if match:
-            logger.info("ip={ip} FRISBEE END: "
-                        "total = {total} bytes, "
-                        "actual = {actual} bytes"
-                        .format(ip=self.ip(), total=match.group('total'),
-                                actual=match.group('actual')))
+            logger.info(f"ip={self.ip()} FRISBEE END: "
+                        f"total = {match.group('total')} bytes, "
+                        f"actual = {match.group('actual')} bytes")
             self.send_percent(100)
             return
         #
@@ -119,12 +117,9 @@ class Frisbee(TelnetProxy):
         client = the_config.value('frisbee', 'client')
         hdd = the_config.value('frisbee', 'hard_drive')
         self.command = (
-            "{client} -i {control_ip} -m {multicast_ip} -p {port} {hdd}"
-            .format(client=client, control_ip=control_ip,
-                    multicast_ip=multicast_ip, port=port, hdd=hdd))
+            f"{client} -i {control_ip} -m {multicast_ip} -p {port} {hdd}")
 
-        logger.info("on {} : running command {}"
-                    .format(self.control_ip, self.command))
+        logger.info(f"on {self.control_ip} : running command {self.command}")
         await self.feedback('frisbee_status', "starting frisbee client")
 
         eof = chr(4)

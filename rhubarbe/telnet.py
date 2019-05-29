@@ -72,7 +72,7 @@ class TelnetProxy:
             return TelnetClient(proxy=self, encoding='utf-8', shell=shell)
 
         await self.feedback('frisbee_status', "trying to telnet..")
-        logger.info("Trying to telnet to {}".format(self.control_ip))
+        logger.info(f"Trying to telnet to {self.control_ip}")
         loop = asyncio.get_event_loop()
         try:
             self._transport, self._protocol = \
@@ -80,7 +80,7 @@ class TelnetProxy:
                   loop.create_connection(client_factory,
                                          self.control_ip, self.port),
                   self.timeout)
-            logger.info("{}: telnet connected".format(self.control_ip))
+            logger.info(f"{self.control_ip}: telnet connected")
             return True
         except asyncio.TimeoutError:
             await self.feedback('frisbee_status', "timed out..")
@@ -100,7 +100,6 @@ class TelnetProxy:
                 return True
             else:
                 backoff = self.backoff*(0.5 + random.random())
-                await self.feedback(
-                    'frisbee_status',
-                    "backing off for {:.3}s".format(backoff))
+                await self.feedback('frisbee_status',
+                                    f"backing off for {backoff:.3}s")
                 await asyncio.sleep(backoff)

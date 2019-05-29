@@ -39,7 +39,7 @@ class Node:                                             # pylint: disable=r0902
                                if x in "0123456789"]))
 
     def __repr__(self):
-        return "<Node {}>".format(self.control_hostname())
+        return f"<Node {self.control_hostname()}>"
 
     def is_known(self):
         return self.control_mac_address() is not None
@@ -121,7 +121,7 @@ class Node:                                             # pylint: disable=r0902
         """
         verb typically is 'status', 'on', 'off' or 'info'
         """
-        url = "http://{}/{}".format(self.cmc_name, verb)
+        url = f"http://{self.cmc_name}/{verb}"
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(url) as response:
@@ -170,7 +170,7 @@ class Node:                                             # pylint: disable=r0902
           * False to indicate that the node is 'off' after checking
           * None if something goes wrong
         """
-        url = "http://{}/{}".format(self.cmc_name, message)
+        url = f"http://{self.cmc_name}/{message}"
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(url) as response:
@@ -200,18 +200,15 @@ class Node:                                             # pylint: disable=r0902
         if self.status is None:
             await self.get_status()
         if self.status not in self.message_to_reset_map:
-            await self.feedback('reboot',
-                                "Cannot get status at {}"
-                                .format(self.cmc_name))
+            await self.feedback(
+                'reboot', f"Cannot get status at {self.cmc_name}")
         message_to_send = self.message_to_reset_map[self.status]
-        await self.feedback('reboot',
-                            "Sending message '{}' to CMC {}"
-                            .format(message_to_send, self.cmc_name))
+        await self.feedback(
+            'reboot', f"Sending message '{message_to_send}' to CMC {self.cmc_name}")
         await self.send_action(message_to_send, check=True)
         if not self.action:
-            await self.feedback('reboot',
-                                "Failed to send message {} to CMC {}"
-                                .format(message_to_send, self.cmc_name))
+            await self.feedback(
+                'reboot', f"Failed to send message {message_to_send} to CMC {self.cmc_name}")
 
     # used to be a coroutine, but since we need this
     # when dealing by KeybordInterrupt, it appears much safer
@@ -237,16 +234,17 @@ class Node:                                             # pylint: disable=r0902
 
         if action in ('cleanup', 'harddrive'):
             if os.path.exists(source):
-                logger.info("Removing {}".format(source))
+                logger.info(f"Removing {source}")
                 os.remove(source)
         elif action in ('frisbee', ):
             if os.path.exists(source):
                 os.remove(source)
-            logger.info("Creating {}".format(source))
+            logger.info(f"Creating {source}")
             os.symlink(frisbee, source)
         else:
-            logger.critical("manage_nextboot_symlink : unknown action {}"
-                            .format(action))
+            logger.critical(
+                f"manage_nextboot_symlink : unknown action {action}")
+
 
     ##########
     async def wait_for_telnet(self, service):
@@ -263,8 +261,7 @@ class Node:                                             # pylint: disable=r0902
     async def reboot_on_frisbee(self, idle):
         self.manage_nextboot_symlink('frisbee')
         await self.ensure_reset()
-        await self.feedback('reboot',
-                            "idling for {}s".format(idle))
+        await self.feedback('reboot', f"idling for {idle}s")
         await asyncio.sleep(idle)
 
     async def run_frisbee(self, ipaddr, port, reset):

@@ -45,19 +45,21 @@ class Collector:
         # but nc is left lingering behind
         # WARNING: it is intended that format contains {port}
         # for future formatting
-        command_format_ubuntu = "exec {} -d -l {} {{port}} > {} 2> /dev/null"\
-                                .format(netcat, local_ip, self.image)
-        command_format_fedora = "exec {}    -l {} {{port}} > {} 2> /dev/null"\
-                                .format(netcat, local_ip, self.image)
+        command_format_ubuntu = (
+            f"exec {netcat} -d -l {local_ip} {{port}} > {self.image}"
+            f" 2> /dev/null")
+        command_format_fedora = (
+            f"exec {netcat}    -l {local_ip} {{port}} > {self.image}"
+            f" 2> /dev/null")
 
         netcat_style = the_config.value('frisbee', 'netcat_style')
         if netcat_style not in ('fedora', 'ubuntu'):
-            message = "wrong netcat_style {}".format(netcat_style)
+            message = f"wrong netcat_style {netcat_style}"
             print(message)
             raise Exception(message)
-        command_format = \
-            command_format_fedora if netcat_style == 'fedora' \
-            else command_format_ubuntu
+        command_format = (
+            command_format_fedora if netcat_style == 'fedora'
+            else command_format_ubuntu)
 
         nb_attempts = int(the_config.value('networking', 'pattern_size'))
         pat_port = the_config.value('networking', 'pattern_port')
@@ -72,15 +74,14 @@ class Collector:
             # if is has, we try our luck on another couple (ip, port)
             command_line = command
             if self.subprocess.returncode is None:
-                logger.info("collector started: {}".format(command_line))
-                await self.feedback('info',
-                                    "collector started on {}"
-                                    .format(self.image))
+                logger.info(f"collector started: {command_line}")
+                await self.feedback(
+                    'info', f"collector started on {self.image}")
                 self.port = port
                 return port
             else:
-                logger.warning("failed to start collector with {}"
-                               .format(command_line))
+                logger.warning(
+                    f"failed to start collector with {command_line}")
         logger.critical("Could not find a free port to start collector")
         raise Exception("Could not start collector server")
 
@@ -96,7 +97,6 @@ class Collector:
             except Exception:                           # pylint: disable=w0703
                 pass
             self.subprocess = None
-            logger.info("collector (on port {}) stopped".format(self.port))
-            self.feedback_nowait('info',
-                                 "image collector server (on port {}) stopped"
-                                 .format(self.port))
+            logger.info(f"collector (on port {self.port}) stopped")
+            self.feedback_nowait(
+                'info', f"image collector server (on port {self.port}) stopped")

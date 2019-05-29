@@ -34,9 +34,8 @@ class Frisbeed:
     def __repr__(self):
         text = "<frisbeed"
         if self.multicast_group:
-            text += "@{}:{}".format(self.multicast_group, self.multicast_port)
-        text += " on {} at {} Mibps".format(Path(self.image).name,
-                                            self.bandwidth)
+            text += f"@{self.multicast_group}:{self.multicast_port}"
+        text += f" on {Path(self.image).name} at {self.bandwidth} Mibps"
         text += ">"
         return text
 
@@ -87,7 +86,7 @@ class Frisbeed:
             if self.subprocess.returncode is None:
                 self.multicast_group = multicast_group
                 self.multicast_port = multicast_port
-                await self.feedback('info', "started {}".format(self))
+                await self.feedback('info', f"started {self}")
                 return multicast_group, multicast_port
             else:
                 logger.warning(f"failed to start frisbeed with `{command_line}`"
@@ -100,4 +99,4 @@ class Frisbeed:
         if self.subprocess:
             self.subprocess.kill()
             self.subprocess = None
-            self.feedback_nowait('info', "stopped {}".format(self))
+            self.feedback_nowait('info', f"stopped {self}")
