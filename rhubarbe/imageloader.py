@@ -60,7 +60,12 @@ class ImageLoader:
                                          for node in self.nodes])
         # we can now kill the server
         self.frisbeed.stop_nowait()
-        return all(results)
+        result = all(results)
+        if not result:
+            await self.feedback(
+                'info',
+                "at least one node failed to write that image on disk")
+        return result
 
 
     # this is synchroneous

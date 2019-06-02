@@ -55,7 +55,8 @@ class MySSHClientSession(asyncssh.SSHClientSession):
 class MySSHClient(asyncssh.SSHClient):
     def connection_made(self, conn):
         if DEBUG:
-            print(f'SSC Connection made to {conn.get_extra_info('peername')[0]}.')
+            print(f"SSC Connection made to "
+                  f" {conn.get_extra_info('peername')[0]}.")
 
     def auth_completed(self):
         if DEBUG:

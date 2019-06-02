@@ -11,33 +11,21 @@ Parsing the output of the remote frisbee app
 
 import re
 
-import telnetlib3
-
 from rhubarbe.logger import logger
 from rhubarbe.telnet import TelnetProxy
 from rhubarbe.config import Config
 
 
-# NOTE: this code is based on telnetlib3 0.5.0
-# in 1.0 there is no telnetlib3.TerminalShell
-class FrisbeeParser(telnetlib3.TerminalShell):
-    def __init__(self, *args, **kwds):
-        super().__init__(*args, **kwds)
-        self.bytes_line = b""
+class FrisbeeParser:
+    def __init__(self, proxy):
+        self.proxy = proxy
         self.total_chunks = 0
 
-    def feed_byte(self, incoming):                      # pylint: disable=w0221
-        if incoming == b"\n":
-            self.parse_line()
-            self.bytes_line = b""
-        else:
-            self.bytes_line += incoming
-
-    def ip(self):                                       # pylint: disable=c0103
-        return self.client.proxy.control_ip
+    def ip(self):
+        return self.proxy.control_ip
 
     def feedback(self, field, msg):
-        self.client.proxy.message_bus.put_nowait({'ip': self.ip(), field: msg})
+        self.proxy.message_bus.put_nowait({'ip': self.ip(), field: msg})
 
     def send_percent(self, percent):
         self.feedback('percent', percent)
@@ -58,9 +46,7 @@ class FrisbeeParser(telnetlib3.TerminalShell):
     matcher_status = \
         re.compile(r'FRISBEE-STATUS=(?P<status>\d+)')
 
-    def parse_line(self):
-        line = self.bytes_line.decode().strip()
-        logger.debug("line from frisbee:" + line)
+    def parse_line(self, line):
         #
         match = self.matcher_new_style_progress.match(line)
         if match:
@@ -105,11 +91,13 @@ class FrisbeeParser(telnetlib3.TerminalShell):
 
 
 class Frisbee(TelnetProxy):
-    async def connect(self):
-        await self._try_to_connect(shell=FrisbeeParser)
 
-    async def wait(self):
-        await self._wait_until_connect(shell=FrisbeeParser)
+    def __init__(self, *args, **kwds):
+        super().__init__(*args, **kwds)
+        self.parser = FrisbeeParser(self)
+
+    def line_callback(self, line):
+        self.parser.parse_line(line)
 
     async def run(self, multicast_ip, port):
         control_ip = self.control_ip
@@ -122,16 +110,8 @@ class Frisbee(TelnetProxy):
         logger.info(f"on {self.control_ip} : running command {self.command}")
         await self.feedback('frisbee_status', "starting frisbee client")
 
-        eof = chr(4)
-        eol = '\n'
-        # print out exit status so the parser can catch it and expose it
-        command = self.command
-        command = command + "; echo FRISBEE-STATUS=$?"
-        # make sure the command is sent (EOL)
-        # and that the session terminates afterwards (exit + EOF)
-        command = command + "; exit" + eol + eof
-        self._protocol.stream.write(self._protocol.shell.encode(command))
+        retcod = await self.session([self.command])
 
-        # wait for telnet to terminate
-        await self._protocol.waiter_closed
-        return True
+        logger.info(f"frisbee on {self.control_ip} returned {retcod}")
+
+        return retcod

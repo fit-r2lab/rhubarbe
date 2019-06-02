@@ -72,6 +72,8 @@ class ImageSaver:
                                               self.radical, self.comment)
         # we can now kill the server
         self.collector.stop_nowait()
+        if not result:
+            await self.feedback('info', "Failed to save disk image")
         return result
 
 

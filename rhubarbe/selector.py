@@ -85,7 +85,7 @@ class Selector:
 
     # generators
     def node_names(self):
-        return (f"{self.regularname}{i:02}") for i in sorted(self.set))
+        return (f"{self.regularname}{i:02}" for i in sorted(self.set))
 
     def cmc_names(self):
         return (f"{self.rebootname}{i:02}" for i in sorted(self.set))

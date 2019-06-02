@@ -25,9 +25,7 @@ import telnetlib3
 from rhubarbe.logger import logger
 from rhubarbe.config import Config
 
-# one painful trick here is, we need to pass the shell class when connecting,
-# even though in our usage model it would be more convenient
-# to define this when the command is run
+MAX_BUF = 16 * 1024
 
 
 class TelnetClient(telnetlib3.TelnetClient):
@@ -40,62 +38,67 @@ class TelnetClient(telnetlib3.TelnetClient):
         super().__init__(*args, **kwds)
 
 
+
 class TelnetProxy:
     """
     a convenience class that help us
     * wait for the telnet server to come up
-    * invoke frisbee
+    * invoke frisbee when rload'ing
+    * invoke imagezip when rsave'ing
     """
+
     def __init__(self, control_ip, message_bus):
         self.control_ip = control_ip
         self.message_bus = message_bus
+        # config
         the_config = Config()
         self.port = int(the_config.value('networking', 'telnet_port'))
         self.backoff = float(the_config.value('networking', 'telnet_backoff'))
-        self.timeout = float(the_config.value('networking', 'telnet_timeout'))
+        self.connect_timeout = float(the_config.value('networking', 'telnet_timeout'))
+        self.connect_minwait = float(the_config.value('networking', 'telnet_connect_minwait'))
+        self.connect_maxwait = float(the_config.value('networking', 'telnet_connect_maxwait'))
         # internals
-        self._transport = None
-        self._protocol = None
+        self.running = False
+        self._reader = None
+        self._writer = None
+
 
     def is_ready(self):
-        # xxx for now we don't check that frisbee is installed
-        # and the expected version
-        return self._protocol is not None
+        return self._writer is not None
+
 
     async def feedback(self, field, msg):
         await self.message_bus.put({'ip': self.control_ip, field: msg})
 
-    async def _try_to_connect(self, shell=telnetlib3.TerminalShell):
+
+    async def try_to_connect(self):
 
         # a little closure to capture our ip and expose it to the parser
         def client_factory():
-            return TelnetClient(proxy=self, encoding='utf-8', shell=shell)
+            return TelnetClient(proxy=self, encoding='utf-8')
 
         await self.feedback('frisbee_status', "trying to telnet..")
-        logger.info(f"Trying to telnet to {self.control_ip}")
-        loop = asyncio.get_event_loop()
+        logger.info(f"Trying to telnet on {self.control_ip}")
         try:
-            self._transport, self._protocol = \
-              await asyncio.wait_for(
-                  loop.create_connection(client_factory,
-                                         self.control_ip, self.port),
-                  self.timeout)
-            logger.info(f"{self.control_ip}: telnet connected")
-            return True
-        except asyncio.TimeoutError:
-            await self.feedback('frisbee_status', "timed out..")
-            self._transport, self._protocol = None, None
-        except Exception:
-            logger.exception("telnet connect: unexpected exception {}")
-            self._transport, self._protocol = None, None
+            self._reader, self._writer = await asyncio.wait_for(
+                telnetlib3.open_connection(
+                    self.control_ip, 23, shell=None, log=logger,
+                    connect_minwait=self.connect_minwait,
+                    connect_maxwait=self.connect_maxwait),
+                timeout = self.connect_timeout)
+        except (asyncio.TimeoutError, OSError) as exc:
+            self._reader, self._writer = None, None
+        except Exception as exc:
+            logger.exception(f"telnet connect: unexpected exception {exc}")
 
-    async def _wait_until_connect(self, shell=telnetlib3.TerminalShell):
+
+    async def wait_until_connect(self):
         """
         wait for the telnet server to come up
         this has no native timeout mechanism
         """
         while True:
-            await self._try_to_connect(shell)
+            await self.try_to_connect()
             if self.is_ready():
                 return True
             else:
@@ -103,3 +106,60 @@ class TelnetProxy:
                 await self.feedback('frisbee_status',
                                     f"backing off for {backoff:.3}s")
                 await asyncio.sleep(backoff)
+
+
+    def line_callback(self, line):
+        """
+        this is intended to be redefined by daughter classes
+        it will be called with each piece of data that comes back
+        as a result of invoking session()
+        no line-asembling is done in the present class for now,
+        returned input is triggered as it comes
+        """
+        logger.error(f"redefine telnet.line_callback()")
+
+
+    async def session(self, commands):
+        """
+        given a list of shell commands, will issue them
+        before exiting
+        all the commands are fired at once in sequence
+
+        return is a boolean that says whether the last command ran OK
+        i.e. return is True if retcod is 0, False otherwise
+        """
+
+        commands.append('echo _TELNET_STATUS=$?')
+        commands.append('exit')
+
+        def parse_status(line):
+            os_status = int(line.strip().replace("_TELNET_STATUS=", ""))
+            return os_status == 0
+
+        for command in commands:
+            logger.debug(f"telnet -> {command}")
+            # print(f'[[{command}]]')
+            self._writer.write(command + '\n')
+
+
+        self.running = True
+        retcod = False
+
+        line = ""
+        while True:
+            if self._reader.at_eof():
+                break
+            recv = await self._reader.read(MAX_BUF)
+            for incoming in recv:
+                if incoming == "\n":
+                    logger.debug(f"telnet <- {line}")
+                    if line.startswith("_TELNET_STATUS"):
+                        retcod = parse_status(line)
+                    self.line_callback(line)
+                    line = ""
+                else:
+                    line += incoming
+
+        self.running = False
+
+        return retcod

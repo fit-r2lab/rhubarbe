@@ -250,13 +250,11 @@ class Node:                                             # pylint: disable=r0902
     async def wait_for_telnet(self, service):
         ipaddr = self.control_ip_address()
         if service == 'frisbee':
-            self.frisbee = Frisbee(ipaddr,               # pylint:disable=w0201
-                                   self.message_bus)
-            await self.frisbee.wait()
+            self.frisbee = Frisbee(ipaddr, self.message_bus)
+            await self.frisbee.wait_until_connect()
         elif service == 'imagezip':
-            self.imagezip = ImageZip(ipaddr,             # pylint:disable=w0201
-                                     self.message_bus)
-            await self.imagezip.wait()
+            self.imagezip = ImageZip(ipaddr, self.message_bus)
+            await self.imagezip.wait_until_connect()
 
     async def reboot_on_frisbee(self, idle):
         self.manage_nextboot_symlink('frisbee')
@@ -268,6 +266,7 @@ class Node:                                             # pylint: disable=r0902
         await self.wait_for_telnet('frisbee')
         self.manage_nextboot_symlink('cleanup')
         result = await self.frisbee.run(ipaddr, port)
+        #logger.info(f"run_frisbee -> {result}")
         if reset:
             await self.ensure_reset()
         else:
@@ -280,6 +279,7 @@ class Node:                                             # pylint: disable=r0902
         self.manage_nextboot_symlink('cleanup')
         result = await self.imagezip.run(port, self.control_hostname(),
                                          radical, comment)
+        #logger.info(f"run_imagezip -> {result}")
         if reset:
             await self.ensure_reset()
         else:
