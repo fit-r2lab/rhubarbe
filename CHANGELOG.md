@@ -1,3 +1,9 @@
+# 4.0.0 - 2019 Jun 1
+
+* move to using telnetlib3 v1.x
+* refactored telnet code so as to capture cases  when imagezip
+  or frisbee fail to run on the node as part of load/save operations
+
 # 3.1.6 - 2019 Mar 28
 
 * fix for when an actual filename is provided to either load or resolve
