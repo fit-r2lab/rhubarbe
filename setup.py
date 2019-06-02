@@ -34,14 +34,13 @@ supported_subcommands = rhubarbe_help.split(",")
 # apt-get -y install libffi-dev
 # which is required before pip can install asyncssh
 INSTALL_REQUIRES = [
-    # version 1.0 breaks our code
-    'telnetlib3==0.5.0',
+    'telnetlib3',
     'aiohttp',
     'asyncssh',
     'progressbar33',
     # for monitors
-    'asynciojobs>=0.10',
-    'r2lab>=0.5.0',
+    'asynciojobs',
+    'r2lab',
     # not yet used
     'aioxmlrpc',
 ]
