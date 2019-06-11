@@ -1,3 +1,7 @@
+# 4.0.1 - 2019 Jun 11
+
+* micro fix for nightly.py: Frisbeed to accept ImagePath image
+
 # 4.0.0 - 2019 Jun 1
 
 * move to using telnetlib3 v1.x
