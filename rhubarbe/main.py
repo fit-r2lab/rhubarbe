@@ -314,8 +314,6 @@ def load(*argv):
     if not actual_image:
         print(f"Image file {args.image} not found - emergency exit")
         exit(1)
-    # result is an ImagePath
-    actual_image = str(actual_image)
 
     # send feedback
     message_bus.put_nowait({'loading_image': actual_image})

@@ -23,7 +23,7 @@ class Frisbeed:
     Controller for a frisbeed instance
     """
     def __init__(self, image, bandwidth, message_bus):
-        self.image = image
+        self.image = str(image)
         self.bandwidth = bandwidth
         self.message_bus = message_bus
         #
