@@ -1,3 +1,7 @@
+# 4.0.2 - 2019 Nov 21
+
+* Monitor knows how to spot and report nodes running centos
+
 # 4.0.1 - 2019 Jun 11
 
 * micro fix for nightly.py: Frisbeed to accept ImagePath image
