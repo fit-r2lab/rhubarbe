@@ -88,6 +88,7 @@ class MonitorNode:
 
     ubuntu_matcher = re.compile(r"DISTRIB_RELEASE=(?P<ubuntu_version>[0-9.]+)")
     fedora_matcher = re.compile(r"Fedora release (?P<fedora_version>\d+)")
+    centos_matcher = re.compile(r"CentOS Linux release (?P<centos_version>\d+)")
     gnuradio_matcher = re.compile(
         r"\AGNURADIO:(?P<gnuradio_version>[0-9\.]+)\Z")
     uname_matcher = re.compile(r"\AUNAME:(?P<uname>.+)\Z")
@@ -117,6 +118,11 @@ class MonitorNode:
             if match:
                 version = match.group('fedora_version')
                 os_release = "fedora-{version}".format(version=version)
+                continue
+            match = self.centos_matcher.match(line)
+            if match:
+                version = match.group('centos_version')
+                os_release = "centos-{version}".format(version=version)
                 continue
             match = self.gnuradio_matcher.match(line)
             if match:
@@ -218,7 +224,7 @@ class MonitorNode:
         }
         self.zero_wlan_infos()
         remote_commands = [
-            "cat /etc/lsb-release /etc/fedora-release /etc/gnuradio-release "
+            "cat /etc/lsb-release /etc/redhat-release /etc/gnuradio-release "
             "2> /dev/null | grep -i release",
             "echo -n GNURADIO: ; gnuradio-config-info --version "
             "2> /dev/null || echo none",
