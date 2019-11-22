@@ -1,3 +1,8 @@
+# 4.0.3 - 2019 Nov 22
+
+* fix an alien bug with Path.glob() that does not behave as expected
+  replaced with glob.glob()
+
 # 4.0.2 - 2019 Nov 21
 
 * Monitor knows how to spot and report nodes running centos
