@@ -2,6 +2,7 @@
 
 * fix an alien bug with Path.glob() that does not behave as expected
   replaced with glob.glob()
+* PS: a bug was filed in the Python repo here https://bugs.python.org/issue38894 
 
 # 4.0.2 - 2019 Nov 21
 
