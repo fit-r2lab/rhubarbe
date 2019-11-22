@@ -13,7 +13,7 @@ import sys
 import os
 import time
 import re
-# could not just inherit Path, too cumbersome...
+import glob
 from pathlib import Path
 #from itertools import chain
 from collections import defaultdict
@@ -139,16 +139,16 @@ class ImageCluster:
         if len(inodes) != 1:
             print("OOPS, wrong clustering!")
         # the image_path that is no symlink/alias
-        self.regular = None
+        self._regular = None
         self.aliases = 0
         for path in self.image_paths:
             if not path.is_alias:
-                self.regular = path
+                self._regular = path
             else:
                 self.aliases += 1
-        if not self.regular:
+        if not self._regular:
             print(f"OOPS - no regular file found in cluster "
-                  f"with {self.image_paths[0]}")
+                  f"with {self.image_paths[0]} that has {self.aliases} aliases")
         self.image_paths.sort(
             key=lambda image_path: image_path.mtime, reverse=True)
 
@@ -158,6 +158,10 @@ class ImageCluster:
 
     def __repr__(self):
         return repr(self.regular)
+
+    @property
+    def regular(self):
+        return self._regular or self.image_paths[0]
 
 
     def _display(self, long_format, radical_width):
@@ -222,7 +226,9 @@ class ImagesRepo(metaclass=Singleton):
         in this directory so that bool(predicate(image_path)) is True
         """
         directory = Path(directory)
-        for filename in directory.glob(f"*{SUFFIX}"):
+        #2019 nov 22 - somehow this is broken
+        #for filename in directory.glob(f"*{SUFFIX}"):
+        for filename in glob.glob(f"{directory}/*{SUFFIX}"):
             image_path = ImagePath(self, filename)
             if predicate(image_path):
                 yield image_path
