@@ -455,7 +455,7 @@ def wait(*argv):                                        # pylint: disable=r0914
         display.epilogue()
         if not args.silent:
             for ssh in sshs:
-                print("{ssh.node}:ssh {'OK' if ssh.status else 'KO'}")
+                print(f"{ssh.node}:ssh {'OK' if ssh.status else 'KO'}")
 
 ####################
 
