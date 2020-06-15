@@ -1,3 +1,8 @@
+# 4.0.4 - 2020 Jun 15
+
+* fixed missing f-string
+* use Makefile.pypi to publish on pypi
+
 # 4.0.3 - 2019 Nov 22
 
 * fix an alien bug with Path.glob() that does not behave as expected
