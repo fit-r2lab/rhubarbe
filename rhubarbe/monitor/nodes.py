@@ -242,12 +242,14 @@ class MonitorNode:
                                                    timeout=ssh_timeout)
             except asyncio.TimeoutError:
                 connected = False
+                self.set_info({'control_ssh': 'off'})
             if self.verbose:
                 logger.info(f"{self.node.control_hostname()} ssh-connected={connected}")
             if connected:
                 try:
                     command = ";".join(remote_commands)
-                    output = await ssh.run(command)
+                    output = await asyncio.wait_for(ssh.run(command),
+                                                    timeout=ssh_timeout)
                     # padding dict here sets control_ssh and control_ping to on
                     self.parse_ssh_probe_output(output, padding_dict)
                     # required as otherwise we leak openfiles
@@ -255,10 +257,13 @@ class MonitorNode:
                         await ssh.close()
                     except Exception:
                         logger.exception("monitornodes oops 1")
+                except asyncio.TimeoutError:
+                    self.set_info({'control_ssh': 'off'})
                 except Exception:
                     logger.exception("monitornodes remote_command failed")
-            else:
-                self.set_info({'control_ssh': 'off'})
+        if self.verbose:
+            logger.info(f"{self.node.control_hostname()} ssh-based branch done "
+                        f"ssh is deemed {self.info['control_ssh']}")
 
         # if we could ssh then we're done
         if self.info['control_ssh'] == 'on':
