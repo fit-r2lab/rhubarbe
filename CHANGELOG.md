@@ -1,3 +1,8 @@
+# 4.0.5 - 2020 Jun 25
+
+* bugfix in monitor nodes, monitor was hanging on nodes
+  that got killed at the wrong time
+
 # 4.0.4 - 2020 Jun 15
 
 * fixed missing f-string
