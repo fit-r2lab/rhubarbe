@@ -112,17 +112,17 @@ class MonitorNode:
             match = self.ubuntu_matcher.match(line)
             if match:
                 version = match.group('ubuntu_version')
-                os_release = "ubuntu-{version}".format(version=version)
+                os_release = f"ubuntu-{version}"
                 continue
             match = self.fedora_matcher.match(line)
             if match:
                 version = match.group('fedora_version')
-                os_release = "fedora-{version}".format(version=version)
+                os_release = f"fedora-{version}"
                 continue
             match = self.centos_matcher.match(line)
             if match:
                 version = match.group('centos_version')
-                os_release = "centos-{version}".format(version=version)
+                os_release = f"centos-{version}"
                 continue
             match = self.gnuradio_matcher.match(line)
             if match:
@@ -162,22 +162,18 @@ class MonitorNode:
             except Exception:
                 pass
             if self.verbose:
-                logger.info("node={node} collected {bytes} "
-                            "for device wlan{wlan_no} in {rxtx}"
-                            .format(node=self.node, bytes=bytes,
-                                    wlan_no=wlan_no, rxtx=rxtx))
+                logger.info(f"node={self.node} collected {bytes} "
+                            f"for device wlan{wlan_no} in {rxtx}")
             # do we have something on this measurement ?
             if rxtx_key in self.history:
                 previous_bytes, previous_time = self.history[rxtx_key]
-                info_key = "wlan_{wlan_no}_{rxtx}_rate".format(**locals())
+                info_key = f"wlan_{wlan_no}_{rxtx}_rate"
                 new_rate = 8.*(bytes - previous_bytes) / (now - previous_time)
                 wlan_info_dict[info_key] = new_rate
                 if self.verbose:
-                    logger.info("node={} computed {} bps for key {} "
-                                "- bytes = {}, pr = {}, now = {}, pr = {}"
-                                .format(id, new_rate, info_key,
-                                        bytes, previous_bytes,
-                                        now, previous_time))
+                    logger.info(f"node={id} computed {new_rate} bps for key {info_key} "
+                                f"- bytes = {bytes}, pr = {previous_bytes}, "
+                                f"now = {now}, pr = {previous_time}")
             # store this measurement for next run
             self.history[rxtx_key] = (bytes, now)
         # xxx would make sense to clean up history for measurements that
@@ -194,7 +190,7 @@ class MonitorNode:
         The logic for getting one node's info and send it to sidecar
         """
         if self.verbose:
-            logger.info("entering pass1, info={}".format(self.info))
+            logger.info(f"entering pass1, info={self.info}")
         # pass1 : check for status
         padding_dict = {
             'control_ping': 'off',
@@ -215,7 +211,7 @@ class MonitorNode:
             await self.set_info_and_report({'cmc_on_off': 'fail'}, padding_dict)
             return
         if self.verbose:
-            logger.info("entering pass2, info={}".format(self.info))
+            logger.info(f"entering pass2, info={self.info}")
         # pass2 : CMC status is ON - let's try to ssh it
         self.set_info({'cmc_on_off': 'on'})
         padding_dict = {
@@ -239,15 +235,15 @@ class MonitorNode:
         # reconnect each time
         async with SshProxy(self.node) as ssh:
             if self.verbose:
-                logger.info("trying to ssh-connect (timeout={})"
-                            .format(ssh_timeout))
+                logger.info(f"trying to ssh-connect to {self.node.control_hostname()} "
+                            f"(timeout={ssh_timeout})")
             try:
                 connected = await asyncio.wait_for(ssh.connect(),
                                                    timeout=ssh_timeout)
             except asyncio.TimeoutError:
                 connected = False
             if self.verbose:
-                logger.info("ssh-connected={}".format(connected))
+                logger.info(f"{self.node.control_hostname()} ssh-connected={connected}")
             if connected:
                 try:
                     command = ";".join(remote_commands)
@@ -270,7 +266,7 @@ class MonitorNode:
             return
 
         if self.verbose:
-            logger.info("entering pass3, info={}".format(self.info))
+            logger.info(f"entering pass3, info={self.info}")
         # pass3 : node is ON but could not ssh
         # check for ping
         # I don't know of an asyncio library to deal with icmp
@@ -336,15 +332,15 @@ class MonitorNodes:                                     # pylint: disable=r0902
             line = "".join([one_char_summary(mnode.info)
                             for mnode in self.monitor_nodes])
             current = self.reconnectable.counter
-            delta = "+ {}".format(current-previous)
-            line += " {} emits ({})".format(current, delta)
+            delta = f"+ {current-previous}"
+            line += f" {current} emits ({delta})"
             previous = current
             logger.info(line)
             await asyncio.sleep(self.log_period)
 
     async def run_forever(self):
-        logger.info("Starting nodes on {} nodes - report_wlan={}"
-                    .format(len(self.monitor_nodes), self.report_wlan))
+        logger.info(f"Starting nodes on {len(self.monitor_nodes)} nodes - "
+                    f"report_wlan={self.report_wlan}")
         return asyncio.gather(
             *[monitor_node.probe_forever(self.cycle,
                                          ping_timeout=self.ping_timeout,
