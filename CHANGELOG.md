@@ -1,3 +1,7 @@
+# 4.0.6 - 2020 Nov 7
+
+* remove asyncssh INFO messages in rhubarbe wait
+
 # 4.0.5 - 2020 Jun 25
 
 * bugfix in monitor nodes, monitor was hanging on nodes
