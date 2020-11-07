@@ -23,6 +23,9 @@ from pkg_resources import resource_string
 
 from asynciojobs import Scheduler, Job
 
+import logging
+from asyncssh.logging import set_log_level as asyncssh_set_log_level
+
 from rhubarbe.config import Config
 from rhubarbe.imagesrepo import ImagesRepo
 from rhubarbe.selector import (Selector,
@@ -391,6 +394,9 @@ def wait(*argv):                                        # pylint: disable=r0914
     Wait for selected nodes to be reachable by ssh
     Returns 0 if all nodes indeed are reachable
     """
+    # suppress info log messages from asyncssh
+    asyncssh_set_log_level(logging.WARNING)
+
     config = Config()
     parser = ArgumentParser(usage=usage,
                             formatter_class=ArgumentDefaultsHelpFormatter)
