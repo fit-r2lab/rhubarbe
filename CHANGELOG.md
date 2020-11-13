@@ -1,3 +1,10 @@
+# 4.0.7 - 2020 Nov 13
+
+* no longer specify a protocol when creating a SSLContext
+  object for connecting to a plcapi endpoint, useful when
+  plcapi runs on f33/python3.9
+
+
 # 4.0.6 - 2020 Nov 7
 
 * remove asyncssh INFO messages in rhubarbe wait
