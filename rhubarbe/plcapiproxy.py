@@ -28,7 +28,7 @@ class PlcApiProxy(ServerProxy):                         # pylint: disable=r0903
         self.password = password
         self.debug = debug
         ###
-        context = ssl.SSLContext(ssl.PROTOCOL_TLSv1)
+        context = ssl.SSLContext()
         context.check_hostname = False
         ServerProxy.__init__(
             self, self.url, allow_none=True, context=context
