@@ -1,3 +1,9 @@
+# 4.0.8 - 2021 May 31
+
+* default ssh_timeout is now 2s; nodes sometimes need more time
+  to answer about their versions and all the material requested
+  by the monitor
+
 # 4.0.7 - 2020 Nov 13
 
 * no longer specify a protocol when creating a SSLContext
