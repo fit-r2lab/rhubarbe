@@ -258,11 +258,13 @@ class MonitorNode:
                     except Exception:
                         logger.exception("monitornodes oops 1")
                 except asyncio.TimeoutError:
+                    if self.verbose:
+                        logger.info(f"received ssh timeout with {self.node.control_hostname()}")
                     self.set_info({'control_ssh': 'off'})
                 except Exception:
                     logger.exception("monitornodes remote_command failed")
         if self.verbose:
-            logger.info(f"{self.node.control_hostname()} ssh-based branch done "
+            logger.info(f"{self.node.control_hostname()} ssh-based logic done "
                         f"ssh is deemed {self.info['control_ssh']}")
 
         # if we could ssh then we're done
