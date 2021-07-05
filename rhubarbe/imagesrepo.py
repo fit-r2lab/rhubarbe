@@ -69,7 +69,10 @@ class ImagePath:                                 # pylint: disable=r0902, r0903
                 pass
             self.readable = True
         except OSError:
+            print(f"WARNING unreadable path {self}")
             self.readable = False
+            self.mtime = 0
+            self.size = 0
             return
         stat = self.path.stat()
         self.mtime = stat.st_mtime
@@ -239,6 +242,7 @@ class ImagesRepo(metaclass=Singleton):
         candidates = list(self._iterate_images(".", match))
         if look_in_global:
             candidates += list(self._iterate_images(self.public, match))
+        candidates = [candidate for candidate in candidates if candidate.readable]
         candidates.sort(key=lambda info: info.mtime, reverse=True)
         return candidates
 
