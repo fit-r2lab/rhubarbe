@@ -1,3 +1,7 @@
+# 4.0.9 - 2021 Jul 5
+
+* bugfix, better handling of unreadable images
+
 # 4.0.8 - 2021 May 31
 
 * default ssh_timeout is now 2s; nodes sometimes need more time
