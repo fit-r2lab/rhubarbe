@@ -403,8 +403,7 @@ def wait(*argv):                                        # pylint: disable=r0914
     parser.add_argument("-c", "--curses", action='store_true', default=False,
                         help="Use curses to provide term-based animation")
     parser.add_argument("-t", "--timeout", action='store',
-                        default=config.value('nodes',
-                                                 'wait_default_timeout'),
+                        default=config.value('nodes', 'wait_default_timeout'),
                         type=float,
                         help="Specify global timeout for the whole process")
     parser.add_argument("-b", "--backoff", action='store',
@@ -412,6 +411,8 @@ def wait(*argv):                                        # pylint: disable=r0914
                         type=float,
                         help="Specify backoff average between "
                         "attempts to ssh connect")
+    parser.add_argument("-u", "--user", default="root",
+                        help="select other username")
     # really dont' write anything
     parser.add_argument("-s", "--silent", action='store_true', default=False)
     parser.add_argument("-v", "--verbose", action='store_true', default=False)
@@ -434,7 +435,8 @@ def wait(*argv):                                        # pylint: disable=r0914
 
     nodes = [Node(cmc_name, message_bus)                # pylint: disable=w0621
              for cmc_name in selector.cmc_names()]
-    sshs = [SshProxy(node, verbose=args.verbose) for node in nodes]
+    sshs = [SshProxy(node, username=args.user, verbose=args.verbose)
+            for node in nodes]
     jobs = [Job(ssh.wait_for(args.backoff), critical=True) for ssh in sshs]
 
     display_class = Display if not args.curses else DisplayCurses
