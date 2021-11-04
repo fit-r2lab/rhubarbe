@@ -75,6 +75,7 @@ class MonitorNode:
         self.set_info(*overrides)
         await self.report_info()
 
+
     ubuntu_matcher = re.compile(r"DISTRIB_RELEASE=(?P<ubuntu_version>[0-9.]+)")
     fedora_matcher = re.compile(r"Fedora release (?P<fedora_version>\d+)")
     centos_matcher = re.compile(r"CentOS Linux release (?P<centos_version>\d+)")
@@ -84,6 +85,11 @@ class MonitorNode:
     # 2016-05-28@08:20 - node fit38 - image oai-enb-base2 - by root
     rhubarbe_image_matcher = re.compile(
         r"\A/etc/rhubarbe-image:.* - image (?P<image_radical>[^ ]+) - by")
+    docker_matcher = re.compile(
+        r"\ADOCKER:Docker version (?P<docker_version>[0-9\.]+),")
+    container_matcher = re.compile(
+        r"\ACONTAINER:(?P<running>(true|false)) (?P<image>.*)")
+
 
     def parse_ssh_probe_output(self,      # pylint: disable=r0912, r0914, r0915
                                stdout, padding_dict):
@@ -91,6 +97,9 @@ class MonitorNode:
         gnuradio_release = "none"
         uname = ""
         image_radical = ""
+        docker_version = ""
+        container_running = ""
+        container_image = ""
         for line in stdout.split("\n"):
             match = self.ubuntu_matcher.match(line)
             if match:
@@ -119,14 +128,25 @@ class MonitorNode:
             if match:
                 image_radical = match.group('image_radical')
                 continue
+            if match := self.docker_matcher.match(line):
+                docker_version = match.group('docker_version')
+                continue
+            if match := self.container_matcher.match(line):
+                container_running = match.group('running')
+                container_image = match.group('image')
+                continue
 
         # xxx would make sense to clean up history for measurements that
         # we were not able to collect at this cycle
-        self.set_info({'os_release': os_release,
-                       'gnuradio_release': gnuradio_release,
-                       'uname': uname,
-                       'image_radical': image_radical},
-                      padding_dict)
+        self.set_info({
+            'os_release': os_release,
+            'gnuradio_release': gnuradio_release,
+            'uname': uname,
+            'image_radical': image_radical,
+            'docker_version': docker_version,
+            'container_running': container_running,
+            'container_image': container_image,
+            }, padding_dict)
 
     async def probe(self,                 # pylint: disable=r0912, r0914, r0915
                     ping_timeout, ssh_timeout):
@@ -171,6 +191,8 @@ class MonitorNode:
             # this trick allows to have the filename on each output line
             "grep . /etc/rhubarbe-image /dev/null",
             "echo -n UNAME: ; uname -r",
+            "echo -n DOCKER: ; docker --version",
+            "echo -n CONTAINER: ; docker inspect --format='{{.State.Running}} {{.Config.Image}}' container",
             ]
         # reconnect each time
         async with SshProxy(self.node) as ssh:
