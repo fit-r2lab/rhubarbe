@@ -1,3 +1,9 @@
+# 4.0.10 - 2021 Nov 4
+
+* for r2dock-empowered nodes
+  monitornodes reports 3 more fields for nodes that are ssh-reachable
+  docker_version, container_running, and container_image
+
 # 4.0.9 - 2021 Jul 5
 
 * bugfix, better handling of unreadable images
