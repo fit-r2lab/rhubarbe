@@ -13,7 +13,7 @@ import setuptools
 from rhubarbe.version import __version__
 
 LONG_DESCRIPTION = \
-    "See https://github.com/parmentelat/rhubarbe/blob/master/README.md"
+    "See https://github.com/parmentelat/rhubarbe/blob/main/README.md"
 
 # subcommands
 #
