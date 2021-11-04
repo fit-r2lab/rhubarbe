@@ -47,16 +47,13 @@ class MonitorNode:
     """
 
     def __init__(self, node, reconnectable,             # pylint: disable=r0913
-                 report_wlan=False, verbose=False):
+                 verbose=False):
         # a rhubarbe.node.Node instance
         self.node = node
-        self.report_wlan = report_wlan
         self.reconnectable = reconnectable
         self.verbose = verbose
         # current info - will be reported to sidecar
         self.info = {'id': node.id}
-        # remember previous wlan measurement to compute rate
-        self.history = {}
 
     def set_info(self, *overrides):
         """
@@ -64,14 +61,6 @@ class MonitorNode:
         """
         for override in overrides:
             self.info.update(override)
-
-    def zero_wlan_infos(self):
-        """
-        set wlan-related attributes to 0.
-        """
-        for k in self.info:
-            if k.startswith('wlan'):
-                self.info[k] = 0.
 
     async def report_info(self):
         """
@@ -95,9 +84,6 @@ class MonitorNode:
     # 2016-05-28@08:20 - node fit38 - image oai-enb-base2 - by root
     rhubarbe_image_matcher = re.compile(
         r"\A/etc/rhubarbe-image:.* - image (?P<image_radical>[^ ]+) - by")
-    rxtx_matcher = re.compile(
-        r"==> /sys/class/net/wlan(?P<wlan_no>[0-9])/"
-        r"statistics/(?P<rxtx>[rt]x)_bytes <==")
     number_matcher = re.compile(r"\A[0-9]+\Z")
 
     def parse_ssh_probe_output(self,      # pylint: disable=r0912, r0914, r0915
@@ -136,53 +122,19 @@ class MonitorNode:
             if match:
                 image_radical = match.group('image_radical')
                 continue
-            match = self.rxtx_matcher.match(line)
-            if match:
-                # use a tuple as the hash
-                rxtx_key = (match.group('wlan_no'), match.group('rxtx'))
-                continue
             match = self.number_matcher.match(line)
             if match and rxtx_key:
                 rxtx_dict[rxtx_key] = int(line)
                 continue
             rxtx_key = None
 
-        # now that we have the counters we need to translate this into rate
-        # for that purpose we use local clock;
-        # small imprecision should not impact overall result
-        now = time.time()
-        wlan_info_dict = {}
-        for rxtx_key, bytes in rxtx_dict.items():       # pylint: disable=w0622
-            wlan_no, rxtx = rxtx_key
-            # rather dirty hack for images that use wlan2 and wlan3
-            # expose in wlan0 or wlan1 depending on parity of actual device
-            try:
-                wlan_no = int(wlan_no)
-                wlan_no = wlan_no % 2
-            except Exception:
-                pass
-            if self.verbose:
-                logger.info(f"node={self.node} collected {bytes} "
-                            f"for device wlan{wlan_no} in {rxtx}")
-            # do we have something on this measurement ?
-            if rxtx_key in self.history:
-                previous_bytes, previous_time = self.history[rxtx_key]
-                info_key = f"wlan_{wlan_no}_{rxtx}_rate"
-                new_rate = 8.*(bytes - previous_bytes) / (now - previous_time)
-                wlan_info_dict[info_key] = new_rate
-                if self.verbose:
-                    logger.info(f"node={id} computed {new_rate} bps for key {info_key} "
-                                f"- bytes = {bytes}, pr = {previous_bytes}, "
-                                f"now = {now}, pr = {previous_time}")
-            # store this measurement for next run
-            self.history[rxtx_key] = (bytes, now)
         # xxx would make sense to clean up history for measurements that
         # we were not able to collect at this cycle
         self.set_info({'os_release': os_release,
                        'gnuradio_release': gnuradio_release,
                        'uname': uname,
                        'image_radical': image_radical},
-                      padding_dict, wlan_info_dict)
+                      padding_dict)
 
     async def probe(self,                 # pylint: disable=r0912, r0914, r0915
                     ping_timeout, ssh_timeout):
@@ -218,7 +170,7 @@ class MonitorNode:
             'control_ping': 'on',
             'control_ssh': 'on',
         }
-        self.zero_wlan_infos()
+
         remote_commands = [
             "cat /etc/lsb-release /etc/redhat-release /etc/gnuradio-release "
             "2> /dev/null | grep -i release",
@@ -226,12 +178,8 @@ class MonitorNode:
             "2> /dev/null || echo none",
             # this trick allows to have the filename on each output line
             "grep . /etc/rhubarbe-image /dev/null",
-            "echo -n 'UNAME:' ; uname -r",
+            "echo -n UNAME: ; uname -r",
             ]
-        if self.report_wlan:
-            remote_commands.append(
-                "head /sys/class/net/wlan?/statistics/[rt]x_bytes"
-            )
         # reconnect each time
         async with SshProxy(self.node) as ssh:
             if self.verbose:
@@ -310,10 +258,8 @@ class MonitorNode:
 class MonitorNodes:                                     # pylint: disable=r0902
 
     def __init__(self, cmc_names, message_bus,          # pylint: disable=r0913
-                 sidecar_url, cycle,
-                 report_wlan=False, verbose=False):
+                 sidecar_url, cycle, verbose=False):
         self.cycle = cycle
-        self.report_wlan = report_wlan
         self.verbose = verbose
 
         # get miscell config
@@ -329,7 +275,6 @@ class MonitorNodes:                                     # pylint: disable=r0902
         nodes = [Node(cmc_name, message_bus) for cmc_name in cmc_names]
         self.monitor_nodes = [
             MonitorNode(node=node, reconnectable=self.reconnectable,
-                        report_wlan=self.report_wlan,
                         verbose=verbose)
             for node in nodes]
 
@@ -346,8 +291,7 @@ class MonitorNodes:                                     # pylint: disable=r0902
             await asyncio.sleep(self.log_period)
 
     async def run_forever(self):
-        logger.info(f"Starting nodes on {len(self.monitor_nodes)} nodes - "
-                    f"report_wlan={self.report_wlan}")
+        logger.info(f"Starting nodes on {len(self.monitor_nodes)} nodes")
         return asyncio.gather(
             *[monitor_node.probe_forever(self.cycle,
                                          ping_timeout=self.ping_timeout,

@@ -634,10 +634,6 @@ def monitornodes(*argv):                                # pylint: disable=r0914
         "-u", "--sidecar-url", dest="sidecar_url",
         default=Config().value('sidecar', 'url'),
         help="url for the sidecar server")
-    parser.add_argument(
-        "-w", "--wlan", dest="report_wlan",
-        default=False, action='store_true',
-        help="ask for probing of wlan traffic rates")
     parser.add_argument("-v", "--verbose",
                         action='store_true', default=False)
     add_selector_arguments(parser)
@@ -655,7 +651,6 @@ def monitornodes(*argv):                                # pylint: disable=r0914
                                 message_bus=message_bus,
                                 cycle=args.cycle,
                                 sidecar_url=args.sidecar_url,
-                                report_wlan=args.report_wlan,
                                 verbose=args.verbose)
 
     async def async_main():
