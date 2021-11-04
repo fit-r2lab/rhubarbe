@@ -84,15 +84,12 @@ class MonitorNode:
     # 2016-05-28@08:20 - node fit38 - image oai-enb-base2 - by root
     rhubarbe_image_matcher = re.compile(
         r"\A/etc/rhubarbe-image:.* - image (?P<image_radical>[^ ]+) - by")
-    number_matcher = re.compile(r"\A[0-9]+\Z")
 
     def parse_ssh_probe_output(self,      # pylint: disable=r0912, r0914, r0915
                                stdout, padding_dict):
         os_release = "other"
         gnuradio_release = "none"
         uname = ""
-        rxtx_dict = {}
-        rxtx_key = None
         image_radical = ""
         for line in stdout.split("\n"):
             match = self.ubuntu_matcher.match(line)
@@ -122,11 +119,6 @@ class MonitorNode:
             if match:
                 image_radical = match.group('image_radical')
                 continue
-            match = self.number_matcher.match(line)
-            if match and rxtx_key:
-                rxtx_dict[rxtx_key] = int(line)
-                continue
-            rxtx_key = None
 
         # xxx would make sense to clean up history for measurements that
         # we were not able to collect at this cycle
