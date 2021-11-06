@@ -1,4 +1,4 @@
-# 4.0.10 - 2021 Nov 4
+# 5.0.0 - 2021 Nov 6
 
 * for r2dock-empowered nodes
   monitornodes reports 3 more fields for nodes that are ssh-reachable
