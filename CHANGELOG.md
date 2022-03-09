@@ -1,3 +1,9 @@
+# 5.0.1 - 2021 Nov 6
+
+* after upgrading the testbed to f35 / monterey
+  the adb binary for the phones is now expected to be
+  brew-installed and thus in /usr/local/bin
+
 # 5.0.0 - 2021 Nov 6
 
 * for r2dock-empowered nodes
