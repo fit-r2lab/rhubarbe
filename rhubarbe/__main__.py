@@ -51,7 +51,7 @@ def main():
     except Exception as exc:
         import traceback
         traceback.print_exc()
-        print("{command} {subcommand} : Something went badly wrong : {exc}")
+        print(f"{command} {subcommand} : Something went badly wrong : {exc}")
         exit(1)
 
 if __name__ == '__main__':
