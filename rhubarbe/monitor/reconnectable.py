@@ -62,7 +62,7 @@ class ReconnectableSidecar:
                 # xxx should we close() our client ?
                 self.proto = None
                 # see if we need ssl
-                secure, *_ = websockets.uri.parse_uri(self.url)
+                secure = websockets.uri.parse_uri(self.url).secure
                 kwds = {}
                 if secure:
                     import ssl
