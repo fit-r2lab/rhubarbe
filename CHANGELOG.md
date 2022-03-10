@@ -1,4 +1,10 @@
-# 5.0.1 - 2021 Nov 6
+# 5.0.2 - 2022 Mar 10
+
+* adapt to a change in the return type of
+  websockets.uri.parse_uri that is no longer a unpackable
+  was affecting monitorphones mostly
+
+# 5.0.1 - 2022 Mar 9
 
 * after upgrading the testbed to f35 / monterey
   the adb binary for the phones is now expected to be
