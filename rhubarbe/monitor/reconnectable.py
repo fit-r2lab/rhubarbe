@@ -18,12 +18,12 @@ class ReconnectableSidecar:
         self.url = url
         self.category = category
         self.keep_period = keep_period
-        # caller MUST run keep_connected() 
+        # caller MUST run keep_connected()
         self.proto = None
         self.counter = 0
         logger.info(f"reconnectable sidecar to {url} ")
 
-    
+
     async def emit_info(self, info):
         # create a list with that one info
         return await self.emit_infos([info])
@@ -76,7 +76,7 @@ class ReconnectableSidecar:
                 except:
                     logger.exception(f"Could not connect to {self.url} at this time")
             await asyncio.sleep(self.keep_period)
-                  
+
 
     async def watch_back_channel(self, category, callback):
         while True:
@@ -88,7 +88,7 @@ class ReconnectableSidecar:
                 incoming = await self.proto.recv()
                 umbrella = json.loads(incoming)
                 logger.info(f"tmp - got incoming {umbrella['category']} x {umbrella['action']}")
-                if (umbrella['category'] == category and 
+                if (umbrella['category'] == category and
                         umbrella['action'] == 'request'):
                     callback(umbrella)
             except Exception as exc:
