@@ -82,7 +82,7 @@ class TelnetProxy:
         try:
             self._reader, self._writer = await asyncio.wait_for(
                 telnetlib3.open_connection(
-                    self.control_ip, 23, shell=None, log=logger,
+                    self.control_ip, 23, shell=None,
                     connect_minwait=self.connect_minwait,
                     connect_maxwait=self.connect_maxwait),
                 timeout = self.connect_timeout)
