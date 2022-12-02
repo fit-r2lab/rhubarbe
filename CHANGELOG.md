@@ -1,3 +1,10 @@
+# 5.0.3 - 2022 Dec 2
+
+* for python-3.11 (fedora37)
+  requires telnetlib3-2.0.0
+  tweak was needed in telnet.py to remove the log paramater
+  to the call to telnetlib3.open_connection
+
 # 5.0.2 - 2022 Mar 10
 
 * adapt to a change in the return type of
