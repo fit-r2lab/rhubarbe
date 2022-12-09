@@ -41,6 +41,8 @@ INSTALL_REQUIRES = [
     # for monitors
     'asynciojobs',
     'r2lab',
+    # for MapDataFrame
+    'pandas',
     # not yet used
     'aioxmlrpc',
 ]
