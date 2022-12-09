@@ -5,3 +5,6 @@ dist
 foo*
 *.egg-info
 *.egg
+.eggs
+*.log
+trash
