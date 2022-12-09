@@ -21,7 +21,7 @@ echo "Be patient..."
 
 set timeout 10
 
-spawn -noecho sshpass -p${PDU_PASSWORD} ssh -oLogLevel=ERROR -oUserKnownHostsFile=/dev/null -oStrictHostKeyChecking=no -oKexAlgorithms=+diffie-hellman-group1-sha1 -l${PDU_USER} -l${PDU_IP}
+spawn -noecho sshpass -p${PDU_PASSWORD} ssh -oLogLevel=ERROR -oUserKnownHostsFile=/dev/null -oStrictHostKeyChecking=no -oKexAlgorithms=+diffie-hellman-group1-sha1 -l${PDU_USER} -i/dev/null ${PDU_IP}
 expect "pdu#0>"
 
 send -- "pdu 0\r"
