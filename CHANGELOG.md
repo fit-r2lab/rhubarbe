@@ -1,3 +1,9 @@
+# 5.1.1 - 2022 Dec 9
+
+* fixed the `pdu-list` command for fedora 37 for now
+  the other 3 will follow shortly, and will be merge into
+  the single pdu command
+
 # 5.1.0 - 2022 Dec 9
 
 * rhubarbe script command arg .. args
