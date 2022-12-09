@@ -50,8 +50,7 @@ INSTALL_REQUIRES = [
 # add convenience entry points like rhubarbe-load
 all_commands = (
     ['rhubarbe'] +
-    ['rhubarbe-{}'.format(subcommand)
-     for subcommand in supported_subcommands])
+    [f'rhubarbe-{subcommand}' for subcommand in supported_subcommands])
 
 setuptools.setup(
     name="rhubarbe",

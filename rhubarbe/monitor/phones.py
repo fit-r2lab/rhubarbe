@@ -50,9 +50,9 @@ class MonitorPhone:                                     # pylint: disable=r0902
         self.verbose = verbose
 
     def __repr__(self):
-        return ("monitored phone #{} via gw {}@{} with key {}"
-                .format(self.id, self.gateway.username, self.gateway.hostname,
-                        self.gateway.keys[0]))
+        return (f"monitored phone #{self.id}"
+                f" via gw {self.gateway.username}@{self.gateway.hostname}"
+                f" with key {self.gateway.keys[0]}")
 
     async def emit(self):
         await self.reconnectable.emit_info(self.info)
@@ -68,8 +68,7 @@ class MonitorPhone:                                     # pylint: disable=r0902
                 await self.gateway.connect_lazy()
                 logger.info(f"Connected -> {self.gateway}")
             except Exception as exc:
-                logger.error("Could not connect -> {} (exc={})"
-                             .format(self.gateway, exc))
+                logger.error(f"Could not connect -> {self.gateway} (exc={exc})")
                 self.info['airplane_mode'] = 'fail'
                 await self.emit()
 
@@ -83,21 +82,17 @@ class MonitorPhone:                                     # pylint: disable=r0902
                             f"{self.gateway}")
             self.gateway.formatter.start_capture()
             retcod = await self.gateway.run(
-                "{} shell \"settings get global airplane_mode_on\""
-                .format(self.adb_bin))
+                f"{self.adb_bin} shell \"settings get global airplane_mode_on\"")
             result = self.gateway.formatter.get_capture().strip()
             airplane_mode = 'fail' if retcod != 0 \
                 else 'on' if result == '1' else 'off'
             if self.verbose:
-                logger.info("probed phone {} : retcod={} result={} "
-                            "-> airplane_mode = {}"
-                            .format(self.adb_id, retcod, result,
-                                    airplane_mode))
+                logger.info(f"probed phone {self.adb_id} : {retcod=} {result=} "
+                            f"-> {airplane_mode=}")
             self.info['airplane_mode'] = airplane_mode
 
         except Exception as exc:
-            logger.error("Could not probe {} -> (e={})"
-                         .format(self.adb_id, exc))
+            logger.error(f"Could not probe {self.adb_id} -> (e={exc})")
             self.info['airplane_mode'] = 'fail'
             # force ssh reconnect
             self.gateway.conn = None

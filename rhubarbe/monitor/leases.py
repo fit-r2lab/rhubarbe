@@ -48,10 +48,10 @@ class MonitorLeases:                                    # pylint: disable=r0902
                 await leases.refresh()
                 # xxx this is fragile
                 omf_leases = leases.resources
-                logger.info("advertising {} leases".format(len(omf_leases)))
+                logger.info(f"advertising {len(omf_leases)} leases")
                 await self.reconnectable.emit_infos(omf_leases)
                 if self.verbose:
-                    logger.info("Leases details: {}".format(omf_leases))
+                    logger.info(f"Leases details: {omf_leases}")
             except Exception:
                 logger.exception("monitornodes could not get leases")
 

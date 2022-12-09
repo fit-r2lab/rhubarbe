@@ -399,7 +399,7 @@ class ImagesRepo(metaclass=Singleton):
         if not image_path.readable:
             image_path = self.locate_image(image, look_in_global=is_root)
         if not image_path:
-            print("Could not find image {} - ignored".format(image))
+            print(f"Could not find image {image} - ignored")
             return 1
         radical = image_path.radical
         matches = self.locate_all_images(radical, look_in_global=is_root)
@@ -415,8 +415,7 @@ class ImagesRepo(metaclass=Singleton):
         origin = image_path.path
         destination = self.public / (radical + SUFFIX)
         if destination.exists() and not force:
-            print("WARNING: Destination {} already exists - ignored"
-                  .format(destination))
+            print(f"WARNING: Destination {destination} already exists - ignored")
         else:
             moves.append((origin, destination))  # append a tuple
             chmods.append(destination)

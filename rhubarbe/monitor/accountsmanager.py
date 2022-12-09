@@ -61,8 +61,7 @@ def replace_file_with_string(destination_path, new_contents,
         # then make sure to trash the file if it exists
         if remove_if_empty and not new_contents and destination_path.is_file():
             logger.info(
-                "replace_file_with_string: removing file {}"
-                .format(destination_path))
+                f"replace_file_with_string: removing file {destination_path}")
             try:
                 destination_path.unlink()
             finally:
@@ -76,10 +75,10 @@ def replace_file_with_string(destination_path, new_contents,
         if chmod:
             destination_path.chmod(chmod)
         if owner:
-            os.system("chown {} {}".format(owner, destination_path))
+            os.system(f"chown {owner} {destination_path}")
         return True
     except IOError as exc:
-        logger.error("Cannot create {}".format(destination_path))
+        logger.error(f"Cannot create {destination_path}")
         return None
 
 ####################
@@ -144,17 +143,16 @@ class AccountsManager:
         (at least wrt homedir creation, IIRC again)
         """
         commands = [
-            "useradd --create-home --user-group {x} --shell /bin/bash",
-            "mkdir /home/{x}/.ssh",
-            "chmod 700 /home/{x}/.ssh",
-            "chown -R {x}:{x} /home/{x}",
+            f"useradd --create-home --user-group {slicename} --shell /bin/bash",
+            f"mkdir /home/{slicename}/.ssh",
+            f"chmod 700 /home/{slicename}/.ssh",
+            f"chown -R {slicename}:{slicename} /home/{slicename}",
         ]
         for cmd in commands:
-            command = cmd.format(x=slicename)
-            logger.info("Running {}".format(command))
+            logger.info(f"Running {command}")
             retcod = os.system(command)
             if retcod != 0:
-                logger.error("{} -> {}".format(command, retcod))
+                logger.error(f"{command} -> {retcod}")
 
     @staticmethod
     def create_ssh_config(slicename):
@@ -180,7 +178,7 @@ CheckHostIP=no
         replace_file_with_string(ssh_config_file,
                                  ssh_config,
                                  chmod=0o600,
-                                 owner="{x}:{x}".format(x=slicename))
+                                 owner=f"{slicename}:{slicename}")
 
     @staticmethod
     def apply_keys(slicename, keys_string):
@@ -188,7 +186,7 @@ CheckHostIP=no
         replace_file_with_string(auth_path,
                                  keys_string,
                                  chmod=0o600,
-                                 owner="{x}:{x}".format(x=slicename),
+                                 owner=f"{slicename}:{slicename}",
                                  remove_if_empty=True)
 
     ##########
@@ -270,28 +268,24 @@ CheckHostIP=no
                 self.create_ssh_config(slicename)
                 self.apply_keys(slicename, keys)
             except Exception:
-                logger.exception("Could not deal with slice {}"
-                                 .format(slicename))
+                logger.exception(f"Could not deal with slice {slicename}")
 
     def run_forever(self, cycle, policy):
         while True:
             beg = time.time()
             logger.info("---------- rhubarbe accounts manager "
-                        "policy = {}, cycle {}s"
-                        .format(policy, cycle))
+                        f"policy = {policy}, cycle {cycle}s")
             self.manage_accounts(policy)
             now = time.time()
             duration = now - beg
             towait = cycle - duration
             if towait > 0:
-                logger.info("---------- rhubarbe accounts manager - "
-                            "sleeping for {:.2f}s"
-                            .format(towait))
+                logger.info(f"---------- rhubarbe accounts manager - "
+                            f"sleeping for {towait:.2f}s")
                 time.sleep(towait)
             else:
-                logger.info("duration {}s exceeded cycle {}s - "
-                            "skipping sleep"
-                            .format(duration, cycle))
+                logger.info(f"duration {duration}s exceeded cycle {cycle}s - "
+                            f"skipping sleep")
 
     def main(self, cycle):
         """
@@ -307,14 +301,12 @@ CheckHostIP=no
         cycle = int(cycle)
         policy = Config().value('accounts', 'access_policy')
         if policy not in ('open', 'leased', 'closed'):
-            logger.error("Unknown policy {} - using 'closed'"
-                         .format(policy))
+            logger.error(f"Unknown policy {policy} - using 'closed'")
             policy = 'closed'
         # trick is
         if cycle != 0:
             self.run_forever(cycle, policy)
         else:
-            logger.info("---------- rhubarbe accounts manager oneshot "
-                        "policy = {}"
-                        .format(policy))
+            logger.info(f"---------- rhubarbe accounts manager oneshot "
+                        f"policy = {policy}")
             self.manage_accounts(policy)
