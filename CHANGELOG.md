@@ -1,3 +1,9 @@
+# 5.1.0 - 2022 Dec 9
+
+* rhubarbe script command arg .. args
+  allows to invoke one of the commands in rhubarbe/scripts
+  and these can be configured in the [script] section of rhubarbe.conf
+
 # 5.0.3 - 2022 Dec 2
 
 * for python-3.11 (fedora37)
