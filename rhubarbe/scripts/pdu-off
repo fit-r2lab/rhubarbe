@@ -1,0 +1,60 @@
+#!/bin/bash
+
+com=$(basename $0)
+
+Help()
+{
+    echo "$com: switch off a specific R2lab rack outlet"
+    echo "Usage: $com outlet# pdu#"
+    echo -e "\twith outlet# in [1:8] and pdu# in [0:1]"
+    exit 1
+}
+
+if [ $# -eq 2 ]
+then
+    outlet="$1"
+    pdu="$2"
+    if [[ "$outlet" -lt 0 || "$outlet" -gt 8 || "$pdu" -lt 0 || "$pdu" -gt 1 ]]
+    then
+        Help
+    fi
+else
+    Help
+fi
+
+#Expect script starts here
+/usr/bin/expect<<EOF > /tmp/output.txt
+
+set timeout 10
+
+spawn -noecho sshpass -p${PDU_PASSWORD} ssh -oLogLevel=ERROR -oUserKnownHostsFile=/dev/null -oStrictHostKeyChecking=no -oKexAlgorithms=+diffie-hellman-group1-sha1 -l${PDU_USER} -l${PDU_IP}
+
+expect "pdu#0>"
+
+send -- "pdu $pdu\r"
+expect ">"
+
+send -- "set PDU.OutletSystem.Outlet\[$outlet\].DelayBeforeShutdown 0\r"
+expect ">"
+
+send -- "get PDU.OutletSystem.Outlet\[$outlet\].iName\r"
+expect ">"
+
+send -- "quit"
+EOF
+
+name=$(sed -n "5p" /tmp/output.txt | sed "s/[^0-9a-zA-Z ]//g")
+res=$(sed -n "3p" /tmp/output.txt | sed "s/[^0-9-]//g")
+
+if [ $res -eq -1 ]
+then
+    echo "outlet$outlet@pdu$pdu ($name): off"
+    exit 0
+else
+    echo "Error could not switch off outlet$outlet@pdu$pdu ($name), returns $res"
+    exit 1
+fi
+
+
+
+

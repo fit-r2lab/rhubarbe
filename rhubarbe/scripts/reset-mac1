@@ -1,0 +1,9 @@
+#!/bin/bash
+
+echo "Reset MacPhone1"
+
+rhubarbe script pdu-off 8 0
+sleep 5
+rhubarbe script pdu-on 8 0
+
+

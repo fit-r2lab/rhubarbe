@@ -73,7 +73,11 @@ setuptools.setup(
         ]
     },
     package_data={
-        'rhubarbe': ['config/*.conf', 'config/*.template'],
+        'rhubarbe': [
+            'config/*.conf',
+            'config/*.template',
+            'scripts/',
+        ],
     },
 
     install_requires=INSTALL_REQUIRES,

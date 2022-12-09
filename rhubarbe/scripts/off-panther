@@ -1,0 +1,5 @@
+#!/bin/bash
+
+echo "Switch off RRU 4x4 Panther"
+
+rhubarbe script pdu-off 5 0

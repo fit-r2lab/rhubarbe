@@ -1,0 +1,5 @@
+#!/bin/bash
+
+echo "Switch off USRP X310"
+
+rhubarbe script pdu-off 3 0

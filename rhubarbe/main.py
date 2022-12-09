@@ -17,9 +17,12 @@ Command-line entry point
 
 import asyncio
 
+import stat
+import subprocess
+from pathlib import Path
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
-from pkg_resources import resource_string
+from pkg_resources import resource_string, resource_exists, resource_filename
 
 from asynciojobs import Scheduler, Job
 
@@ -826,6 +829,52 @@ def template(*argv):
         selected = getattr(args, nodes_or_phones)
         if selected:
             show_template(nodes_or_phones)
+    return 0
+
+####################
+
+
+@subcommand
+def script(*argv):
+    usage = """
+    Run one of the contrib scripts packaged into the scripts/ subdir
+    """
+    parser = ArgumentParser(usage=usage,
+                            formatter_class=ArgumentDefaultsHelpFormatter)
+    parser.add_argument("-v", "--verbose", default=False, action='store_true')
+    parser.add_argument("command", help="one of the supported contrib commands")
+    parser.add_argument("extras", nargs="*", help="additional args are passed as is")
+    args = parser.parse_args(argv)
+
+    # export env variables picked in config
+    # and uppercased as is the tradition for global env. variables
+    env = {key.upper(): value
+           for key, value in Config().full_section('script').items()}
+    if args.verbose:
+        print(10*'-', "debug: the script configuration:")
+        for key, value in env.items():
+            print(f"{key} : {value}")
+        print(10*'-')
+
+    command = args.command
+    extras = args.extras
+    exists = resource_exists('rhubarbe', f"scripts/{command}")
+    filename = resource_filename('rhubarbe', f"scripts/{command}")
+    if not exists:
+        print("Could not find script {command} in scripts- exiting")
+        return 1
+    mode = Path(filename).stat().st_mode
+    if not (mode & stat.S_IXUSR):
+        print("Script {command} (in {filename}) is not executable")
+        return 1
+    fullcommand = [filename, *extras]
+    completed = subprocess.run(fullcommand, capture_output=True, env=env)
+    if completed.stdout:
+        print(completed.stdout.decode())
+    if completed.stderr:
+        print("--- stderr")
+        print(completed.stderr.decode())
+    return completed.returncode
 
 ####################
 

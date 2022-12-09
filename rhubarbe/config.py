@@ -83,6 +83,13 @@ class Config(metaclass=Singleton):
         return config_section.get(key, None) \
             or self.get_or_raise(config_section, section, flag)
 
+    def full_section(self, section) -> dict:
+        if section not in self.parser:
+            raise ConfigException(f"No such section {section} in config")
+        config_section = self.parser[section]
+        return {key: config_section[key] for key in config_section.keys()}
+
+
     # for now
     # the foreseeable tricky part is, this should be a coroutine..
     def available_frisbee_port(self):

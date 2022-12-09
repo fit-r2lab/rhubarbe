@@ -1,0 +1,5 @@
+#!/bin/bash
+
+echo "Switch on USRP N320"
+
+rhubarbe script pdu-on 2 0

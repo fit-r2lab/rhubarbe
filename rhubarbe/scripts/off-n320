@@ -1,0 +1,7 @@
+#!/bin/bash
+
+echo "Shutting down USRP N320 device..."
+ssh n320 "shutdown -h now"
+sleep 10
+echo "Switching off USRP N320's plug"
+rhubarbe script pdu-off 2 0
