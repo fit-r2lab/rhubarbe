@@ -1,7 +1,8 @@
-# 5.1.2 - 2022 Dec 10
+# 5.1.3 - 2022 Dec 10
 
 * all 4 `pdu-list`, `pdu-status`, `pdu-on` and `pdu-off`
   commands are available through `rhubarbe script`
+# 5.1.2 is broken (scripts are not packaged)
 
 # 5.1.1 - 2022 Dec 9
 
