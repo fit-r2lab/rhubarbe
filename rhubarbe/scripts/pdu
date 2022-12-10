@@ -6,6 +6,12 @@ SSH="sshpass -p${PDU_PASSWORD} ssh -oLogLevel=ERROR -oUserKnownHostsFile=/dev/nu
 # with this setting -i /dev/null we get garbled errors at the top of the ssh session
 SSH_IGNORE_LINES=7
 
+# ignore that many lines when picking in the ssh output file
+function relevant-line() {
+    local line="$1"
+    echo $((${SSH_IGNORE_LINES} + $line))
+}
+
 
 function pdu-list() {
     function help() {
@@ -16,7 +22,8 @@ function pdu-list() {
 
     [[ "$#" == 0 ]] || help
 
-    echo "Be patient..."
+    # this shows up at the end, to not really helpful is it
+    #echo "Be patient..."
 
     #Expect script starts here
     /usr/bin/expect <<EOF > /tmp/output.txt
@@ -132,7 +139,7 @@ function pdu-list() {
 EOF
 
 	# the interesting stuff starts at line 3
-    line=$((${SSH_IGNORE_LINES} + 3))
+    line=$(relevant-line 3)
     for pdu in 0 1; do
         echo "PDU#: $pdu"
         for outlet in {1..8}
@@ -156,5 +163,62 @@ EOF
     exit 0
 
 }
+
+
+function pdu-status() {
+
+    function help() {
+        echo "$COMMAND: Retrieve the status of a specific R2lab rack outlet"
+        echo "Usage: $COMMAND outlet# pdu#"
+        echo -e "\twith outlet# in [1:8] and pdu# in [0:1]"
+        exit 1
+    }
+
+    [[ "$#" == 2 ]] || help
+
+    local outlet="$1"; shift
+    local pdu="$1"; shift
+
+    [[ "$outlet" -lt 1 || "$outlet" -gt 8 || "$pdu" -lt 0 || "$pdu" -gt 1 ]] && help
+
+    #Expect script starts here
+    /usr/bin/expect <<EOF > /tmp/output.txt
+
+    set timeout 10
+
+    spawn -noecho ${SSH}
+    expect "pdu#0>"
+
+    send -- "pdu $pdu\r"
+    expect ">"
+
+    send -- "get PDU.OutletSystem.Outlet\[$outlet\].PresentStatus.SwitchOnOff\r"
+    expect ">"
+
+    send -- "get PDU.OutletSystem.Outlet\[$outlet\].iName\r"
+    expect ">"
+
+    send -- "quit"
+EOF
+
+    # on line 5
+    local line=$(relevant-line 5)
+    name=$(sed -n "${line}p" /tmp/output.txt | sed "s/[^0-9a-zA-Z ]//g")
+    # on line 3
+    line=$(relevant-line 3)
+    res=$(sed -n "${line}p" /tmp/output.txt | sed "s/[^0-9]//g")
+
+    if [ $res -eq 0 ]; then
+        echo "outlet$outlet@pdu$pdu ($name): off"
+    elif [ $res -eq 1 ]; then
+        echo "outlet$outlet@pdu$pdu ($name): on"
+    else
+        echo "Could not retrieve outlet$outlet@pdu$pdu ($name) status, returned $res"
+        exit 1
+    fi
+    exit 0
+
+}
+
 
 $COMMAND "$@"
