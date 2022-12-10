@@ -853,7 +853,7 @@ def script(*argv):
     if args.verbose:
         print(10*'-', "debug: the script configuration:")
         for key, value in env.items():
-            print(f"{key} : {value}")
+            print(f'export {key}="{value}"')
         print(10*'-')
 
     command = args.command
