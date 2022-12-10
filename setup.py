@@ -75,7 +75,7 @@ setuptools.setup(
         'rhubarbe': [
             'config/*.conf',
             'config/*.template',
-            'scripts/',
+            'scripts/*',
         ],
     },
 
