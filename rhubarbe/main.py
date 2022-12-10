@@ -870,10 +870,10 @@ def script(*argv):
     fullcommand = [filename, *extras]
     completed = subprocess.run(fullcommand, capture_output=True, env=env)
     if completed.stdout:
-        print(completed.stdout.decode())
+        print(completed.stdout.decode(), end="")
     if completed.stderr:
         print("--- stderr")
-        print(completed.stderr.decode())
+        print(completed.stderr.decode(), end="")
     return completed.returncode
 
 ####################
