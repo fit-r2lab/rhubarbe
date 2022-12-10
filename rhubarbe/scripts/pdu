@@ -220,5 +220,74 @@ EOF
 
 }
 
+# factorized on and off
+
+function -pdu-on-off() {
+
+    local mode="$1"; shift    # 'on' or 'off'
+
+    function help() {
+        echo "$COMMAND: switch $mode a specific R2lab rack outlet"
+        echo "Usage: $COMMAND outlet# pdu#"
+        echo -e "\twith outlet# in [1:8] and pdu# in [0:1]"
+        exit 1
+    }
+
+    [[ "$#" == 2 ]] || help
+
+    local outlet="$1"; shift
+    local pdu="$1"; shift
+
+    # factorizing on and off
+    local setting=
+
+    case $mode in
+        on)  setting=DelayBeforeStartup ;;
+        off) setting=DelayBeforeShutdown ;;
+    esac
+
+
+    #Expect script starts here
+    /usr/bin/expect << EOF > /tmp/output.txt
+
+    set timeout 10
+
+    spawn -noecho ${SSH}
+
+    expect "pdu#0>"
+
+    send -- "pdu $pdu\r"
+    expect ">"
+
+    send -- "set PDU.OutletSystem.Outlet\[$outlet\].${setting} 0\r"
+    expect ">"
+
+    send -- "get PDU.OutletSystem.Outlet\[$outlet\].iName\r"
+    expect ">"
+
+    send -- "quit"
+
+EOF
+
+    local line=$(relevant-line 5)
+    local name=$(sed -n "${line}p" /tmp/output.txt | sed "s/[^0-9a-zA-Z ]//g")
+    line=$(relevant-line 3)
+    local res=$(sed -n "${line}p" /tmp/output.txt | sed "s/[^0-9-]//g")
+
+    if [ $res -eq 0 ]; then
+        echo "outlet$outlet@pdu$pdu ($name): ${mode}"
+        exit 0
+    else
+        echo "Error could not switch ${mode} outlet$outlet@pdu$pdu ($name), returns $res"
+        exit 1
+    fi
+}
+
+function pdu-on() {
+    -pdu-on-off on "$@"
+}
+function pdu-off() {
+    -pdu-on-off off "$@"
+}
 
 $COMMAND "$@"
