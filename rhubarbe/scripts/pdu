@@ -26,7 +26,7 @@ function pdu-list() {
     #echo "Be patient..."
 
     #Expect script starts here
-    /usr/bin/expect <<EOF > /tmp/output.txt
+    /usr/bin/expect <<EOF >/tmp/output.txt
 
     set timeout 10
 
@@ -138,25 +138,24 @@ function pdu-list() {
     send -- "quit"
 EOF
 
-	# the interesting stuff starts at line 3
+    # the interesting stuff starts at line 3
     line=$(relevant-line 3)
     for pdu in 0 1; do
         echo "PDU#: $pdu"
-        for outlet in {1..8}
-        do
-        res=$(sed -n "${line}p" /tmp/output.txt | sed "s/[^0-9]//g"); line=$((line + 2))
-        name=$(sed -n "${line}p" /tmp/output.txt | sed "s/[^0-9a-zA-Z ]//g"); line=$((line + 2))
-        echo "** res is $res and name is $name"
-        if [ $res -eq 0 ]
-        then
-            echo -e "\toutlet$outlet@pdu$pdu ($name): off"
-        elif [ $res -eq 1 ]
-        then
-            echo -e "\toutlet$outlet@pdu$pdu ($name): on"
-        else
-            echo "Could not retrieve outlet$outlet@pdu$pdu ($name) status, returned $res"
-            exit 1
-        fi
+        for outlet in {1..8}; do
+            res=$(sed -n "${line}p" /tmp/output.txt | sed "s/[^0-9]//g")
+            line=$((line + 2))
+            name=$(sed -n "${line}p" /tmp/output.txt | sed "s/[^0-9a-zA-Z ]//g")
+            line=$((line + 2))
+            echo "** res is $res and name is $name"
+            if [ $res -eq 0 ]; then
+                echo -e "\toutlet$outlet@pdu$pdu ($name): off"
+            elif [ $res -eq 1 ]; then
+                echo -e "\toutlet$outlet@pdu$pdu ($name): on"
+            else
+                echo "Could not retrieve outlet$outlet@pdu$pdu ($name) status, returned $res"
+                exit 1
+            fi
         done
         line=$((line + 1))
     done
@@ -182,7 +181,7 @@ function pdu-status() {
     [[ "$outlet" -lt 1 || "$outlet" -gt 8 || "$pdu" -lt 0 || "$pdu" -gt 1 ]] && help
 
     #Expect script starts here
-    /usr/bin/expect <<EOF > /tmp/output.txt
+    /usr/bin/expect <<EOF >/tmp/output.txt
 
     set timeout 10
 
@@ -248,7 +247,7 @@ function -pdu-on-off() {
 
 
     #Expect script starts here
-    /usr/bin/expect << EOF > /tmp/output.txt
+    /usr/bin/expect <<EOF >/tmp/output.txt
 
     set timeout 10
 
