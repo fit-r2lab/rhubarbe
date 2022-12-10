@@ -1,3 +1,8 @@
+# 5.1.2 - 2022 Dec 10
+
+* all 4 `pdu-list`, `pdu-status`, `pdu-on` and `pdu-off`
+  commands are available through `rhubarbe script`
+
 # 5.1.1 - 2022 Dec 9
 
 * fixed the `pdu-list` command for fedora 37 for now
