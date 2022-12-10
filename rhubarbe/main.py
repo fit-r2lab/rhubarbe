@@ -861,11 +861,11 @@ def script(*argv):
     exists = resource_exists('rhubarbe', f"scripts/{command}")
     filename = resource_filename('rhubarbe', f"scripts/{command}")
     if not exists:
-        print("Could not find script {command} in scripts- exiting")
+        print(f"Could not find script {command} in scripts - exiting")
         return 1
     mode = Path(filename).stat().st_mode
     if not (mode & stat.S_IXUSR):
-        print("Script {command} (in {filename}) is not executable")
+        print(f"Script {command} (in {filename}) is not executable")
         return 1
     fullcommand = [filename, *extras]
     completed = subprocess.run(fullcommand, capture_output=True, env=env)
