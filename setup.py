@@ -22,9 +22,9 @@ LONG_DESCRIPTION = \
 # instead, cut'n'paste from the rhubarbe help message
 rhubarbe_help = (
     "nodes,status,on,off,reset,info,usrpstatus,usrpon,usrpoff,"
-    "load,save,wait,images,resolve,share,"
-    "inventory,config,template,version,"
-    "monitornodes,monitorphones,monitorleases,accountsmanager"
+    "bye,load,save,wait,images,resolve,share,leases,"
+    "monitornodes,monitorphones,monitorleases,accountsmanager,"
+    "inventory,config,template,script,version"
 )
 supported_subcommands = rhubarbe_help.split(",")
 
