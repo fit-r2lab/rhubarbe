@@ -1,3 +1,9 @@
+
+# 5.1.5 - 2022 Dec 12
+
+* remove residual bug in `pdu`, when turning off a port
+  the retcod is -1 when success (go figure..)
+
 # 5.1.4 - 2022 Dec 11
 
 * update list of commands available as e.g. rhubarbe-script
