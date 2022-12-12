@@ -241,8 +241,8 @@ function -pdu-on-off() {
     local setting=
 
     case $mode in
-        on)  setting=DelayBeforeStartup ;;
-        off) setting=DelayBeforeShutdown ;;
+        on)  setting=DelayBeforeStartup; expected=0 ;;
+        off) setting=DelayBeforeShutdown; expected=-1 ;;
     esac
 
 
@@ -273,7 +273,7 @@ EOF
     line=$(relevant-line 3)
     local res=$(sed -n "${line}p" /tmp/output.txt | sed "s/[^0-9-]//g")
 
-    if [ $res -eq 0 ]; then
+    if [ $res -eq $expected ]; then
         echo "outlet$outlet@pdu$pdu ($name): ${mode}"
         exit 0
     else
