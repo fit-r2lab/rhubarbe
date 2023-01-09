@@ -148,7 +148,7 @@ class AccountsManager:
             f"chmod 700 /home/{slicename}/.ssh",
             f"chown -R {slicename}:{slicename} /home/{slicename}",
         ]
-        for cmd in commands:
+        for command in commands:
             logger.info(f"Running {command}")
             retcod = os.system(command)
             if retcod != 0:
