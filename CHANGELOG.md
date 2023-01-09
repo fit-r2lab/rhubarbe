@@ -1,3 +1,8 @@
+# 5.1.6 - 2023 Jan 9
+
+* a bug in accountsmanager was preventing any change (in accounts or keys)
+  from being propagated in /etc/passwd or .ssh/authorized_keys
+
 
 # 5.1.5 - 2022 Dec 12
 
