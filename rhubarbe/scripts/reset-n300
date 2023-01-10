@@ -1,9 +1,13 @@
 #!/bin/bash
 
-echo "Shutting down USRP N300 device..."
-ssh n300 "shutdown -h now"
-sleep 15
-echo "Switching off USRP N300's plug"
+if ping -c 1 n300 &> /dev/null
+then
+  echo "Shutting down USRP N300 device..."
+  ssh n300 "shutdown -h now"
+  sleep 15
+else
+  echo "USRP N300 doesn't answer, Hard switch off"
+fi
 rhubarbe script pdu-off 1 0
 sleep 5
 echo "Switching on USRP N300's plug"

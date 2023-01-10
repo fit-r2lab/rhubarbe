@@ -1,5 +1,10 @@
 #!/bin/bash
 
-echo "Switch on USRP N320"
+if ping -c 1 n320 &> /dev/null
+then
+  echo "USRP N320 is already up and responding !"
+else
+  echo "Switch on USRP N320"
+  rhubarbe script pdu-on 2 0
+fi
 
-rhubarbe script pdu-on 2 0
