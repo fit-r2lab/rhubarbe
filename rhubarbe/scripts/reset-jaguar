@@ -1,0 +1,7 @@
+#!/bin/bash
+
+echo "Reset RRU 2x2 Jaguar: first switch off the device..."
+rhubarbe script pdu-off 4 0
+sleep 2
+echo "then, switch it on..."
+rhubarbe script pdu-on 4 0
