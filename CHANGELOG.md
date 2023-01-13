@@ -1,3 +1,7 @@
+# 5.1.8 - 2023 Jan 13
+
+* added scripts reset-jaguar and reset-panther
+
 # 5.1.7 - 2023 Jan 12
 
 * connectivity tests added in most scripts that target n300 and n320
