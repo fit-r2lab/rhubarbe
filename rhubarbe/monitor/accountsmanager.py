@@ -147,6 +147,8 @@ class AccountsManager:
             f"mkdir /home/{slicename}/.ssh",
             f"chmod 700 /home/{slicename}/.ssh",
             f"chown -R {slicename}:{slicename} /home/{slicename}",
+            # see issue #14
+            f"netsop-accessctl add local {slicename}",
         ]
         for command in commands:
             logger.info(f"Running {command}")
