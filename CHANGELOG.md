@@ -1,3 +1,7 @@
+# 5.1.10 - 2023 Jan 16
+
+* close issue #14: account manager to declare new slices in /etc/security/access.conf
+
 # 5.1.9 - 2023 Jan 16
 
 * rhubarbe load with a non responding CMC now works fine (#12)
