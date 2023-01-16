@@ -199,9 +199,11 @@ class Node:                                             # pylint: disable=r0902
     async def ensure_reset(self):
         if self.status is None:
             await self.get_status()
+        # still no status: means the CMC does not answer
         if self.status not in self.message_to_reset_map:
             await self.feedback(
-                'reboot', f"Cannot get status at {self.cmc_name}")
+                'reboot', f"Cannot get status at {self.cmc_name} (status={self.status})")
+            return
         message_to_send = self.message_to_reset_map[self.status]
         await self.feedback(
             'reboot', f"Sending message '{message_to_send}' to CMC {self.cmc_name}")
