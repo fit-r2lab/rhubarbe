@@ -1,3 +1,7 @@
+# 5.1.9 - 2023 Jan 16
+
+* rhubarbe load with a non responding CMC now works fine (#12)
+
 # 5.1.8 - 2023 Jan 13
 
 * added scripts reset-jaguar and reset-panther
