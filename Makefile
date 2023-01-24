@@ -31,8 +31,10 @@ endif
 
 # installing in /tmp/rhubarbe-sync for testing
 sync:
-	@echo 'export PYTHONPATH=/tmp/rhubarbe-sync; alias rhu=/tmp/rhubarbe-sync/rhubarbe/__main__.py'
-	rsync -av --relative $$(git ls-files) root@$(DEST):/tmp/rhubarbe-sync/
+	@echo '===== once copied, do the following as root on $(DEST)'
+	@echo 'conda activate rhubarbe-dev && pip install -e /tmp/rhubarbe-sync'
+	@echo '===== '
+	rsync -ai --relative $$(git ls-files) root@$(DEST):/tmp/rhubarbe-sync/
 
 faraday:
 	$(MAKE) sync deployment=production

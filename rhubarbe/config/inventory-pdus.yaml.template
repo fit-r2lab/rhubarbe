@@ -1,0 +1,48 @@
+#
+# PDU devices
+#
+# we need to define 2 kinds of objects
+#
+# pdu_hosts:
+#  each entry is described with
+#    * a name (used in the devices descriptions below)
+#    * an IP address
+#    * a username
+#    * a password
+#
+
+pdu_hosts:
+  - name: anechoic
+    IP: 192.168.4.107
+    username: root
+    password: xxx-hiding-this-xxx
+
+# devices:
+#  each entry is described with
+#    * a pdu_host_name: refers to the entries bove
+#    * a name
+#    * a PDU index (cascading index in the PDU)
+#    * and a plug number in that PDU (called outlet)
+#    * optionally a description
+#    * and optionally too, a ssh_hostname
+#      in that case, when doing some actions
+#      there is first an attempt to do the operation in a 'soft'
+#      way, i.e. using shutdown through ssh
+#
+
+devices:
+  # this one cannot be talked to directly
+  - name: jaguar
+    pdu: 0
+    outlet: 4
+    description: RRU 2x2 Jaguar
+    pdu_host_name: anechoic
+  # this one can
+  - name: x310
+    pdu: 0
+    outlet: 3
+    description: USRP X310 device
+    ssh_hostname: n300
+    # this is the default, but it can be overridden like so
+    ssh_username: root
+    pdu_host_name: anechoic

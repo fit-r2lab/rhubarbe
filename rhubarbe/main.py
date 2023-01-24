@@ -17,37 +17,40 @@ Command-line entry point
 
 import asyncio
 
-import stat
-import subprocess
-from pathlib import Path
+# import stat
+# import subprocess
+# from pathlib import Path
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
-from pkg_resources import resource_string, resource_exists, resource_filename
+from pkg_resources import resource_string #, resource_exists, resource_filename
 
 from asynciojobs import Scheduler, Job
 
 import logging
 from asyncssh.logging import set_log_level as asyncssh_set_log_level
 
-from rhubarbe.config import Config
-from rhubarbe.imagesrepo import ImagesRepo
-from rhubarbe.selector import (Selector,
-                               add_selector_arguments, selected_selector)
-from rhubarbe.action import Action
-from rhubarbe.display import Display
-from rhubarbe.display_curses import DisplayCurses
-from rhubarbe.node import Node
-from rhubarbe.imageloader import ImageLoader
-from rhubarbe.imagesaver import ImageSaver
-from rhubarbe.monitor.nodes import MonitorNodes
-from rhubarbe.monitor.loop import MonitorLoop
-from rhubarbe.monitor.phones import MonitorPhones
-from rhubarbe.monitor.leases import MonitorLeases
-from rhubarbe.monitor.accountsmanager import AccountsManager
-from rhubarbe.ssh import SshProxy
-from rhubarbe.leases import Leases
-from rhubarbe.inventory import Inventory
-from rhubarbe.inventoryphones import InventoryPhones
+# apparently using relative imports is - at least that's what pylint says
+# defining global variables like 'config'
+# pylint: disable = redefined-outer-name
+from .config import Config
+from .imagesrepo import ImagesRepo
+from .selector import Selector, add_selector_arguments, selected_selector
+from .action import Action
+from .display import Display
+from .display_curses import DisplayCurses
+from .node import Node
+from .imageloader import ImageLoader
+from .imagesaver import ImageSaver
+from .monitor.nodes import MonitorNodes
+from .monitor.loop import MonitorLoop
+from .monitor.phones import MonitorPhones
+from .monitor.leases import MonitorLeases
+from .monitor.accountsmanager import AccountsManager
+from .ssh import SshProxy
+from .leases import Leases
+from .inventory import Inventory
+from .inventoryphones import InventoryPhones
+from .inventorypdus import InventoryPdus
 
 
 # a supported command comes with a driver function
@@ -835,46 +838,67 @@ def template(*argv):
 
 
 @subcommand
-def script(*argv):
+def pdu(*argv):
     usage = """
-    Run one of the contrib scripts packaged into the scripts/ subdir
+    manage PDUs; examples:
+        rhubarbe-pdu list-all              # summary, lists the known PDUs by name - static info only
+        rhubarbe-pdu list anechoic         # here anechoic is a name exposed by the `list-all` command
+                                           # here again it's a static info
+        rhubarbe-pdu list --live anechoic  # this time the PDU is probed for a detailed view of the PDU
+
+        rhubarbe-pdu status x310           # here x300, jaguar, and n300 are names exposed by the `list` command
+        rhubarbe-pdu on jaguar
+        rhubarbe-pdu off panther
+        rhubarbe-pdu reset n300
+
     """
     parser = ArgumentParser(usage=usage,
                             formatter_class=ArgumentDefaultsHelpFormatter)
-    parser.add_argument("-v", "--verbose", default=False, action='store_true')
+    # not yet used
+    #parser.add_argument("-v", "--verbose", default=False, action='store_true')
     parser.add_argument("command", help="one of the supported contrib commands")
     parser.add_argument("extras", nargs="*", help="additional args are passed as is")
     args = parser.parse_args(argv)
 
+    command, extras = args.command, args.extras
+
+    def die():
+        parser.print_help()
+        exit(255)
+
     # export env variables picked in config
     # and uppercased as is the tradition for global env. variables
-    env = {key.upper(): value
-           for key, value in Config().full_section('script').items()}
-    if args.verbose:
-        print(10*'-', "debug: the script configuration:")
-        for key, value in env.items():
-            print(f'export {key}="{value}"')
-        print(10*'-')
 
-    command = args.command
-    extras = args.extras
-    exists = resource_exists('rhubarbe', f"scripts/{command}")
-    filename = resource_filename('rhubarbe', f"scripts/{command}")
-    if not exists:
-        print(f"Could not find script {command} in scripts - exiting")
-        return 1
-    mode = Path(filename).stat().st_mode
-    if not (mode & stat.S_IXUSR):
-        print(f"Script {command} (in {filename}) is not executable")
-        return 1
-    fullcommand = [filename, *extras]
-    completed = subprocess.run(fullcommand, capture_output=True, env=env)
-    if completed.stdout:
-        print(completed.stdout.decode(), end="")
-    if completed.stderr:
-        print("--- stderr")
-        print(completed.stderr.decode(), end="")
-    return completed.returncode
+    inventory_pdus = InventoryPdus.load()
+    match command:
+        case 'list-all':
+            if len(extras) != 0:
+                die()
+            else:
+                inventory_pdus.list_all()
+        case 'list':
+            match extras:
+                case ():
+                    die()
+                case  (_too, _many, _args, *_):
+                    die()
+                case ("--live", name):
+                    inventory_pdus.list_live(name)
+                case (name,):
+                    inventory_pdus.list(name)
+        case 'on' | 'off' | 'status' | 'reset':
+            match extras:
+                case (name,):
+                    try:
+                        device = inventory_pdus.get_device(name)
+                        retcod = asyncio.run(device.run_action(command))
+                        exit(retcod)
+                    except ValueError as exc:
+                        print(exc)
+                        exit(255)
+        case _:
+            print(f"unknown command {command}")
+            die()
 
 ####################
 

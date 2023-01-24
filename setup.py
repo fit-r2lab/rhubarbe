@@ -24,7 +24,7 @@ rhubarbe_help = (
     "nodes,status,on,off,reset,info,usrpstatus,usrpon,usrpoff,"
     "bye,load,save,wait,images,resolve,share,leases,"
     "monitornodes,monitorphones,monitorleases,accountsmanager,"
-    "inventory,config,template,script,version"
+    "inventory,config,template,pdu,version"
 )
 supported_subcommands = rhubarbe_help.split(",")
 
@@ -34,23 +34,28 @@ supported_subcommands = rhubarbe_help.split(",")
 # apt-get -y install libffi-dev
 # which is required before pip can install asyncssh
 INSTALL_REQUIRES = [
+    'asyncssh',
     'telnetlib3',
     'aiohttp',
-    'asyncssh',
     'progressbar33',
+    # for PDUs and yaml deserialization
+    'dataclass_wizard',
     # for monitors
     'asynciojobs',
     'r2lab',
     # for MapDataFrame
     'pandas',
     # not yet used
-    'aioxmlrpc',
+    #'aioxmlrpc',
+    # we are NOT using aioping, because it requires root privileges,
+    # while forking a ping command works for everybody
 ]
 
-# add convenience entry points like rhubarbe-load
-all_commands = (
-    ['rhubarbe'] +
-    [f'rhubarbe-{subcommand}' for subcommand in supported_subcommands])
+# add convenience entry points like rhubarbe-load and others
+console_scripts = []
+console_scripts.append('rhubarbe = rhubarbe.__main__.main')
+for subcommand in supported_subcommands:
+    console_scripts.append(f'rhubarbe-{subcommand} = rhubarbe.__main__:main')
 
 setuptools.setup(
     name="rhubarbe",
@@ -65,12 +70,7 @@ setuptools.setup(
     version=__version__,
     python_requires=">=3.5",
 
-    entry_points={
-        'console_scripts': [
-            '{} = rhubarbe.__main__:main'
-            .format(command) for command in all_commands
-        ]
-    },
+    entry_points={ 'console_scripts': console_scripts },
     package_data={
         'rhubarbe': [
             'config/*.conf',

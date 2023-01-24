@@ -1,8 +1,30 @@
 #!/bin/bash
 
+# helper to talk to the PDU using expect
+#
+# supported actions are
+#   list on off status
+# the actual action is computed from $0
+#   create symlinks toward this file
+#   e.g. pdu-list is a symlink to pdu and means, well, to run the list command
+#
+# each command has its own usage, run with -help to see it
+#
+# return code
+# 255: something went wrong
+# 0: all went well
+# 1: (for status only): the node is turned OFF
+#    in that case 0 means the node is ON
+
 COMMAND=$(basename $0)
 
-SSH="sshpass -p${PDU_PASSWORD} ssh -oLogLevel=ERROR -oUserKnownHostsFile=/dev/null -oStrictHostKeyChecking=no -oKexAlgorithms=+diffie-hellman-group1-sha1 -l${PDU_USER} -i /dev/null ${PDU_IP}"
+#echo using PDU_PASSWORD=${PDU_PASSWORD} PDU_USERNAME=${PDU_USERNAME} PDU_IP=${PDU_IP}
+
+[[ -z "$PDU_IP" ]] && { echo variable PDU_IP is not configured - exiting; exit 255; }
+[[ -z "$PDU_USERNAME" ]] && { echo variable PDU_USERNAME is not configured - exiting; exit 255; }
+[[ -z "$PDU_PASSWORD" ]] && { echo variable PDU_PASSWORD is not configured - exiting; exit 255; }
+
+SSH="sshpass -p${PDU_PASSWORD} ssh -oLogLevel=ERROR -oUserKnownHostsFile=/dev/null -oStrictHostKeyChecking=no -oKexAlgorithms=+diffie-hellman-group1-sha1 -l${PDU_USERNAME} -i /dev/null ${PDU_IP}"
 # with this setting -i /dev/null we get garbled errors at the top of the ssh session
 SSH_IGNORE_LINES=7
 
@@ -17,7 +39,7 @@ function pdu-list() {
     function help() {
         echo "$COMMAND: Retrieve the status and label of all R2lab rack outlets"
         echo "Usage: $COMMAND"
-        exit 1
+        exit 255
     }
 
     [[ "$#" == 0 ]] || help
@@ -148,14 +170,15 @@ EOF
             name=$(sed -n "${line}p" /tmp/output.txt | sed "s/[^0-9a-zA-Z ]//g")
             line=$((line + 2))
             echo "** res is $res and name is $name"
-            if [ $res -eq 0 ]; then
-                echo -e "\toutlet$outlet@pdu$pdu ($name): off"
-            elif [ $res -eq 1 ]; then
-                echo -e "\toutlet$outlet@pdu$pdu ($name): on"
-            else
-                echo "Could not retrieve outlet$outlet@pdu$pdu ($name) status, returned $res"
-                exit 1
-            fi
+            case "$res" in
+                0)
+                    echo -e "\toutlet$outlet@pdu$pdu ($name): off" ;;
+                1)
+                    echo -e "\toutlet$outlet@pdu$pdu ($name): on"  ;;
+                *)
+                    echo "Could not retrieve outlet$outlet@pdu$pdu ($name) status, returned $res"
+                    exit 255
+            esac
         done
         line=$((line + 1))
     done
@@ -170,7 +193,7 @@ function pdu-status() {
         echo "$COMMAND: Retrieve the status of a specific R2lab rack outlet"
         echo "Usage: $COMMAND outlet# pdu#"
         echo -e "\twith outlet# in [1:8] and pdu# in [0:1]"
-        exit 1
+        exit 255
     }
 
     [[ "$#" == 2 ]] || help
@@ -207,16 +230,19 @@ EOF
     line=$(relevant-line 3)
     res=$(sed -n "${line}p" /tmp/output.txt | sed "s/[^0-9]//g")
 
-    if [ $res -eq 0 ]; then
-        echo "outlet$outlet@pdu$pdu ($name): off"
-    elif [ $res -eq 1 ]; then
-        echo "outlet$outlet@pdu$pdu ($name): on"
-    else
-        echo "Could not retrieve outlet$outlet@pdu$pdu ($name) status, returned $res"
-        exit 1
-    fi
-    exit 0
-
+    case "$res" in
+        0)
+            echo "outlet$outlet@pdu$pdu ($name): OFF"
+            exit 1
+            ;;
+        1)
+            echo "outlet$outlet@pdu$pdu ($name): ON"
+            exit 0
+            ;;
+        *)
+            echo "Could not retrieve outlet$outlet@pdu$pdu ($name) status, returned $res"
+            exit 255
+    esac
 }
 
 # factorized on and off
@@ -229,7 +255,7 @@ function -pdu-on-off() {
         echo "$COMMAND: switch $mode a specific R2lab rack outlet"
         echo "Usage: $COMMAND outlet# pdu#"
         echo -e "\twith outlet# in [1:8] and pdu# in [0:1]"
-        exit 1
+        exit 255
     }
 
     [[ "$#" == 2 ]] || help
@@ -241,8 +267,10 @@ function -pdu-on-off() {
     local setting=
 
     case $mode in
-        on)  setting=DelayBeforeStartup; expected=0 ;;
-        off) setting=DelayBeforeShutdown; expected=-1 ;;
+        on)
+            setting=DelayBeforeStartup; expected=0 ;;
+        off)
+            setting=DelayBeforeShutdown; expected=-1 ;;
     esac
 
 
@@ -273,12 +301,12 @@ EOF
     line=$(relevant-line 3)
     local res=$(sed -n "${line}p" /tmp/output.txt | sed "s/[^0-9-]//g")
 
-    if [ $res -eq $expected ]; then
+    if [ "$res" -eq "$expected" ]; then
         echo "outlet$outlet@pdu$pdu ($name): ${mode}"
         exit 0
     else
         echo "Error could not switch ${mode} outlet$outlet@pdu$pdu ($name), returns $res"
-        exit 1
+        exit 255
     fi
 }
 
@@ -287,6 +315,15 @@ function pdu-on() {
 }
 function pdu-off() {
     -pdu-on-off off "$@"
+}
+
+# so that we can call either
+# pdu-status 0 0
+# or
+# pdu status 0 0
+[[ "$COMMAND" == "pdu" ]] && {
+    subcommand="$1"; shift
+    COMMAND="pdu-${subcommand}"
 }
 
 $COMMAND "$@"
