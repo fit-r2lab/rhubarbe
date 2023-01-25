@@ -169,7 +169,7 @@ EOF
             line=$((line + 2))
             name=$(sed -n "${line}p" /tmp/output.txt | sed "s/[^0-9a-zA-Z ]//g")
             line=$((line + 2))
-            echo "** res is $res and name is $name"
+            #echo "** res is $res and name is $name"
             case "$res" in
                 0)
                     echo -e "\toutlet$outlet@pdu$pdu ($name): off" ;;
