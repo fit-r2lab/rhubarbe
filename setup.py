@@ -13,7 +13,7 @@ import setuptools
 from rhubarbe.version import __version__
 
 LONG_DESCRIPTION = \
-    "See https://github.com/parmentelat/rhubarbe/blob/main/README.md"
+    "See https://github.com/fit-r2lab/rhubarbe/blob/main/README.md"
 
 # subcommands
 #
@@ -82,7 +82,7 @@ setuptools.setup(
     install_requires=INSTALL_REQUIRES,
 
     project_urls={
-        'source': "https://github.com/parmentelat/rhubarbe/",
+        'source': "https://github.com/fit-r2lab/rhubarbe/",
     },
 
     classifiers=[
