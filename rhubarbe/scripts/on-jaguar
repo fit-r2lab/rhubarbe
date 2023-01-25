@@ -1,5 +1,0 @@
-#!/bin/bash
-
-echo "Switch on RRU 2x2 Jaguar"
-
-rhubarbe script pdu-on 4 0

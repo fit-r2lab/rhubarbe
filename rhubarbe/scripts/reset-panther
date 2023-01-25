@@ -1,7 +1,0 @@
-#!/bin/bash
-
-echo "Reset RRU 4x4 Panther: first switch off the device..."
-rhubarbe script pdu-off 5 0
-sleep 2
-echo "then, switch it on..."
-rhubarbe script pdu-on 5 0

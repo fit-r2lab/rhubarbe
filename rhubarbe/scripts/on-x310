@@ -1,5 +1,0 @@
-#!/bin/bash
-
-echo "Switch on USRP X310"
-
-rhubarbe script pdu-on 3 0
