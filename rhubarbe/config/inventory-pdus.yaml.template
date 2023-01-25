@@ -3,24 +3,47 @@
 #
 # we need to define 2 kinds of objects
 #
-# pdu_hosts:
+# pdu_host:
 #  each entry is described with
 #    * a name (used in the devices descriptions below)
 #    * an IP address
 #    * a username
 #    * a password
-#
+#    * chain_length - how many items in the daisy chain
 
 pdu_hosts:
+
+  # this one has a daisy-chain with 2 boxes
   - name: anechoic
     IP: 192.168.4.107
     username: root
-    password: xxx-hiding-this-xxx
+    password: 
+    chain_length: 2
+
+  # we will assume these are 2 separate IPs
+  # so that it is meaningful redundancy-wise
+  # and so their chain_length is 1, no need to specify
+  - name: c007_bottom
+    IP: 138.96.112.89
+    username: root
+    password: xxx-hidden-xxx
+
+  - name: c007_top
+    IP: 138.96.119.231
+    username: root
+    password: xxx-hidden-xxx
 
 # devices:
 #  each entry is described with
-#    * a pdu_host_name: refers to the entries bove
-#    * a name
+#    * a name (for using in rhubarbe-pdu)
+#    * a list of inputs, which is each
+#      * the name of the pdu-box
+#      * optionnally `in_chain` which is the index in the daisy-chain
+#        defaults to 0
+#      * the outlet number
+#    NOTE: the indexing conventions are (surprisingly)
+#      in_chain starts at 0
+#      outlet numbers start at 1
 #    * a PDU index (cascading index in the PDU)
 #    * and a plug number in that PDU (called outlet)
 #    * optionally a description
@@ -31,18 +54,31 @@ pdu_hosts:
 #
 
 devices:
-  # this one cannot be talked to directly
   - name: jaguar
-    pdu: 0
-    outlet: 4
     description: RRU 2x2 Jaguar
-    pdu_host_name: anechoic
-  # this one can
-  - name: x310
-    pdu: 0
-    outlet: 3
-    description: USRP X310 device
-    ssh_hostname: n300
-    # this is the default, but it can be overridden like so
-    ssh_username: root
-    pdu_host_name: anechoic
+    inputs:
+      - pdu_host_name: anechoic
+        in_chain: 0
+        outlet: 4
+  #
+  - name: switch-data
+    inputs:
+      - pdu_host_name: anechoic
+        in_chain: 1
+        outlet: 1
+
+# when a device has 2 inputs
+  - name: sopnode-l1
+    description: kubernetes cluster node
+    ssh_hostname: sopnode-l1.inria.fr
+    inputs:
+      - pdu_host_name: c007_top
+        outlet: 1
+      - pdu_host_name: c007_bottom
+        outlet: 1
+  - name: sopnode-w1
+    inputs:
+      - pdu_host_name: c007_top
+        outlet: 2
+      - pdu_host_name: c007_bottom
+        outlet: 2
