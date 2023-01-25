@@ -13,12 +13,13 @@ from dataclass_wizard import YAMLWizard
 from .config import Config
 
 
+
 VERBOSE = False
-VERBOSE = True
+#VERBOSE = True
 
 # pylint: disable=missing-function-docstring, missing-class-docstring
 def verbose(*args, **kwds):
-    if not verbose:
+    if not VERBOSE:
         return
     print(*args, **kwds)
 
@@ -78,8 +79,8 @@ class PduHost:
             print("FAILURE:", stdout, end="")
             return 255
         verbose("SUCCESS")
-        stdout and print(stdout, end="")            # pylint: disable=expression-not-assigned
-        stderr and print("STDERR", stderr, end="")  # pylint: disable=expression-not-assigned
+        stdout and print(stdout.decode(), end="")            # pylint: disable=expression-not-assigned
+        stderr and print("STDERR", stderr.decode(), end="")  # pylint: disable=expression-not-assigned
         return proc.returncode
 
 
@@ -278,11 +279,16 @@ class InventoryPdus(YAMLWizard):
 
     def list_all(self):
         print(f"we have {len(self.pdu_hosts)} PDUs and {len(self.devices)} devices")
+        return self.list()
+
+    def list(self, names=None):
         pdu_host_width = max(len(pdu_host.name) for pdu_host in self.pdu_hosts)
         device_width = max(len(device.name) for device in self.devices)
         sep1 = 10 * '='
         indent = 4 * ' '
         for pdu_host in self.pdu_hosts:
+            if names and pdu_host.name not in names:
+                continue
             print(f"{sep1} {pdu_host.name:^{pdu_host_width}} {sep1}")
             print(f"{pdu_host.oneline()}")
             for device in self.devices:
@@ -292,10 +298,19 @@ class InventoryPdus(YAMLWizard):
                               f" ← {input_.oneline(pdu_host.is_chained())}")
 
 
+    def list_live(self, name):
+        return asyncio.run(
+            self.get_pdu_host(name).run_pdu_shell("list")
+        )
+
+
+    def _get_object(self, name, attribute, kind):
+        l_objs = getattr(self, attribute)
+        for obj in l_objs:
+            if obj.name == name:
+                return obj
+        raise ValueError(f"unknown {kind} '{name}'")
     def get_device(self, name) -> PduDevice:
-        def spot_name_in_list(name, l_objs, kind):
-            for obj in l_objs:
-                if obj.name == name:
-                    return obj
-            raise ValueError(f"unknown {kind} '{name}'")
-        return spot_name_in_list(name, self.devices, "device")
+        return self._get_object(name, 'devices', 'device')
+    def get_pdu_host(self, name) -> PduHost:
+        return self._get_object(name, 'pdu_hosts', 'pdu_host')

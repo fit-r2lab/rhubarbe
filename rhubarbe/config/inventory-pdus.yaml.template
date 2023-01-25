@@ -17,7 +17,7 @@ pdu_hosts:
   - name: anechoic
     IP: 192.168.4.107
     username: root
-    password: 
+    password:
     chain_length: 2
 
   # we will assume these are 2 separate IPs

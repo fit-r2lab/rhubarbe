@@ -844,7 +844,7 @@ def pdu(*argv):
         rhubarbe-pdu list-all              # summary, lists the known PDUs by name - static info only
         rhubarbe-pdu list anechoic         # here anechoic is a name exposed by the `list-all` command
                                            # here again it's a static info
-        rhubarbe-pdu list --live anechoic  # this time the PDU is probed for a detailed view of the PDU
+        rhubarbe-pdu list-live anechoic    # this time the PDU is probed for a detailed view of the PDU
 
         rhubarbe-pdu status x310           # here x300, jaguar, and n300 are names exposed by the `list` command
         rhubarbe-pdu on jaguar
@@ -869,37 +869,42 @@ def pdu(*argv):
     # export env variables picked in config
     # and uppercased as is the tradition for global env. variables
 
-    inventory_pdus = InventoryPdus.load()
-    match command:
-        case 'list-all':
-            if len(extras) != 0:
-                die()
-            else:
-                inventory_pdus.list_all()
-        case 'list':
-            match extras:
-                case ():
-                    die()
-                case  (_too, _many, _args, *_):
-                    die()
-                case ("--live", name):
-                    inventory_pdus.list_live(name)
-                case (name,):
-                    inventory_pdus.list(name)
-        case 'on' | 'off' | 'status' | 'reset':
-            match extras:
-                case (name,):
-                    try:
-                        device = inventory_pdus.get_device(name)
-                        retcod = asyncio.run(device.run_action(command))
-                        exit(retcod)
-                    except ValueError as exc:
-                        print(exc)
-                        exit(255)
-        case _:
-            print(f"unknown command {command}")
-            die()
+    try:
+        inventory_pdus = InventoryPdus.load()
+        match command:
 
+            case 'list-all':
+                if len(extras) != 0:
+                    die()
+                else:
+                    inventory_pdus.list_all()
+
+            case 'list' | 'list-live':
+                match extras:
+                    case (name,):
+                        if command == 'list':
+                            inventory_pdus.list(names=[name])
+                        else:
+                            inventory_pdus.list_live(name)
+                    case _:
+                        die()
+
+            case 'on' | 'off' | 'status' | 'reset':
+                match extras:
+                    case (name,):
+                        try:
+                            device = inventory_pdus.get_device(name)
+                            retcod = asyncio.run(device.run_action(command))
+                            exit(retcod)
+                        except ValueError as exc:
+                            print(exc)
+                            exit(255)
+            case _:
+                print(f"unknown command {command}")
+                die()
+    except ValueError as exc:
+        print(exc)
+        exit(255)
 ####################
 
 
