@@ -298,7 +298,7 @@ class InventoryPdus(YAMLWizard):
                               f" ← {input_.oneline(pdu_host.is_chained())}")
 
 
-    def list_live(self, name):
+    def probe(self, name):
         return asyncio.run(
             self.get_pdu_host(name).run_pdu_shell("list")
         )

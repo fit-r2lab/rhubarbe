@@ -844,7 +844,7 @@ def pdu(*argv):
         rhubarbe-pdu list-all              # summary, lists the known PDUs by name - static info only
         rhubarbe-pdu list anechoic         # here anechoic is a name exposed by the `list-all` command
                                            # here again it's a static info
-        rhubarbe-pdu list-live anechoic    # this time the PDU is probed for a detailed view of the PDU
+        rhubarbe-pdu probe anechoic    # this time the PDU is probed for a detailed view of the PDU
 
         rhubarbe-pdu status x310           # here x300, jaguar, and n300 are names exposed by the `list` command
         rhubarbe-pdu on jaguar
@@ -879,13 +879,13 @@ def pdu(*argv):
                 else:
                     inventory_pdus.list_all()
 
-            case 'list' | 'list-live':
+            case 'list' | 'probe':
                 match extras:
                     case (name,):
                         if command == 'list':
                             inventory_pdus.list(names=[name])
                         else:
-                            inventory_pdus.list_live(name)
+                            inventory_pdus.probe(name)
                     case _:
                         die()
 
