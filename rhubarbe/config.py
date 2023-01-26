@@ -18,6 +18,7 @@ from rhubarbe.logger import logger
 # w0703 catch Exception
 # r1705 else after return
 # pylint: disable=c0111,w1202,r1705
+# pylint: disable=logging-fstring-interpolation, import-outside-toplevel
 
 # http://setuptools.readthedocs.io/en/latest/pkg_resources.html
 # says to not use os.path to check for resources

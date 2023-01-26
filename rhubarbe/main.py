@@ -9,24 +9,22 @@ Command-line entry point
 # w0703 catch Exception
 # r1705 else after return
 # pylint: disable=c0111,w1202,r1705
+# pylint: disable=logging-fstring-interpolation, fixme, import-outside-toplevel
 
 
 # DON'T import logger globally here
 # we need to be able to mess inside the logger module
 # before it gets loaded from another way
 
+from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
+import logging
 import asyncio
 
-# import stat
-# import subprocess
-# from pathlib import Path
-from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
 from pkg_resources import resource_string #, resource_exists, resource_filename
 
 from asynciojobs import Scheduler, Job
 
-import logging
 from asyncssh.logging import set_log_level as asyncssh_set_log_level
 
 # apparently using relative imports is - at least that's what pylint says
@@ -722,7 +720,7 @@ def monitorleases(*argv):
     the sidecar channel, which triggers leases acquisition right away.
     See config for defaults.
     """
-    config = Config()
+    #config = Config()
     parser = ArgumentParser(
         usage=usage, formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument(
@@ -870,7 +868,7 @@ def pdu(*argv):
     # and uppercased as is the tradition for global env. variables
 
     try:
-        inventory_pdus = InventoryPdus.load()
+        inventory_pdus = InventoryPdus.load()   # pylint: disable=no-member
         match command:
 
             case 'list-all':
