@@ -839,12 +839,15 @@ def template(*argv):
 def pdu(*argv):
     usage = """
     manage PDUs; examples:
-        rhubarbe-pdu list-all              # summary, lists the known PDUs by name - static info only
-        rhubarbe-pdu list anechoic         # here anechoic is a name exposed by the `list-all` command
-                                           # here again it's a static info
-        rhubarbe-pdu probe anechoic    # this time the PDU is probed for a detailed view of the PDU
+        rhubarbe-pdu list               # summary, lists the known PDUs by name - static info only
+        rhubarbe-pdu list anechoic      # here anechoic is the name of a pdu_host
+                                        # here again it's a static info
+        rhubarbe-pdu list jaguar        # works with devices too
+                                        # static info only (no network needed)
 
-        rhubarbe-pdu status x310           # here x300, jaguar, and n300 are names exposed by the `list` command
+        rhubarbe-pdu status anechoic    # this time the PDU is probed for a detailed view of the PDU
+        rhubarbe-pdu status x310        # here x310, jaguar, and n300 are device names
+
         rhubarbe-pdu on jaguar
         rhubarbe-pdu off panther
         rhubarbe-pdu reset n300
@@ -869,27 +872,23 @@ def pdu(*argv):
 
     try:
         inventory_pdus = InventoryPdus.load()   # pylint: disable=no-member
+
         match command:
-
-            case 'list-all':
-                if len(extras) != 0:
-                    die()
-                else:
-                    inventory_pdus.list_all()
-
-            case 'list' | 'probe':
-                match extras:
-                    case (name,):
-                        if command == 'list':
-                            inventory_pdus.list(names=[name])
-                        else:
-                            inventory_pdus.probe(name)
-                    case _:
-                        die()
+            case 'list':
+                inventory_pdus.list(extras)
 
             case 'on' | 'off' | 'status' | 'reset':
                 match extras:
-                    case (name,):
+                    case (name, ):
+                        # status accepts a pdu_host name
+                        if command == 'status':
+                            try:
+                                pdu_host = inventory_pdus.get_pdu_host(name)
+                                retcod = asyncio.run(pdu_host.probe())
+                                exit(retcod)
+                            except ValueError:
+                                pass
+                        # otherwise a device name is expected
                         try:
                             device = inventory_pdus.get_device(name)
                             retcod = asyncio.run(device.run_action(command))

@@ -85,6 +85,8 @@ class PduHost:
         return proc.returncode
 
 
+    async def probe(self):
+        return await self.run_pdu_shell("probe")
 
 
 @dataclass
@@ -98,13 +100,8 @@ class PduInput:
     pdu_host: PduHost = None
 
 
-    def oneline(self, chained):
-        text = f"outlet#{self.outlet}"
-        if not chained:
-            text += "@box-0"
-        else:
-            text += f"@box-{self.in_chain}"
-        return text
+    def oneline(self):
+        return f"outlet#{self.outlet}@box-{self.in_chain}"
 
 
     async def run_pdu_shell(self, action, *args, device_name=""):
@@ -127,7 +124,7 @@ class PduDevice:
     ssh_hostname: str = ""
     ssh_username: str = "root"
     # will be maintained by actions made
-    status: bool | None = None
+    status_cache: bool | None = None
 
 
     async def is_pingable(self, timeout=1) -> bool:
@@ -142,7 +139,7 @@ class PduDevice:
             stdout=asyncio.subprocess.DEVNULL,
             stderr=asyncio.subprocess.DEVNULL)
         # failure occurs through timeout
-        returncode = await asyncio.wait_for(proc.wait())
+        returncode = await asyncio.wait_for(proc.wait(), timeout=2)
         return returncode == 0
 
 
@@ -162,6 +159,14 @@ class PduDevice:
             return completed.returncode == 0
 
 
+    async def attempt_soft_reset(self):
+        soft_turned_off = await self.turn_off_through_ssh_if_pingable()
+        # give it some time to complete the soft OFF
+        # xxx could be configurable
+        if soft_turned_off:
+            await asyncio.sleep(15)
+
+
     async def run_pdu_shell_on_all_inputs(self, action):
         retcod = await asyncio.gather(
             *(input.run_pdu_shell(action, input.outlet, input.in_chain, device_name = self.name)
@@ -170,10 +175,69 @@ class PduDevice:
         return retcod
 
 
+    async def _status_or_on(self, action):
+        """
+        the ON and STATUS actions are similar in their logic
+        - we are sure that the node is ON if any input is ON
+        - we are sure that the node is OFF if all inputs are OFF
+        - otherwise, we don't know for sure
+        """
+        retcods = await self.run_pdu_shell_on_all_inputs(action)
+        # if all inputs fail, we can't say
+        if all(retcod == 255 for retcod in retcods):
+            self.status_cache = 255
+        # if any input is ON then the device is ON
+        elif any(retcod == 0 for retcod in retcods):
+            self.status_cache = 0
+        # if any input is unknown, then we can't say
+        elif any(retcod == 255 for retdoc in retcods):
+            self.status_cache = 255
+        # else we are sure the node is OFF
+            self.status_cache = 1
+        return self.status_cache
+
+
+    async def on(self):
+        return await self._status_or_on('on')
+
+    async def status(self):
+        return await self._status_or_on('on')
+
+    async def off(self):
+        """
+        the OFF action
+        start with attempting a soft reset
+        after that, the logic is simple because
+        * retcod can only be 0 or 255 (not 1)
+        * and retcod == 0 means the OFF has succeeded
+        """
+        await self.attempt_soft_reset()
+        retcods = await self.run_pdu_shell_on_all_inputs('off')
+        # if all inputs say 0 (they were turned off), node is off
+        if all(retcod == 0 for retcod in retcods):
+            self.status_cache = 1
+        else:
+            self.status_cache = 255
+        return self.status_cache
+
+
+    async def reset(self):
+        """
+        the RESET action
+        """
+        off = await self.off()
+        if off != 1:
+            return 255
+        # xxx could be configurable
+        await asyncio.sleep(15)
+        return await self.on()
+
+
+
     async def run_action(self, action):
         """
         returns the main retcod as defined above (0=OK/ON 1=OK/OFF 255=KO)
-        also update self.status
+        also update self.status when relevant
 
         when a device has several inputs:
 
@@ -186,7 +250,7 @@ class PduDevice:
            if AT LEAST ONE works fine, the return code is 0 - 255 otherwise
 
         OFF will try to turn off all inputs
-           if ALL work fine, the return code is 0 - 255 otherwise
+           if ALL work fine, the return code is 1 - 255 otherwise
 
         RESET mainly does
             OFF; if fails, reset fails
@@ -198,50 +262,17 @@ class PduDevice:
         """
 
         match action:
-            # do a soft turn off if feasible
-            case 'off' | 'reset':
-                soft_turned_off = await self.turn_off_through_ssh_if_pingable()
-                # give it some time to complete the soft OFF
-                # xxx could be configurable
-                if soft_turned_off:
-                    await asyncio.sleep(15)
-
-        # a reset is primarily a OFF and then a ON
-        if action == 'reset':
-            print("doing a HARD OFF on {self.name}")
-            retcod = await self.run_pdu_shell_on_all_inputs("off")
-            print('reset (1)', retcod)
-            await asyncio.sleep(5)
-            action = 'on'
-
-        match action:
-            case 'on' | 'off' | 'status':
-                retcod = await self.run_pdu_shell_on_all_inputs(action)
-                print(retcod)
-                # xxx retcod is now a composite thing....
-                if retcod == 255:
-                    self.status = None
-                    return 255
-                verbose("SUCCESS")
-                match action:
-                    case 'status':
-                        if retcod == 0:
-                            self.status = True
-                            return 0
-                        elif retcod == 1:
-                            self.status = False
-                            return 1
-                    case 'on':
-                        self.status = True
-                        return 0
-                    case 'off':
-                        self.status = False
-                        return 1
+            case 'on':
+                return await self.on()
+            case 'off':
+                return await self.off()
+            case 'status':
+                return await self.status()
+            case 'reset':
+                return await self.reset()
             case _:
                 print(f"OOPS: unknown action '{action}'")
-                self.status = None
                 return 255
-
 
 
 
@@ -278,11 +309,7 @@ class InventoryPdus(YAMLWizard):
         return self
 
 
-    def list_all(self):
-        print(f"we have {len(self.pdu_hosts)} PDUs and {len(self.devices)} devices")
-        return self.list()
-
-    def list(self, names=None):
+    def list_pdu_hosts(self, names=None):
         pdu_host_width = max(len(pdu_host.name) for pdu_host in self.pdu_hosts)
         device_width = max(len(device.name) for device in self.devices)
         sep1 = 10 * '='
@@ -296,13 +323,26 @@ class InventoryPdus(YAMLWizard):
                 for input_ in device.inputs:
                     if input_.pdu_host_name == pdu_host.name:
                         print(f"{indent} {device.name:>{device_width}}"
-                              f" ← {input_.oneline(pdu_host.is_chained())}")
+                              f" ← {input_.oneline()}")
 
+    def list_devices(self, names=None):
+        print(f"list_devices not yet implementedm names={names}")
 
-    def probe(self, name):
-        return asyncio.run(
-            self.get_pdu_host(name).run_pdu_shell("list")
-        )
+    def list(self, names=None):
+        """
+        if no name: list all pdu hosts
+        if first name is a known device: list named devices
+        otherwise: list named pdu_hosts
+        """
+        if not names:
+            print(f"we have {len(self.pdu_hosts)} PDUs and {len(self.devices)} devices")
+            self.list_pdu_hosts()
+        else:
+            try:
+                self.get_device(names[0])
+                self.list_devices(names)
+            except ValueError:
+                self.list_pdu_hosts(names)
 
 
     def _get_object(self, name, attribute, kind):

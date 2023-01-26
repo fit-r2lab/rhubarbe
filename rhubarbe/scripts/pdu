@@ -35,7 +35,7 @@ function relevant-line() {
 }
 
 
-function pdu-list() {
+function pdu-probe() {
     function help() {
         echo "$COMMAND: Retrieve the status and label of all R2lab rack outlets"
         echo "Usage: $COMMAND"
@@ -172,9 +172,9 @@ EOF
             #echo "** res is $res and name is $name"
             case "$res" in
                 0)
-                    echo -e "\toutlet$outlet@pdu$pdu ($name): off" ;;
+                    echo -e "\toutlet$outlet@pdu$pdu ($name): OFF" ;;
                 1)
-                    echo -e "\toutlet$outlet@pdu$pdu ($name): on"  ;;
+                    echo -e "\toutlet$outlet@pdu$pdu ($name): ON"  ;;
                 *)
                     echo "Could not retrieve outlet$outlet@pdu$pdu ($name) status, returned $res"
                     exit 255
