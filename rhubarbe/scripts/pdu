@@ -17,12 +17,19 @@
 #    in that case 0 means the node is ON
 
 COMMAND=$(basename $0)
+TMP=$(mktemp /tmp/pdu.XXXXXX) || { echo cannot find a temporary filename; exit 255; }
+
+function myexit() {
+    local exitcode="$1"
+    rm -f $TMP
+    exit $exitcode
+}
 
 #echo using PDU_PASSWORD=${PDU_PASSWORD} PDU_USERNAME=${PDU_USERNAME} PDU_IP=${PDU_IP}
 
-[[ -z "$PDU_IP" ]] && { echo variable PDU_IP is not configured - exiting; exit 255; }
-[[ -z "$PDU_USERNAME" ]] && { echo variable PDU_USERNAME is not configured - exiting; exit 255; }
-[[ -z "$PDU_PASSWORD" ]] && { echo variable PDU_PASSWORD is not configured - exiting; exit 255; }
+[[ -z "$PDU_IP" ]] && { echo variable PDU_IP is not configured - exiting; myexit 255; }
+[[ -z "$PDU_USERNAME" ]] && { echo variable PDU_USERNAME is not configured - exiting; myexit 255; }
+[[ -z "$PDU_PASSWORD" ]] && { echo variable PDU_PASSWORD is not configured - exiting; myexit 255; }
 
 SSH="sshpass -p${PDU_PASSWORD} ssh -oLogLevel=ERROR -oUserKnownHostsFile=/dev/null -oStrictHostKeyChecking=no -oKexAlgorithms=+diffie-hellman-group1-sha1 -l${PDU_USERNAME} -i /dev/null ${PDU_IP}"
 # with this setting -i /dev/null we get garbled errors at the top of the ssh session
@@ -39,7 +46,7 @@ function pdu-probe() {
     function help() {
         echo "$COMMAND: Retrieve the status and label of all R2lab rack outlets"
         echo "Usage: $COMMAND"
-        exit 255
+        myexit 255
     }
 
     [[ "$#" == 0 ]] || help
@@ -48,7 +55,7 @@ function pdu-probe() {
     #echo "Be patient..."
 
     #Expect script starts here
-    /usr/bin/expect <<EOF >/tmp/output.txt
+    /usr/bin/expect <<EOF >$TMP.txt
 
     set timeout 10
 
@@ -76,9 +83,9 @@ EOF
     for pdu in 0 1; do
         echo "PDU#: $pdu"
         for outlet in {1..8}; do
-            local res=$(sed -n "${line}p" /tmp/output.txt | sed "s/[^0-9]//g")
+            local res=$(sed -n "${line}p" $TMP.txt | sed "s/[^0-9]//g")
             line=$((line + 2))
-            local name=$(sed -n "${line}p" /tmp/output.txt | sed "s/[^0-9a-zA-Z ]//g" | sed -e 's|Outlet ||')
+            local name=$(sed -n "${line}p" $TMP.txt | sed "s/[^0-9a-zA-Z ]//g" | sed -e 's|Outlet ||')
             line=$((line + 2))
             #echo "** res is $res and name is $name"
             case "$res" in
@@ -88,12 +95,12 @@ EOF
                     echo -e "\toutlet-$outlet@chain-$pdu ($name): ON"  ;;
                 *)
                     echo "Could not retrieve outlet-$outlet@chain-$pdu ($name) status, returned $res"
-                    exit 255
+                    myexit 255
             esac
         done
         line=$((line + 1))
     done
-    exit 0
+    myexit 0
 
 }
 
@@ -104,7 +111,7 @@ function pdu-status() {
         echo "$COMMAND: Retrieve the status of a specific R2lab rack outlet"
         echo "Usage: $COMMAND outlet# pdu#"
         echo -e "\twith outlet# in [1:8] and pdu# in [0:1]"
-        exit 255
+        myexit 255
     }
 
     [[ "$#" == 2 ]] || help
@@ -115,7 +122,7 @@ function pdu-status() {
     [[ "$outlet" -lt 1 || "$outlet" -gt 8 || "$pdu" -lt 0 || "$pdu" -gt 1 ]] && help
 
     #Expect script starts here
-    /usr/bin/expect <<EOF >/tmp/output.txt
+    /usr/bin/expect <<EOF >$TMP.txt
 
     set timeout 10
 
@@ -136,23 +143,23 @@ EOF
 
     # on line 5
     local line=$(relevant-line 5)
-    local name=$(sed -n "${line}p" /tmp/output.txt | sed "s/[^0-9a-zA-Z ]//g" | sed -e 's|Outlet ||')
+    local name=$(sed -n "${line}p" $TMP.txt | sed "s/[^0-9a-zA-Z ]//g" | sed -e 's|Outlet ||')
     # on line 3
     line=$(relevant-line 3)
-    local res=$(sed -n "${line}p" /tmp/output.txt | sed "s/[^0-9]//g")
+    local res=$(sed -n "${line}p" $TMP.txt | sed "s/[^0-9]//g")
 
     case "$res" in
         0)
             echo "outlet-$outlet@chain-$pdu ($name): OFF"
-            exit 1
+            myexit 1
             ;;
         1)
             echo "outlet-$outlet@chain-$pdu ($name): ON"
-            exit 0
+            myexit 0
             ;;
         *)
             echo "Could not retrieve outlet-$outlet@chain-$pdu ($name) status, returned $res"
-            exit 255
+            myexit 255
     esac
 }
 
@@ -166,7 +173,7 @@ function -pdu-on-off() {
         echo "$COMMAND: switch $mode a specific R2lab rack outlet"
         echo "Usage: $COMMAND outlet# pdu#"
         echo -e "\twith outlet# in [1:8] and pdu# in [0:1]"
-        exit 255
+        myexit 255
     }
 
     [[ "$#" == 2 ]] || help
@@ -186,7 +193,7 @@ function -pdu-on-off() {
 
 
     #Expect script starts here
-    /usr/bin/expect <<EOF >/tmp/output.txt
+    /usr/bin/expect <<EOF >$TMP.txt
 
     set timeout 10
 
@@ -208,16 +215,16 @@ function -pdu-on-off() {
 EOF
 
     local line=$(relevant-line 5)
-    local name=$(sed -n "${line}p" /tmp/output.txt | sed "s/[^0-9a-zA-Z ]//g" | sed -e 's|Outlet ||')
+    local name=$(sed -n "${line}p" $TMP.txt | sed "s/[^0-9a-zA-Z ]//g" | sed -e 's|Outlet ||')
     line=$(relevant-line 3)
-    local res=$(sed -n "${line}p" /tmp/output.txt | sed "s/[^0-9-]//g")
+    local res=$(sed -n "${line}p" $TMP.txt | sed "s/[^0-9-]//g")
 
     if [ "$res" -eq "$expected" ]; then
         echo "outlet-$outlet@chain-$pdu ($name): ${mode}"
-        exit 0
+        myexit 0
     else
         echo "Error could not switch ${mode} outlet-$outlet@chain-$pdu ($name), returns $res"
-        exit 255
+        myexit 255
     fi
 }
 
@@ -238,3 +245,4 @@ function pdu-off() {
 }
 
 $COMMAND "$@"
+rm -f $TMP
