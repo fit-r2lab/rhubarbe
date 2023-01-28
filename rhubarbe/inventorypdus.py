@@ -77,7 +77,7 @@ class PduHost:
         stdout, stderr = await proc.communicate()
         verbose(f"{proc.returncode=}")
         if proc.returncode == 255:
-            print("FAILURE:", stdout, end="")
+            print("FAILURE:", stdout.decode(), end="")
             return 255
         verbose("SUCCESS")
         stdout and print(stdout.decode(), end="")            # pylint: disable=expression-not-assigned
@@ -98,6 +98,10 @@ class PduInput:
     # not in the YAML, will be located
     # after loading
     pdu_host: PduHost = None
+
+
+    def __repr__(self):
+        return f"{self.pdu_host_name}:chain#{self.in_chain} @ outlet#{self.outlet}"
 
 
     def oneline(self):
@@ -133,9 +137,9 @@ class PduDevice:
         """
         if self.ssh_hostname is None:
             return False
-        command = ["ping", "-c", "1", "-w", timeout, self.ssh_hostname]
-        proc = await asyncio.create_subprocess_exec(
-            *command,
+        command = f"ping -c 1 -w {timeout} {self.ssh_hostname}"
+        proc = await asyncio.create_subprocess_shell(
+            command,
             stdout=asyncio.subprocess.DEVNULL,
             stderr=asyncio.subprocess.DEVNULL)
         # failure occurs through timeout
@@ -190,10 +194,12 @@ class PduDevice:
         elif any(retcod == 0 for retcod in retcods):
             self.status_cache = 0
         # if any input is unknown, then we can't say
-        elif any(retcod == 255 for retdoc in retcods):
+        elif any(retcod == 255 for retcod in retcods):
             self.status_cache = 255
         # else we are sure the node is OFF
+        else:
             self.status_cache = 1
+        VERBOSE and print(f"{self.name} status_cache is now {self.status_cache}")
         return self.status_cache
 
 
@@ -201,7 +207,7 @@ class PduDevice:
         return await self._status_or_on('on')
 
     async def status(self):
-        return await self._status_or_on('on')
+        return await self._status_or_on('status')
 
     async def off(self):
         """
@@ -312,21 +318,30 @@ class InventoryPdus(YAMLWizard):
     def list_pdu_hosts(self, names=None):
         pdu_host_width = max(len(pdu_host.name) for pdu_host in self.pdu_hosts)
         device_width = max(len(device.name) for device in self.devices)
-        sep1 = 10 * '='
+        sep = 10 * '='
         indent = 4 * ' '
         for pdu_host in self.pdu_hosts:
             if names and pdu_host.name not in names:
                 continue
-            print(f"{sep1} {pdu_host.name:^{pdu_host_width}} {sep1}")
+            print(f"{sep} {pdu_host.name:^{pdu_host_width}} {sep}")
             print(f"{pdu_host.oneline()}")
             for device in self.devices:
                 for input_ in device.inputs:
                     if input_.pdu_host_name == pdu_host.name:
-                        print(f"{indent} {device.name:>{device_width}}"
-                              f" ← {input_.oneline()}")
+                        print(f"{indent}{input_.oneline()} "
+                              f"→ {device.name:<{device_width}}")
 
     def list_devices(self, names=None):
-        print(f"list_devices not yet implementedm names={names}")
+        pdu_host_width = max(len(pdu_host.name) for pdu_host in self.pdu_hosts)
+        device_width = max(len(device.name) for device in self.devices)
+        sep = 10 * '='
+        indent = 4 * ' '
+        for device in self.devices:
+            if device.name not in names:
+                continue
+            print(f"{sep} device {device.name:^{device_width}} {sep}")
+            for input in device.inputs:
+                print(f"{indent}{input}")
 
     def list(self, names=None):
         """

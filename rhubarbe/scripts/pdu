@@ -161,13 +161,13 @@ function pdu-probe() {
 EOF
 
     # the interesting stuff starts at line 3
-    line=$(relevant-line 3)
+    local line=$(relevant-line 3)
     for pdu in 0 1; do
         echo "PDU#: $pdu"
         for outlet in {1..8}; do
-            res=$(sed -n "${line}p" /tmp/output.txt | sed "s/[^0-9]//g")
+            local res=$(sed -n "${line}p" /tmp/output.txt | sed "s/[^0-9]//g")
             line=$((line + 2))
-            name=$(sed -n "${line}p" /tmp/output.txt | sed "s/[^0-9a-zA-Z ]//g")
+            local name=$(sed -n "${line}p" /tmp/output.txt | sed "s/[^0-9a-zA-Z ]//g" | sed -e 's|Outlet ||')
             line=$((line + 2))
             #echo "** res is $res and name is $name"
             case "$res" in
@@ -225,10 +225,10 @@ EOF
 
     # on line 5
     local line=$(relevant-line 5)
-    name=$(sed -n "${line}p" /tmp/output.txt | sed "s/[^0-9a-zA-Z ]//g")
+    local name=$(sed -n "${line}p" /tmp/output.txt | sed "s/[^0-9a-zA-Z ]//g" | sed -e 's|Outlet ||')
     # on line 3
     line=$(relevant-line 3)
-    res=$(sed -n "${line}p" /tmp/output.txt | sed "s/[^0-9]//g")
+    local res=$(sed -n "${line}p" /tmp/output.txt | sed "s/[^0-9]//g")
 
     case "$res" in
         0)
@@ -297,7 +297,7 @@ function -pdu-on-off() {
 EOF
 
     local line=$(relevant-line 5)
-    local name=$(sed -n "${line}p" /tmp/output.txt | sed "s/[^0-9a-zA-Z ]//g")
+    local name=$(sed -n "${line}p" /tmp/output.txt | sed "s/[^0-9a-zA-Z ]//g" | sed -e 's|Outlet ||')
     line=$(relevant-line 3)
     local res=$(sed -n "${line}p" /tmp/output.txt | sed "s/[^0-9-]//g")
 
