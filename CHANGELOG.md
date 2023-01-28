@@ -1,3 +1,13 @@
+# 5.2.0 - 2023 Jan 28
+
+* PDUs become first-class citizens like nodes and phones
+* `rhubarbe-pdu` replaces `rhubarbe-script` with subcommands
+  * `list` for seeing the static inventory (pdu_hosts and devices)
+  * `status` to inspect the status of a device or pdu_host
+  * `on`, `off` and `reset` that target an individual device
+* `rhubarbe-monitorpdus` and related systemd service allows to export
+  PDUs status to sidecar
+
 # 5.1.10 - 2023 Jan 16
 
 * close issue #14: account manager to declare new slices in /etc/security/access.conf
