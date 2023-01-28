@@ -55,108 +55,19 @@ function pdu-probe() {
     spawn -noecho ${SSH}
     expect "pdu#0>"
 
-    send -- "pdu 0\r"
-    expect ">"
+    for {set pdu 0} {\$pdu <= 1} {incr pdu 1} {
 
-    send -- "get PDU.OutletSystem.Outlet\[1\].PresentStatus.SwitchOnOff\r"
-    expect ">"
+        send -- "pdu \$pdu\r"
+        expect ">"
 
-    send -- "get PDU.OutletSystem.Outlet\[1\].iName\r"
-    expect ">"
+        for {set outlet 1} {\$outlet <= 8} {incr outlet 1} {
+            send -- "get PDU.OutletSystem.Outlet\[\$outlet\].PresentStatus.SwitchOnOff\r"
+            expect ">"
 
-    send -- "get PDU.OutletSystem.Outlet\[2\].PresentStatus.SwitchOnOff\r"
-    expect ">"
-
-    send -- "get PDU.OutletSystem.Outlet\[2\].iName\r"
-    expect ">"
-
-    send -- "get PDU.OutletSystem.Outlet\[3\].PresentStatus.SwitchOnOff\r"
-    expect ">"
-
-    send -- "get PDU.OutletSystem.Outlet\[3\].iName\r"
-    expect ">"
-
-    send -- "get PDU.OutletSystem.Outlet\[4\].PresentStatus.SwitchOnOff\r"
-    expect ">"
-
-    send -- "get PDU.OutletSystem.Outlet\[4\].iName\r"
-    expect ">"
-
-    send -- "get PDU.OutletSystem.Outlet\[5\].PresentStatus.SwitchOnOff\r"
-    expect ">"
-
-    send -- "get PDU.OutletSystem.Outlet\[5\].iName\r"
-    expect ">"
-
-    send -- "get PDU.OutletSystem.Outlet\[6\].PresentStatus.SwitchOnOff\r"
-    expect ">"
-
-    send -- "get PDU.OutletSystem.Outlet\[6\].iName\r"
-    expect ">"
-
-    send -- "get PDU.OutletSystem.Outlet\[7\].PresentStatus.SwitchOnOff\r"
-    expect ">"
-
-    send -- "get PDU.OutletSystem.Outlet\[7\].iName\r"
-    expect ">"
-
-    send -- "get PDU.OutletSystem.Outlet\[8\].PresentStatus.SwitchOnOff\r"
-    expect ">"
-
-    send -- "get PDU.OutletSystem.Outlet\[8\].iName\r"
-    expect ">"
-
-    send -- "pdu 1\r"
-    expect ">"
-
-    send -- "get PDU.OutletSystem.Outlet\[1\].PresentStatus.SwitchOnOff\r"
-    expect ">"
-
-    send -- "get PDU.OutletSystem.Outlet\[1\].iName\r"
-    expect ">"
-
-    send -- "get PDU.OutletSystem.Outlet\[2\].PresentStatus.SwitchOnOff\r"
-    expect ">"
-
-    send -- "get PDU.OutletSystem.Outlet\[2\].iName\r"
-    expect ">"
-
-    send -- "get PDU.OutletSystem.Outlet\[3\].PresentStatus.SwitchOnOff\r"
-    expect ">"
-
-    send -- "get PDU.OutletSystem.Outlet\[3\].iName\r"
-    expect ">"
-
-    send -- "get PDU.OutletSystem.Outlet\[4\].PresentStatus.SwitchOnOff\r"
-    expect ">"
-
-    send -- "get PDU.OutletSystem.Outlet\[4\].iName\r"
-    expect ">"
-
-    send -- "get PDU.OutletSystem.Outlet\[5\].PresentStatus.SwitchOnOff\r"
-    expect ">"
-
-    send -- "get PDU.OutletSystem.Outlet\[5\].iName\r"
-    expect ">"
-
-    send -- "get PDU.OutletSystem.Outlet\[6\].PresentStatus.SwitchOnOff\r"
-    expect ">"
-
-    send -- "get PDU.OutletSystem.Outlet\[6\].iName\r"
-    expect ">"
-
-    send -- "get PDU.OutletSystem.Outlet\[7\].PresentStatus.SwitchOnOff\r"
-    expect ">"
-
-    send -- "get PDU.OutletSystem.Outlet\[7\].iName\r"
-    expect ">"
-
-    send -- "get PDU.OutletSystem.Outlet\[8\].PresentStatus.SwitchOnOff\r"
-    expect ">"
-
-    send -- "get PDU.OutletSystem.Outlet\[8\].iName\r"
-    expect ">"
-
+            send -- "get PDU.OutletSystem.Outlet\[\$outlet\].iName\r"
+            expect ">"
+        }
+    }
     send -- "quit"
 EOF
 
