@@ -8,32 +8,32 @@ the wifi service because I could not get to work the magic sentences
 like 'adb shell svc enable wifi' and similar that I have found on the web
 """
 
-# c0111 no docstrings yet
-# w1202 logger & format
-# w0703 catch Exception
-# r1705 else after return
-# pylint: disable=c0111, w0703, w1202
+# pylint: disable=logging-fstring-interpolation, fixme, missing-function-docstring
 
 import asyncio
 
 from apssh.sshproxy import SshProxy
 from apssh.formatters import CaptureFormatter
 
-from rhubarbe.config import Config
+#from rhubarbe.config import Config
 from rhubarbe.logger import monitor_logger as logger
 
 from rhubarbe.inventoryphones import InventoryPhones
 from rhubarbe.monitor.reconnectable import ReconnectableSidecar
 
 
-class MonitorPhone:                                     # pylint: disable=r0902
+class MonitorPhone:
+
+    """
+    monitor one phone using ssh and adb
+    """
 
     # id is what you get through adb devices
-    def __init__(self, id,                       # pylint: disable=r0913, w0622
+    def __init__(self, id_,                             # pylint: disable=invalid-name
                  gw_host, gw_user, gw_key,
                  adb_bin, adb_id,
                  reconnectable, verbose, cycle=2):
-        self.id = id                                    # pylint: disable=c0103
+        self.id = id_                                   # pylint: disable=invalid-name
         # gateway is the macphone box in the middle
         self.gateway = SshProxy(
             hostname=gw_host,
@@ -67,7 +67,7 @@ class MonitorPhone:                                     # pylint: disable=r0902
                                 f"{self.gateway}")
                 await self.gateway.connect_lazy()
                 logger.info(f"Connected -> {self.gateway}")
-            except Exception as exc:
+            except Exception as exc:                        # pylint: disable=broad-except
                 logger.error(f"Could not connect -> {self.gateway} (exc={exc})")
                 self.info['airplane_mode'] = 'fail'
                 await self.emit()
@@ -91,7 +91,7 @@ class MonitorPhone:                                     # pylint: disable=r0902
                             f"-> {airplane_mode=}")
             self.info['airplane_mode'] = airplane_mode
 
-        except Exception as exc:
+        except Exception as exc:                        # pylint: disable=broad-except
             logger.error(f"Could not probe {self.adb_id} -> (e={exc})")
             self.info['airplane_mode'] = 'fail'
             # force ssh reconnect
@@ -104,7 +104,11 @@ class MonitorPhone:                                     # pylint: disable=r0902
             await asyncio.sleep(self.cycle)
 
 
-class MonitorPhones:                                     # pylint:disable=r0903
+class MonitorPhones:
+    """
+    monitor all phones status and report to the sidecar service
+    """
+
     def __init__(self, verbose, sidecar_url, cycle):
         self.verbose = verbose
 

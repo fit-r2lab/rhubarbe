@@ -199,11 +199,11 @@ class PduDevice:
         # else we are sure the node is OFF
         else:
             self.status_cache = 1
-        VERBOSE and print(f"{self.name} status_cache is now {self.status_cache}")
+        verbose(f"{self.name} status_cache is now {self.status_cache}")
         return self.status_cache
 
 
-    async def on(self):
+    async def on(self):                                 # pylint: disable=invalid-name
         return await self._status_or_on('on')
 
     async def status(self):
@@ -315,13 +315,23 @@ class InventoryPdus(YAMLWizard):
         return self
 
 
-    def list_pdu_hosts(self, names=None):
+    def list(self, names=None):
+        """
+        if no name: list all pdu hosts
+        otherwise, list all pdu_hosts AND all pdu_devices
+        whose name is in the list (case ignored)
+        """
+        if not names:
+            print(f"we have {len(self.pdu_hosts)} PDUs and {len(self.devices)} devices")
+
+        names = [] if names is None else [n.lower() for n in names]
         pdu_host_width = max(len(pdu_host.name) for pdu_host in self.pdu_hosts)
         device_width = max(len(device.name) for device in self.devices)
         sep = 10 * '='
         indent = 4 * ' '
         for pdu_host in self.pdu_hosts:
-            if names and pdu_host.name not in names:
+            # if no name was passed, list all pdu_hosts
+            if names and pdu_host.name.lower() not in names:
                 continue
             print(f"{sep} {pdu_host.name:^{pdu_host_width}} {sep}")
             print(f"{pdu_host.oneline()}")
@@ -331,34 +341,15 @@ class InventoryPdus(YAMLWizard):
                         print(f"{indent}{input_.oneline()} "
                               f"→ {device.name:<{device_width}}")
 
-    def list_devices(self, names=None):
-        pdu_host_width = max(len(pdu_host.name) for pdu_host in self.pdu_hosts)
-        device_width = max(len(device.name) for device in self.devices)
-        sep = 10 * '='
-        indent = 4 * ' '
+        # if no name was passed, stop here
+        if not names:
+            return
         for device in self.devices:
-            if device.name not in names:
+            if device.name.lower() not in names:
                 continue
             print(f"{sep} device {device.name:^{device_width}} {sep}")
-            for input in device.inputs:
-                print(f"{indent}{input}")
-
-    def list(self, names=None):
-        """
-        if no name: list all pdu hosts
-        if first name is a known device: list named devices
-        otherwise: list named pdu_hosts
-        """
-        if not names:
-            print(f"we have {len(self.pdu_hosts)} PDUs and {len(self.devices)} devices")
-            self.list_pdu_hosts()
-        else:
-            try:
-                self.get_device(names[0])
-                self.list_devices(names)
-            except ValueError:
-                self.list_pdu_hosts(names)
-
+            for input_ in device.inputs:
+                print(f"{indent}{input_}")
 
     def _get_object(self, name, attribute, kind):
         l_objs = getattr(self, attribute)

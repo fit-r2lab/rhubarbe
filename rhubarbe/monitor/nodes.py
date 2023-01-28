@@ -7,9 +7,9 @@ and reports it to the sidecar service
 # w1202 logger & format
 # w0703 catch Exception
 # r1705 else after return
-# pylint: disable=c0111, w0703, w1202
 
-import time
+# pylint: disable=fixme,logging-fstring-interpolation,missing-function-docstring
+
 import re
 import asyncio
 
@@ -192,7 +192,8 @@ class MonitorNode:
             "grep . /etc/rhubarbe-image /dev/null",
             "echo -n UNAME: ; uname -r",
             "echo -n DOCKER: ; docker --version",
-            "echo -n CONTAINER: ; docker inspect --format='{{.State.Running}} {{.Config.Image}}' container",
+            "echo -n CONTAINER: ; docker inspect "
+                "--format='{{.State.Running}} {{.Config.Image}}' container",
             ]
         # reconnect each time
         async with SshProxy(self.node) as ssh:
@@ -217,13 +218,13 @@ class MonitorNode:
                     # required as otherwise we leak openfiles
                     try:
                         await ssh.close()
-                    except Exception:
+                    except Exception:                           # pylint: disable=broad-except
                         logger.exception("monitornodes oops 1")
                 except asyncio.TimeoutError:
                     if self.verbose:
                         logger.info(f"received ssh timeout with {self.node.control_hostname()}")
                     self.set_info({'control_ssh': 'off'})
-                except Exception:
+                except Exception:                                   # pylint: disable=broad-except
                     logger.exception("monitornodes remote_command failed")
         if self.verbose:
             logger.info(f"{self.node.control_hostname()} ssh-based logic done "
@@ -264,14 +265,17 @@ class MonitorNode:
         while True:
             try:
                 await self.probe(ping_timeout, ssh_timeout)
-            except Exception:
+            except Exception:                           # pylint: disable=broad-except
                 logger.exception("monitornodes oops 2")
             await asyncio.sleep(cycle)
 
 
-class MonitorNodes:                                     # pylint: disable=r0902
+class MonitorNodes:
+    """
+    monitor all nodes and reports their status to the sidecar service
+    """
 
-    def __init__(self, cmc_names, message_bus,          # pylint: disable=r0913
+    def __init__(self, cmc_names, message_bus,
                  sidecar_url, cycle, verbose=False):
         self.cycle = cycle
         self.verbose = verbose

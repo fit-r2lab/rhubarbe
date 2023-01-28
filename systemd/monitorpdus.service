@@ -1,0 +1,14 @@
+# this is meant to be installed under /etc/systemd/system
+[Unit]
+Description=testbed pdus probe - reports to sidecar using websockets
+
+# add -v option to get more details
+# also available is
+#  --sidecar-url http://r2lab.inria.fr:999/
+[Service]
+ExecStart=/bin/bash -c "rhubarbe-monitorpdus -v"
+Restart=always
+RestartSec=60s
+
+[Install]
+WantedBy=multi-user.target

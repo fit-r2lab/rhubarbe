@@ -39,9 +39,10 @@ from .display_curses import DisplayCurses
 from .node import Node
 from .imageloader import ImageLoader
 from .imagesaver import ImageSaver
-from .monitor.nodes import MonitorNodes
 from .monitor.loop import MonitorLoop
+from .monitor.nodes import MonitorNodes
 from .monitor.phones import MonitorPhones
+from .monitor.pdus import MonitorPdus
 from .monitor.leases import MonitorLeases
 from .monitor.accountsmanager import AccountsManager
 from .ssh import SshProxy
@@ -701,6 +702,46 @@ def monitorphones(*argv):
 
     MonitorLoop("monitorphones").run(
         monitorphones.run_forever(),
+        logger)
+    return 0
+
+####################
+
+
+@subcommand
+def monitorpdus(*argv):
+
+    # xxx hacky - do a side effect in the logger module
+    import rhubarbe.logger
+    rhubarbe.logger.logger = rhubarbe.logger.monitor_logger
+    from rhubarbe.logger import logger
+
+    usage = """
+    Cyclic probe all known pdus, and reports real-time status
+    at a sidecar service over websockets
+    """
+    config = Config()
+    parser = ArgumentParser(usage=usage,
+                            formatter_class=ArgumentDefaultsHelpFormatter)
+    parser.add_argument(
+        "-c", "--cycle",
+        default=config.value('monitor', 'cycle_pdus'),
+        type=float,
+        help="Delay to wait between 2 probes of each pdu")
+    parser.add_argument(
+        "-u", "--sidecar-url", dest="sidecar_url",
+        default=Config().value('sidecar', 'url'),
+        help="url for the sidecar server")
+    parser.add_argument(
+        "-v", "--verbose", action='store_true')
+    parser.add_argument("names", nargs='*', help="optionally provide device names")
+    args = parser.parse_args(argv)
+
+    logger.info("Using all pdus")
+    monitorpdus = MonitorPdus(**vars(args))
+
+    MonitorLoop("monitorpdus").run(
+        monitorpdus.run_forever(),
         logger)
     return 0
 
