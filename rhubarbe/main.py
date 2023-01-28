@@ -880,19 +880,28 @@ def template(*argv):
 def pdu(*argv):
     usage = """
     manage PDUs; examples:
-        rhubarbe-pdu list               # summary, lists the known PDUs by name - static info only
+
+        rhubarbe-pdu list               # lists the known PDUs and devices by name
+                                        # all forms of list show STATIC INFO only
+                                        # (no remote device involved)
         rhubarbe-pdu list anechoic      # here anechoic is the name of a pdu_host
                                         # here again it's a static info
         rhubarbe-pdu list jaguar        # works with devices too
-                                        # static info only (no network needed)
 
-        rhubarbe-pdu status anechoic    # this time the PDU is probed for a detailed view of the PDU
-        rhubarbe-pdu status x310        # here x310, jaguar, and n300 are device names
+
+        rhubarbe-pdu status anechoic    # this time the PDU is probed
+                                        # for its current status
+        rhubarbe-pdu status jaguar      # works with devices too
+
 
         rhubarbe-pdu on jaguar
         rhubarbe-pdu off panther
         rhubarbe-pdu reset n300
 
+    Note that for the OFF and RESET variants, there is an attempt to perform
+    a soft shutdown first (i.e. to contact the device by ssh and to run
+    `shutdown -h now` in that context)
+    for that the device needs to be properly configured
     """
     parser = ArgumentParser(usage=usage,
                             formatter_class=ArgumentDefaultsHelpFormatter)
