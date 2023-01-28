@@ -52,7 +52,7 @@ class PduHost:
 
     async def run_pdu_shell(self, action, *args):
         """
-        run the 'pdu' command on the PDU box where this input is attached
+        run the 'pdu' command on the PDU host where this input is attached
         """
         env = dict(PDU_IP=self.IP, PDU_USERNAME=self.username, PDU_PASSWORD=self.password)
         if VERBOSE:
@@ -101,16 +101,16 @@ class PduInput:
 
 
     def __repr__(self):
-        return f"{self.pdu_host_name}:chain#{self.in_chain} @ outlet#{self.outlet}"
+        return f"{self.pdu_host_name}:outlet-{self.outlet}@chain-{self.in_chain}"
 
 
     def oneline(self):
-        return f"outlet#{self.outlet}@box-{self.in_chain}"
+        return f"outlet-{self.outlet}@box-{self.in_chain}"
 
 
     async def run_pdu_shell(self, action, *args, device_name=""):
         """
-        run the 'pdu' command on the PDU box where this input is attached
+        run the 'pdu' command on the PDU host where this input is attached
         """
         if device_name:
             message = f"running action {action} on device {device_name}"
