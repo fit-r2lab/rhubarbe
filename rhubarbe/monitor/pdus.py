@@ -44,9 +44,9 @@ class MonitorPdu:
 
         if self.verbose:
             logger.info(f"fetching status of PDU {self.name}")
-        status_int = await self.pdu_device.status()
-        status = 'on' if status_int == 0 else 'off' if status_int == 1 else 'xxx-unknown'
-        self.info['status'] = status
+        status = await self.pdu_device.status()
+        on_off = 'on' if status == 0 else 'off' if status == 1 else 'unknown'
+        self.info['on_off'] = on_off
         await self.emit()
 
     async def probe_forever(self):
