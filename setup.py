@@ -53,7 +53,7 @@ INSTALL_REQUIRES = [
 
 # add convenience entry points like rhubarbe-load and others
 console_scripts = []
-console_scripts.append('rhubarbe = rhubarbe.__main__.main')
+console_scripts.append('rhubarbe = rhubarbe.__main__:main')
 for subcommand in supported_subcommands:
     console_scripts.append(f'rhubarbe-{subcommand} = rhubarbe.__main__:main')
 
