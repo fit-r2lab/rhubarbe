@@ -1,3 +1,8 @@
+# 5.2.1 - 2023 Feb 1
+
+* ci bugfix: the off command was not working when a soft reset was attempted
+  https://github.com/fit-r2lab/rhubarbe/issues/17
+
 # 5.2.0 - 2023 Jan 28
 
 * PDUs become first-class citizens like nodes and phones
