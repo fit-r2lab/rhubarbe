@@ -156,10 +156,10 @@ class PduDevice:
         is_pingable = await self.is_pingable()
         if not is_pingable:
             return False
-        print("Doing a soft TURN OFF on device {self.name}")
+        print(f"Doing a soft TURN OFF on device {self.name}")
         command = "shutdown -h now"
         async with asyncssh.connect(self.ssh_hostname) as conn:
-            completed = conn.run(command)
+            completed = await conn.run(command)
             return completed.returncode == 0
 
 
