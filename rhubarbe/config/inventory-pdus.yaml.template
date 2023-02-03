@@ -14,7 +14,7 @@
 pdu_hosts:
 
   # this one has a daisy-chain with 2 boxes
-  - name: anechoic
+  - name: r2lab
     IP: 192.168.4.107
     username: root
     password:
@@ -57,13 +57,13 @@ devices:
   - name: jaguar
     description: RRU 2x2 Jaguar
     inputs:
-      - pdu_host_name: anechoic
+      - pdu_host_name: r2lab
         in_chain: 0
         outlet: 4
   #
   - name: switch-data
     inputs:
-      - pdu_host_name: anechoic
+      - pdu_host_name: r2lab
         in_chain: 1
         outlet: 1
 

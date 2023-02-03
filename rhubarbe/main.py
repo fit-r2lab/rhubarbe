@@ -884,12 +884,12 @@ def pdu(*argv):
         rhubarbe-pdu list               # lists the known PDUs and devices by name
                                         # all forms of list show STATIC INFO only
                                         # (no remote device involved)
-        rhubarbe-pdu list anechoic      # here anechoic is the name of a pdu_host
+        rhubarbe-pdu list r2lab         # here r2lab is the name of a pdu_host
                                         # here again it's a static info
         rhubarbe-pdu list jaguar        # works with devices too
 
 
-        rhubarbe-pdu status anechoic    # this time the PDU is probed
+        rhubarbe-pdu status r2lab       # this time the PDU is probed
                                         # for its current status
         rhubarbe-pdu status jaguar      # works with devices too
 
