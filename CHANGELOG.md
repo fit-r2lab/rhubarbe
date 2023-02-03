@@ -1,3 +1,8 @@
+# 5.2.2 - 2023 Feb 3
+
+* the pdu script uses SNMP to retrieve status (i.e. probe and status)
+* bugfix: temporary files in /tmp/pdu*.txt were not properly cleaned up
+
 # 5.2.1 - 2023 Feb 1
 
 * ci bugfix: the off command was not working when a soft reset was attempted
