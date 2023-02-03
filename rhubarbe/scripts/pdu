@@ -31,9 +31,21 @@ function myexit() {
 [[ -z "$PDU_USERNAME" ]] && { echo variable PDU_USERNAME is not configured - exiting; myexit 255; }
 [[ -z "$PDU_PASSWORD" ]] && { echo variable PDU_PASSWORD is not configured - exiting; myexit 255; }
 
-SSH="sshpass -p${PDU_PASSWORD} ssh -oLogLevel=ERROR -oUserKnownHostsFile=/dev/null -oStrictHostKeyChecking=no -oKexAlgorithms=+diffie-hellman-group1-sha1 -l${PDU_USERNAME} -i /dev/null ${PDU_IP}"
-# with this setting -i /dev/null we get garbled errors at the top of the ssh session
-SSH_IGNORE_LINES=7
+OPTIONS=""
+OPTIONS="$OPTIONS -oLogLevel=ERROR"
+OPTIONS="$OPTIONS -oUserKnownHostsFile=/dev/null"
+OPTIONS="$OPTIONS -oStrictHostKeyChecking=no"
+OPTIONS="$OPTIONS -oKexAlgorithms=+diffie-hellman-group1-sha1"
+OPTIONS="$OPTIONS -oPreferredAuthentications=password"
+
+SSH="sshpass -p${PDU_PASSWORD} ssh ${OPTIONS} -l${PDU_USERNAME} ${PDU_IP}"
+
+# with used to use -i /dev/null instead of  -oPreferredAuthentications=password
+# which we were really meaning in the first place
+# regardless, with that setting involving /dev/null the output
+# was garbled with 7 lines of warning messages
+# this is no longer useful, but let's keep it in place
+SSH_IGNORE_LINES=0
 
 # ignore that many lines when picking in the ssh output file
 function relevant-line() {
