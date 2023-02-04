@@ -1,3 +1,7 @@
+# 5.2.3 - 2023 Feb 4
+
+* rhubarbe-pdu reports power consumption in watts for outlets that are ON
+
 # 5.2.2 - 2023 Feb 3
 
 * the pdu script uses SNMP to retrieve status (i.e. probe and status)
