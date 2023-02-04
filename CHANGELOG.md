@@ -1,4 +1,4 @@
-# 5.2.4 - 2023 Feb 4
+# 5.2.5 - 2023 Feb 4
 
 * rhubarbe-pdu reports power consumption in watts for outlets that are ON
 
