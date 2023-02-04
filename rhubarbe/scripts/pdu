@@ -13,8 +13,8 @@
 #   list on off status
 # e.g.
 #   pdu list
-#   pdu status 7 1
-#   pdu on 7 1
+#   pdu status 1 7
+#   pdu on 1 7
 #
 # each command has its own usage, run with -help to see it
 #
@@ -163,8 +163,8 @@ function pdu-status() {
 
     [[ "$#" == 2 ]] || help
 
-    local outlet="$1"; shift
     local pdu="$1"; shift
+    local outlet="$1"; shift
 
     [[ "$outlet" -lt 1 || "$outlet" -gt 8 || "$pdu" -lt 0 || "$pdu" -gt 1 ]] && help
 
@@ -201,8 +201,8 @@ function -pdu-on-off() {
 
     [[ "$#" == 2 ]] || help
 
-    local outlet="$1"; shift
     local pdu="$1"; shift
+    local outlet="$1"; shift
 
     # factorizing on and off
     local setting=

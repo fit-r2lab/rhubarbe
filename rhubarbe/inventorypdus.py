@@ -173,7 +173,7 @@ class PduDevice:
 
     async def run_pdu_shell_on_all_inputs(self, action):
         retcod = await asyncio.gather(
-            *(input.run_pdu_shell(action, input.outlet, input.in_chain, device_name = self.name)
+            *(input.run_pdu_shell(action, input.in_chain, input.outlet, device_name = self.name)
             for input in self.inputs)
         )
         return retcod
