@@ -176,15 +176,15 @@ function pdu-status() {
     local watts=$(${SNMPGET} ${PREFIX_WATTS}.${pdu}.${outlet} | snmp-extract-integer)
     case "$status_integer" in
         0)
-            echo "outlet-$outlet@chain-$pdu ($name): OFF"
+            echo "chain-$pdu@outlet-$outlet ($name): OFF"
             myexit 1
             ;;
         1)
-            echo "outlet-$outlet@chain-$pdu ($name): ON (${watts}W)"
+            echo "chain-$pdu@outlet-$outlet ($name): ON (${watts}W)"
             myexit 0
             ;;
         *)
-            echo "Could not retrieve outlet-$outlet@chain-$pdu ($name) status, returned $res"
+            echo "Could not retrieve chain-$pdu@outlet-$outlet ($name) status, returned $res"
             myexit 255
     esac
 }
@@ -246,10 +246,10 @@ EOF
     local res=$(sed -n "${line}p" $TMP | sed "s/[^0-9-]//g")
 
     if [ "$res" -eq "$expected" ]; then
-        echo "outlet-$outlet@chain-$pdu ($name): ${mode}"
+        echo "chain-$pdu@outlet-$outlet ($name): ${mode}"
         myexit 0
     else
-        echo "Error could not switch ${mode} outlet-$outlet@chain-$pdu ($name), returns $res"
+        echo "Error could not switch ${mode} chain-$pdu@outlet-$outlet ($name), returns $res"
         myexit 255
     fi
 }
