@@ -43,45 +43,26 @@
 
 # http://www.circitor.fr/Mibs/Html/E/EATON-EPDU-MIB.php
 
-### walk
-#
 # root@faraday /tmp # snmpwalk -Os -c public -v 1 192.168.4.107 <the-oid>
-
+#
+PREFIX_STATUS="enterprises.534.6.6.7.6.6.1.2"
 # oid=1.3.6.1.4.1.534.6.6.7.6.6.1.2
 # enterprises.534.6.6.7.6.6.1.2.0.1 = INTEGER: 0
-# enterprises.534.6.6.7.6.6.1.2.0.2 = INTEGER: 0
-# enterprises.534.6.6.7.6.6.1.2.0.3 = INTEGER: 0
-# enterprises.534.6.6.7.6.6.1.2.0.4 = INTEGER: 0
-# enterprises.534.6.6.7.6.6.1.2.0.5 = INTEGER: 0
-# enterprises.534.6.6.7.6.6.1.2.0.6 = INTEGER: 1
-# enterprises.534.6.6.7.6.6.1.2.0.7 = INTEGER: 1
-# enterprises.534.6.6.7.6.6.1.2.0.8 = INTEGER: 1
-# enterprises.534.6.6.7.6.6.1.2.1.1 = INTEGER: 1
-# enterprises.534.6.6.7.6.6.1.2.1.2 = INTEGER: 1
-# enterprises.534.6.6.7.6.6.1.2.1.3 = INTEGER: 1
-# enterprises.534.6.6.7.6.6.1.2.1.4 = INTEGER: 1
-# enterprises.534.6.6.7.6.6.1.2.1.5 = INTEGER: 1
-# enterprises.534.6.6.7.6.6.1.2.1.6 = INTEGER: 1
-# enterprises.534.6.6.7.6.6.1.2.1.7 = INTEGER: 1
+# <snip>
 # enterprises.534.6.6.7.6.6.1.2.1.8 = INTEGER: 0
 #
+PREFIX_NAME="enterprises.534.6.6.7.6.1.1.3"
 # oid=enterprises.534.6.6.7.6.1.1.3
 # SNMPv2-SMI::enterprises.534.6.6.7.6.1.1.3.0.1 = STRING: "Outlet USRP N300"
-# SNMPv2-SMI::enterprises.534.6.6.7.6.1.1.3.0.2 = STRING: "Outlet USRP N320"
-# SNMPv2-SMI::enterprises.534.6.6.7.6.1.1.3.0.3 = STRING: "Outlet USRP X310"
-# SNMPv2-SMI::enterprises.534.6.6.7.6.1.1.3.0.4 = STRING: "Outlet RRU Jaguar"
-# SNMPv2-SMI::enterprises.534.6.6.7.6.1.1.3.0.5 = STRING: "Outlet RRU Panther"
-# SNMPv2-SMI::enterprises.534.6.6.7.6.1.1.3.0.6 = STRING: "Outlet A6"
-# SNMPv2-SMI::enterprises.534.6.6.7.6.1.1.3.0.7 = STRING: "Outlet A7"
-# SNMPv2-SMI::enterprises.534.6.6.7.6.1.1.3.0.8 = STRING: "Outlet MacPhone1"
-# SNMPv2-SMI::enterprises.534.6.6.7.6.1.1.3.1.1 = STRING: "Outlet Switch Data"
-# SNMPv2-SMI::enterprises.534.6.6.7.6.1.1.3.1.2 = STRING: "Outlet Switch Control"
-# SNMPv2-SMI::enterprises.534.6.6.7.6.1.1.3.1.3 = STRING: "Outlet Switch Reboot"
-# SNMPv2-SMI::enterprises.534.6.6.7.6.1.1.3.1.4 = STRING: "Outlet Switch SopNode-SW4 plug1"
-# SNMPv2-SMI::enterprises.534.6.6.7.6.1.1.3.1.5 = STRING: "Outlet Switch SopNode-SW4 plug2"
-# SNMPv2-SMI::enterprises.534.6.6.7.6.1.1.3.1.6 = STRING: "Outlet A6"
-# SNMPv2-SMI::enterprises.534.6.6.7.6.1.1.3.1.7 = STRING: "Outlet A7"
+# <snip>
 # SNMPv2-SMI::enterprises.534.6.6.7.6.1.1.3.1.8 = STRING: "Outlet A8"
+#
+PREFIX_WATTS="enterprises.534.6.6.7.6.5.1.2"
+# oid = enterprises.534.6.6.7.6.5.1.2
+# SNMPv2-SMI::enterprises.534.6.6.7.6.5.1.2.0.1 = INTEGER: 0
+# <snip>
+# SNMPv2-SMI::enterprises.534.6.6.7.6.5.1.2.1.8 = INTEGER: 0
+
 
 ### get
 #
@@ -152,18 +133,20 @@ function pdu-probe() {
 
     [[ "$#" == 0 ]] || help
 
-    ${SNMPWALK} enterprises.534.6.6.7.6.1.1.3 | while read line; do
+    ${SNMPWALK} ${PREFIX_NAME} | while read line; do
         local address=$(snmp-extract-address <<< $line)
         local name=$(snmp-extract-string <<< $line | sed -e 's|Outlet ||')
-        local integer=$(${SNMPGET} enterprises.534.6.6.7.6.6.1.2.${address} | snmp-extract-integer)
+        local status_integer=$(${SNMPGET} ${PREFIX_STATUS}.${address} | snmp-extract-integer)
+        local watts=$(${SNMPGET} ${PREFIX_WATTS}.${address} | snmp-extract-integer)
         local status="???"
+        local power=""
 
-        case "${integer}" in
+        case "${status_integer}" in
             0) status="OFF" ;;
-            1) status="ON" ;;
+            1) status="ON"; power=" (${watts}W)" ;;
         esac
 
-        echo $address: $name $status
+        echo $address: $name $status$power
     done
     myexit 0
 }
@@ -185,15 +168,16 @@ function pdu-status() {
 
     [[ "$outlet" -lt 1 || "$outlet" -gt 8 || "$pdu" -lt 0 || "$pdu" -gt 1 ]] && help
 
-    local int=$(${SNMPGET} enterprises.534.6.6.7.6.6.1.2.${pdu}.${outlet} | snmp-extract-integer)
-    local name=$(${SNMPGET} enterprises.534.6.6.7.6.1.1.3.${pdu}.${outlet} | snmp-extract-string)
-    case "$int" in
+    local status_integer=$(${SNMPGET} ${PREFIX_STATUS}.${pdu}.${outlet} | snmp-extract-integer)
+    local name=$(${SNMPGET} ${PREFIX_NAME}.${pdu}.${outlet} | snmp-extract-string)
+    local watts=$(${SNMPGET} ${PREFIX_WATTS}.${pdu}.${outlet} | snmp-extract-integer)
+    case "$status_integer" in
         0)
             echo "outlet-$outlet@chain-$pdu ($name): OFF"
             myexit 1
             ;;
         1)
-            echo "outlet-$outlet@chain-$pdu ($name): ON"
+            echo "outlet-$outlet@chain-$pdu ($name): ON (${watts}W)"
             myexit 0
             ;;
         *)
