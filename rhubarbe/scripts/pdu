@@ -123,6 +123,9 @@ function snmp-extract-address() {
 function snmp-extract-string() {
     sed -e 's|.*STRING: "\(.*\)"|\1|'
 }
+function remove-outlet() {
+    sed -e 's|Outlet ||'
+}
 
 function pdu-probe() {
     function help() {
@@ -135,7 +138,7 @@ function pdu-probe() {
 
     ${SNMPWALK} ${PREFIX_NAME} | while read line; do
         local address=$(snmp-extract-address <<< $line)
-        local name=$(snmp-extract-string <<< $line | sed -e 's|Outlet ||')
+        local name=$(snmp-extract-string <<< $line | remove-outlet)
         local status_integer=$(${SNMPGET} ${PREFIX_STATUS}.${address} | snmp-extract-integer)
         local watts=$(${SNMPGET} ${PREFIX_WATTS}.${address} | snmp-extract-integer)
         local status="???"
@@ -169,7 +172,7 @@ function pdu-status() {
     [[ "$outlet" -lt 1 || "$outlet" -gt 8 || "$pdu" -lt 0 || "$pdu" -gt 1 ]] && help
 
     local status_integer=$(${SNMPGET} ${PREFIX_STATUS}.${pdu}.${outlet} | snmp-extract-integer)
-    local name=$(${SNMPGET} ${PREFIX_NAME}.${pdu}.${outlet} | snmp-extract-string)
+    local name=$(${SNMPGET} ${PREFIX_NAME}.${pdu}.${outlet} | snmp-extract-string | remove-outlet)
     local watts=$(${SNMPGET} ${PREFIX_WATTS}.${pdu}.${outlet} | snmp-extract-integer)
     case "$status_integer" in
         0)
