@@ -45,19 +45,25 @@
 
 # root@faraday /tmp # snmpwalk -Os -c public -v 1 192.168.4.107 <the-oid>
 #
+# http://www.circitor.fr/Mibs/Html/E/EATON-EPDU-MIB.php#outletControlStatus
 PREFIX_STATUS="enterprises.534.6.6.7.6.6.1.2"
 # oid=1.3.6.1.4.1.534.6.6.7.6.6.1.2
 # enterprises.534.6.6.7.6.6.1.2.0.1 = INTEGER: 0
 # <snip>
 # enterprises.534.6.6.7.6.6.1.2.1.8 = INTEGER: 0
 #
+# http://www.circitor.fr/Mibs/Html/E/EATON-EPDU-MIB.php#outletName
 PREFIX_NAME="enterprises.534.6.6.7.6.1.1.3"
 # oid=enterprises.534.6.6.7.6.1.1.3
 # SNMPv2-SMI::enterprises.534.6.6.7.6.1.1.3.0.1 = STRING: "Outlet USRP N300"
 # <snip>
 # SNMPv2-SMI::enterprises.534.6.6.7.6.1.1.3.1.8 = STRING: "Outlet A8"
 #
-PREFIX_WATTS="enterprises.534.6.6.7.6.5.1.2"
+#
+# http://www.circitor.fr/Mibs/Html/E/EATON-EPDU-MIB.php#outletVA - Volt-Ampere
+#PREFIX_WATTS="enterprises.534.6.6.7.6.5.1.2"
+# http://www.circitor.fr/Mibs/Html/E/EATON-EPDU-MIB.php#outletWatts - better
+PREFIX_WATTS="enterprises.534.6.6.7.6.5.1.3"
 # oid = enterprises.534.6.6.7.6.5.1.2
 # SNMPv2-SMI::enterprises.534.6.6.7.6.5.1.2.0.1 = INTEGER: 0
 # <snip>
