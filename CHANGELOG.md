@@ -1,3 +1,7 @@
+# 5.2.7 - 2023 Feb 8
+
+* cosmetic, use the same order chain-outlet everywhere
+
 # 5.2.6 - 2023 Feb 4
 
 * rhubarbe-pdu reports power consumption in watts for outlets that are ON
