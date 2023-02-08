@@ -1,3 +1,8 @@
+# 5.2.8 - 2023 Feb 8
+
+* rhubarbe-bye will turn off all pdu devices
+  that are marked `auto_turn_off`
+
 # 5.2.7 - 2023 Feb 8
 
 * cosmetic, use the same order chain-outlet everywhere
