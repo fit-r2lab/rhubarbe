@@ -129,6 +129,8 @@ class PduDevice:
     ssh_username: str = "root"
     # will be maintained by actions made
     status_cache: bool | None = None
+    # if set to True, the device will be turned off when the testbed is idle
+    auto_turn_off: bool = False
 
 
     async def is_pingable(self, timeout=1) -> bool:

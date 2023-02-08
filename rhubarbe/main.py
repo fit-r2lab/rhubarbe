@@ -258,12 +258,26 @@ def bye(*argv):
 
     # even simpler
     import os
-    phones_inventory = InventoryPhones()
-    for phone in phones_inventory.all_phones():
+    inventory_phones = InventoryPhones()
+    for phone in inventory_phones.all_phones():
         command = (f"ssh -i {phone['gw_key']} "
                    f"{phone['gw_user']}@{phone['gw_host']} phone-off")
         print(command)
         os.system(command)
+
+    inventory_pdus = InventoryPdus.load()
+    # this is a working async version
+    # but for safety we will do it sequentially
+    # because the ssh service in the PDU unit looks fragile
+    # async def turn_off_auto_devices():
+    #     await asyncio.gather(
+    #         *(device.off()
+    #                 for device in inventory_pdus.devices
+    #                 if device.auto_turn_off))
+    # asyncio.run(turn_off_auto_devices())
+    for device in inventory_pdus.devices:
+        if device.auto_turn_off:
+            asyncio.run(device.off())
 
 ####################
 
