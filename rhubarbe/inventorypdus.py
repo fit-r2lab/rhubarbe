@@ -101,11 +101,11 @@ class PduInput:
 
 
     def __repr__(self):
-        return f"{self.pdu_host_name}:outlet-{self.outlet}@chain-{self.in_chain}"
+        return f"{self.pdu_host_name}:{self.oneline()}"
 
 
     def oneline(self):
-        return f"outlet-{self.outlet}@box-{self.in_chain}"
+        return f"chain-{self.in_chain}@outlet-{self.outlet}"
 
 
     async def run_pdu_shell(self, action, *args, device_name=""):
