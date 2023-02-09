@@ -1,3 +1,7 @@
+# 5.2.9 - 2023 Feb 9
+
+* monitor-phones was no longer working due to a stupid mistake
+
 # 5.2.8 - 2023 Feb 8
 
 * rhubarbe-bye will turn off all pdu devices
