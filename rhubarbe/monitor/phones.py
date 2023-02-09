@@ -29,11 +29,13 @@ class MonitorPhone:
     """
 
     # id is what you get through adb devices
-    def __init__(self, id_,                             # pylint: disable=invalid-name
+    # it's important that we accept a param named id
+    # as this comes all the way from yaml
+    def __init__(self, id,          # pylint: disable=invalid-name, redefined-builtin
                  gw_host, gw_user, gw_key,
                  adb_bin, adb_id,
                  reconnectable, verbose, cycle=2):
-        self.id = id_                                   # pylint: disable=invalid-name
+        self.id = id                                   # pylint: disable=invalid-name
         # gateway is the macphone box in the middle
         self.gateway = SshProxy(
             hostname=gw_host,
