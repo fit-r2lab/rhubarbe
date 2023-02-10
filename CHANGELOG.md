@@ -1,3 +1,7 @@
+# 5.2.10 - 2023 Feb 10
+
+* fix remaining occurrence of port 999 in the default config
+
 # 5.2.9 - 2023 Feb 9
 
 * monitor-phones was no longer working due to a stupid mistake
