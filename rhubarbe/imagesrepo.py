@@ -458,7 +458,12 @@ class ImagesRepo(metaclass=Singleton):
                 show_dry_run(f"mv {origin} {destination}")
             else:
                 print(f"Moving {origin} -> {destination}")
-                origin.rename(destination)
+                # the library folder may be shared over sshfs
+                # and in that case using rename does not work 
+                # because it is across filesystems
+                # origin.rename(destination)
+                command = f"mv {str(origin)} {str(destination)}"
+                os.system(command)
 
         for plainfile, symlink in symlinks:
             if dry_run:
