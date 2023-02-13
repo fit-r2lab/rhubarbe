@@ -1,3 +1,8 @@
+# 5.2.11 - 2023 Feb 13
+
+* rhubarbe-share can move an image to another filesystem
+  convenient when sharing the images repo over e.g. sshfs
+
 # 5.2.10 - 2023 Feb 10
 
 * fix remaining occurrence of port 999 in the default config
