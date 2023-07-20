@@ -68,7 +68,7 @@ setuptools.setup(
 
     packages=['rhubarbe', 'rhubarbe.monitor'],
     version=__version__,
-    python_requires=">=3.5",
+    python_requires=">=3.10",
 
     entry_points={ 'console_scripts': console_scripts },
     package_data={
@@ -89,6 +89,6 @@ setuptools.setup(
         "Development Status :: 4 - Beta",
         "Environment :: Console",
         "Intended Audience :: Information Technology",
-        "Programming Language :: Python :: 3.5",
+        "Programming Language :: Python :: 3.10",
     ],
 )
