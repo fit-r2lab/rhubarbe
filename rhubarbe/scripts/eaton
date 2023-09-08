@@ -12,9 +12,9 @@
 # supported actions are
 #   list on off status
 # e.g.
-#   pdu list
-#   pdu status 1 7
-#   pdu on 1 7
+#   eaton list
+#   eaton status 1 7
+#   eaton on 1 7
 #
 # each command has its own usage, run with -help to see it
 #
@@ -84,7 +84,7 @@ SNMPGET="snmpget ${SNMP_OPTIONS} ${PDU_IP}"
 ##### SSH
 
 COMMAND=$(basename $0)
-TMP=$(mktemp /tmp/pdu.XXXXXX.txt) || { echo cannot find a temporary filename; exit 255; }
+TMP=$(mktemp /tmp/eaton.XXXXXX.txt) || { echo cannot find a temporary filename; exit 255; }
 
 function myexit() {
     local exitcode="$1"
@@ -133,9 +133,9 @@ function remove-outlet() {
     sed -e 's|Outlet ||'
 }
 
-function pdu-probe() {
+function eaton-probe() {
     function help() {
-        echo "$COMMAND: Retrieve the status and label of all R2lab rack outlets"
+        echo "$COMMAND: Retrieve the status and label of all outlets"
         echo "Usage: $COMMAND"
         myexit 255
     }
@@ -161,56 +161,56 @@ function pdu-probe() {
 }
 
 
-function pdu-status() {
+function eaton-status() {
 
     function help() {
-        echo "$COMMAND: Retrieve the status of a specific R2lab rack outlet"
-        echo "Usage: $COMMAND outlet# pdu#"
-        echo -e "\twith outlet# in [1:8] and pdu# in [0:1]"
+        echo "$COMMAND: Retrieve the status of a specific pdu outlet"
+        echo "Usage: $COMMAND chain# outlet#"
+        echo -e "\twith outlet# in [1:8] and chain# in [0:1]"
         myexit 255
     }
 
     [[ "$#" == 2 ]] || help
 
-    local pdu="$1"; shift
+    local chain="$1"; shift
     local outlet="$1"; shift
 
-    [[ "$outlet" -lt 1 || "$outlet" -gt 8 || "$pdu" -lt 0 || "$pdu" -gt 1 ]] && help
+    [[ "$outlet" -lt 1 || "$outlet" -gt 8 || "$chain" -lt 0 || "$chain" -gt 1 ]] && help
 
-    local status_integer=$(${SNMPGET} ${PREFIX_STATUS}.${pdu}.${outlet} | snmp-extract-integer)
-    local name=$(${SNMPGET} ${PREFIX_NAME}.${pdu}.${outlet} | snmp-extract-string | remove-outlet)
-    local watts=$(${SNMPGET} ${PREFIX_WATTS}.${pdu}.${outlet} | snmp-extract-integer)
+    local status_integer=$(${SNMPGET} ${PREFIX_STATUS}.${chain}.${outlet} | snmp-extract-integer)
+    local name=$(${SNMPGET} ${PREFIX_NAME}.${chain}.${outlet} | snmp-extract-string | remove-outlet)
+    local watts=$(${SNMPGET} ${PREFIX_WATTS}.${chain}.${outlet} | snmp-extract-integer)
     case "$status_integer" in
         0)
-            echo "chain-$pdu@outlet-$outlet ($name): OFF"
+            echo "chain-$chain@outlet-$outlet ($name): OFF"
             myexit 1
             ;;
         1)
-            echo "chain-$pdu@outlet-$outlet ($name): ON (${watts}W)"
+            echo "chain-$chain@outlet-$outlet ($name): ON (${watts}W)"
             myexit 0
             ;;
         *)
-            echo "Could not retrieve chain-$pdu@outlet-$outlet ($name) status, returned $res"
+            echo "Could not retrieve chain-$chain@outlet-$outlet ($name) status, returned $res"
             myexit 255
     esac
 }
 
 # factorized on and off
 
-function -pdu-on-off() {
+function -eaton-on-off() {
 
     local mode="$1"; shift    # 'on' or 'off'
 
     function help() {
-        echo "$COMMAND: switch $mode a specific R2lab rack outlet"
-        echo "Usage: $COMMAND outlet# pdu#"
-        echo -e "\twith outlet# in [1:8] and pdu# in [0:1]"
+        echo "$COMMAND: switch $mode a specific pdu outlet"
+        echo "Usage: $COMMAND chain# outlet#"
+        echo -e "\twith outlet# in [1:8] and chain# in [0:1]"
         myexit 255
     }
 
     [[ "$#" == 2 ]] || help
 
-    local pdu="$1"; shift
+    local chain="$1"; shift
     local outlet="$1"; shift
 
     # factorizing on and off
@@ -233,7 +233,7 @@ function -pdu-on-off() {
 
     expect "pdu#0>"
 
-    send -- "pdu $pdu\r"
+    send -- "pdu $chain\r"
     expect ">"
 
     send -- "set PDU.OutletSystem.Outlet\[$outlet\].${setting} 0\r"
@@ -252,28 +252,28 @@ EOF
     local res=$(sed -n "${line}p" $TMP | sed "s/[^0-9-]//g")
 
     if [ "$res" -eq "$expected" ]; then
-        echo "chain-$pdu@outlet-$outlet ($name): ${mode}"
+        echo "chain-$chain@outlet-$outlet ($name): ${mode}"
         myexit 0
     else
-        echo "Error could not switch ${mode} chain-$pdu@outlet-$outlet ($name), returns $res"
+        echo "Error could not switch ${mode} chain-$chain@outlet-$outlet ($name), returns $res"
         myexit 255
     fi
 }
 
-function pdu-on() {
-    -pdu-on-off on "$@"
+function eaton-on() {
+    -eaton-on-off on "$@"
 }
-function pdu-off() {
-    -pdu-on-off off "$@"
+function eaton-off() {
+    -eaton-on-off off "$@"
 }
 
 # so that we can call either
-# pdu-status 0 0
+# eaton-status 0 0
 # or
-# pdu status 0 0
+# eaton status 0 0
 [[ "$COMMAND" == "eaton" ]] && {
     subcommand="$1"; shift
-    COMMAND="pdu-${subcommand}"
+    COMMAND="eaton-${subcommand}"
 }
 
 $COMMAND "$@"
