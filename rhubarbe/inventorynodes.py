@@ -15,7 +15,7 @@ from rhubarbe.singleton import Singleton
 from rhubarbe.config import Config
 
 
-class Inventory(metaclass=Singleton):
+class InventoryNodes(metaclass=Singleton):
 
     def __init__(self):
         the_config = Config()

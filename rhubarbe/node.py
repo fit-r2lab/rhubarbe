@@ -16,7 +16,7 @@ import aiohttp
 
 from rhubarbe.logger import logger
 from rhubarbe.config import Config
-from rhubarbe.inventory import Inventory
+from rhubarbe.inventorynodes import InventoryNodes
 from rhubarbe.frisbee import Frisbee
 from rhubarbe.imagezip import ImageZip
 
@@ -45,17 +45,17 @@ class Node:                                             # pylint: disable=r0902
         return self.control_mac_address() is not None
 
     def control_mac_address(self):
-        the_inventory = Inventory()
+        the_inventory = InventoryNodes()
         return the_inventory.attached_hostname_info(self.cmc_name,
                                                     'control', 'mac')
 
     def control_ip_address(self):
-        the_inventory = Inventory()
+        the_inventory = InventoryNodes()
         return the_inventory.attached_hostname_info(self.cmc_name,
                                                     'control', 'ip')
 
     def control_hostname(self):
-        the_inventory = Inventory()
+        the_inventory = InventoryNodes()
         return the_inventory.attached_hostname_info(self.cmc_name,
                                                     'control', 'hostname')
 

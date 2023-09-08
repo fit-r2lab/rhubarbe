@@ -47,7 +47,7 @@ from .monitor.leases import MonitorLeases
 from .monitor.accountsmanager import AccountsManager
 from .ssh import SshProxy
 from .leases import Leases
-from .inventory import Inventory
+from .inventorynodes import InventoryNodes
 from .inventoryphones import InventoryPhones
 from .inventorypdus import InventoryPdus
 
@@ -827,7 +827,7 @@ def inventory(*argv):
     parser = ArgumentParser(usage=usage,
                             formatter_class=ArgumentDefaultsHelpFormatter)
     parser.parse_args(argv)
-    inventory = Inventory()
+    inventory = InventoryNodes()
     inventory.display(verbose=True)
     return 0
 

@@ -56,8 +56,8 @@ class Display:                                          # pylint: disable=r0902
             return self._display_node_by_ip[ipaddr]
 
         # in case the incoming ip is a reboot ip
-        from rhubarbe.inventory import Inventory
-        the_inventory = Inventory()
+        from rhubarbe.inventorynodes import InventoryNodes
+        the_inventory = InventoryNodes()
         control_ip = the_inventory.control_ip_from_any_ip(ipaddr)
         # locate this in the subject nodes list
         for rank, node in enumerate(self.nodes):

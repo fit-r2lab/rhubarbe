@@ -104,8 +104,8 @@ class Config(metaclass=Singleton):
             return self.parser['networking']['local_control_ip']
         # but otherwise guess it
         # do not import at toplevel to avoid import loop
-        from rhubarbe.inventory import Inventory
-        the_inventory = Inventory()
+        from rhubarbe.inventorynodes import InventoryNodes
+        the_inventory = InventoryNodes()
         from rhubarbe.guessip import local_ip_on_same_network_as
         ipaddr, _ = local_ip_on_same_network_as(
             the_inventory.one_control_interface())
