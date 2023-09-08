@@ -1,0 +1,219 @@
+#!/bin/bash
+
+# Utility to manage R2lab relays to control specific devices such as UP4000 mini-PC and QuectelHat
+# Relays are LAN485 devices, each with 8 outlets 
+# Those relays are only controllable through dumb http requests.
+# see documentation on http://s3.amazonaws.com/s3.image.smart/download/101-70-C03/stm32cubef3.zip
+# and http://wiki.sainsmart.com/index.php/101-70-141 
+
+IP_RELAY1="192.168.4.108"
+IP_RELAY2="192.168.1.109"
+PORT="30000"
+
+COMMAND=$(basename $0)
+
+function relay-status() {
+
+    function help() {
+        echo "$COMMAND: Retrieve the status of a specific R2lab relay"
+        echo "Usage: $COMMAND relay# outlet#"
+        echo -e "\twith relay# in [1:2] and outlet# in [1:8]"
+        exit 255
+    }
+
+    [[ "$#" == 2 ]] || help
+
+    local relay="$1"; shift
+    local outlet="$1"; shift
+    [[ "$outlet" -lt 1 || "$outlet" -gt 8 || "$relay" -lt 1 || "$relay" -gt 2 ]] && help
+    ip_relay=$(eval echo \$IP_RELAY$relay)
+    
+    url="http://$ip_relay/$PORT/99"
+    full_status=$(curl --silent $url|grep -Eo '>[0-1]+'|grep -Eo '[0-1]+' )
+
+    n=$((outlet-1))
+    status=${full_status:$n:1}
+
+    case "$status" in
+        0)
+            echo "relay-$relay@outlet-$outlet: OFF"
+            exit 0
+            ;;
+        1)
+            echo "relay-$relay@outlet-$outlet: ON"
+            exit 1
+            ;;
+        *)
+            echo "Could not retrieve relay-$relay@outlet-$outlet status, returned $status"
+            exit 255
+    esac
+}
+
+
+function -relay-on-off() {
+    local mode="$1"; shift    # 'on' or 'off'
+
+    function help() {
+        echo "$COMMAND: switch $mode a specific R2lab relay outlet"
+        echo "Usage: $COMMAND relay# outlet#"
+        echo -e "\twith relay# in [1:2] and outlet# in [1:8]"
+        exit 255
+    }
+
+    [[ "$#" == 2 ]] || help
+    local relay="$1"; shift
+    local outlet="$1"; shift
+    [[ "$outlet" -lt 1 || "$outlet" -gt 8 || "$relay" -lt 1 || "$relay" -gt 2 ]] && help
+    ip_relay=$(eval echo \$IP_RELAY$relay)
+
+    res=$(relay-status $relay $outlet)
+    current_status=$?
+
+    case $mode in
+        on)
+            if [ "$current_status" -eq 1 ]; then
+		echo "$COMMAND relay#$relay outlet#$outlet already on"; exit 0
+	    fi
+	    com=1 ;;
+        off)
+            if [ "$current_status" -eq 0 ]; then
+		echo "$COMMAND relay#$relay outlet#$outlet already off"; exit 0
+	    fi
+	    com=0 ;;
+    esac
+    ip_relay=$(eval echo \$IP_RELAY$relay)
+    CODE=$((outlet*2 - 2 + $com))
+    CODE=$(printf "%02d" $CODE)
+    url="http://$ip_relay/$PORT/$CODE"
+    echo "curl  --silent $url > /dev/null"
+    curl  --silent $url > /dev/null
+
+}
+
+function relay-on() {
+    -relay-on-off on "$@"
+}
+
+function relay-off() {
+    -relay-on-off off "$@"
+}
+
+function all-off() {
+
+    function help() {
+        echo "$COMMAND: switch all R2lab relay outlets off"
+        echo "Usage: $COMMAND relay#"
+        echo -e "\twith relay# in [1:2]"
+        exit 255
+    }
+
+    [[ "$#" == 1 ]] || help
+    local relay="$1"; shift
+    [[ "$relay" -lt 1 || "$relay" -gt 2 ]] && help
+    ip_relay=$(eval echo \$IP_RELAY$relay)
+    url="http://$ip_relay/$PORT/44"
+    nap=0
+    if [ "$relay" -eq 1 ]; then
+	#relay1 currently controlss qhat01, qhat02 and up01
+	for i in $(seq 1 2); do
+            if ping -c 1 -W 1 "qhat0$i">/dev/null; then
+		if ssh "qhat0$i" true; then
+                    echo "shutting down qhat0$i before turning it off"
+                    ssh qhat0$i shutdown now
+		    nap=5
+		fi
+	    fi
+	done
+	for i in $(seq 1 1); do
+            if ping -c 1 -W 1 "up0$i">/dev/null; then
+		if ssh "up0$i" true; then
+                    echo "shutting down up0$i before turning it off"
+                    ssh up0$i shutdown now
+		    nap=5
+		fi
+	    fi
+	done
+    elif [ "$relay" -eq 2 ]; then
+        #relay2 currently controls qhat03 and up02
+        for i in $(seq 3 3); do
+            if ping -c 1 -W 1 "qhat0$i">/dev/null; then
+                if ssh "qhat0$i" true; then
+                    echo "shutting down qhat0$i before turning it off"
+                    ssh qhat0$i shutdown now
+                    nap=5
+                fi
+            fi
+        done
+        for i in $(seq 2 2); do
+            if ping -c 1 -W 1 "up0$i">/dev/null; then
+                if ssh "up0$i" true; then
+                    echo "shutting down up0$i before turning it off"
+                    ssh up0$i shutdown now
+                    nap=5
+                fi
+            fi
+        done
+    fi
+    sleep $nap
+    echo "curl $url > /dev/null"
+    curl --silent $url > /dev/null
+}
+
+#################################################################################
+# Devices definition
+#x=("DEVICE NAME at LOCATION" RELAY# OUTLET#) # e.g., Relay#: ${x[1]} device name: ${x[0]}
+qhat01=("qhat01 device on fit04 slot" 1 1)  
+qhat02=("qhat02 device on fit04 slot" 1 2)
+qhat03=("qhat03 device on fit13 slot" 2 1)
+up01=("up01 device on fit04 slot" 1 5)
+up02=("up02 device on fit13 slot" 2 5)
+up03=("up03 device not yet installed" 2 6)
+
+function help() {
+    echo "Usage: status|on|off device"
+    echo -e "\twith device in ["qhat01".."qhat03", "up01".."up03"]"
+    exit 255
+}
+
+
+action="$1"
+if [[ "$action" == relay-* ]] || [[ "$action" == all-off ]]; then
+    # Directly manipulate relay's outlets
+    COMMAND="$action"; shift
+    $COMMAND "$@"    
+else
+    # Control UP4000/QuectelHat devices
+    [[ "$#" == 2 ]] || help
+    #check device name validity
+    devname="$2"
+    device=$(eval echo \${$2[0]})
+    if [[ -z "$device" ]]; then
+	echo "unknown device $2"
+	help
+    fi
+    relay=$(eval echo \${$2[1]})
+    outlet=$(eval echo \${$2[2]})
+    case $action in
+	status)
+	    echo "status of $device"
+	    relay-status $relay $outlet ;;
+	on)
+	    echo "switch on $device"
+	    relay-on $relay $outlet ;;
+	off)
+	    if ping -c 1 -W 1 "$devname">/dev/null; then
+		if ssh "$devname" true; then
+		    echo "shutting down $devname before turning it off"
+		    ssh $devname shutdown now
+		    sleep 5
+		fi
+	    fi
+	    echo "switch off $device"
+	    relay-off $relay $outlet ;;
+	*)
+	    echo "unknown action $action"
+	    help ;;	   
+    esac
+fi
+
+
