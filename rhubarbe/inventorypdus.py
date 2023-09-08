@@ -31,6 +31,7 @@ def verbose(*args, **kwds):
 class PduHost:
 
     name: str
+    type: str
     IP: str                                     # pylint: disable=invalid-name
     username: str
     password: str

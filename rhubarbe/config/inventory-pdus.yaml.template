@@ -15,6 +15,7 @@ pdu_hosts:
 
   # this one has a daisy-chain with 2 boxes
   - name: r2lab
+    type: eaton
     IP: 192.168.4.107
     username: root
     password:
@@ -24,11 +25,13 @@ pdu_hosts:
   # so that it is meaningful redundancy-wise
   # and so their chain_length is 1, no need to specify
   - name: c007_bottom
+    type: eaton
     IP: 138.96.112.89
     username: root
     password: xxx-hidden-xxx
 
   - name: c007_top
+    type: eaton
     IP: 138.96.119.231
     username: root
     password: xxx-hidden-xxx
