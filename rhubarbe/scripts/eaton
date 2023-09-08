@@ -271,7 +271,7 @@ function pdu-off() {
 # pdu-status 0 0
 # or
 # pdu status 0 0
-[[ "$COMMAND" == "pdu" ]] && {
+[[ "$COMMAND" == "eaton" ]] && {
     subcommand="$1"; shift
     COMMAND="pdu-${subcommand}"
 }

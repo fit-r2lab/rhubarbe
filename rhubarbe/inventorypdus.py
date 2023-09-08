@@ -60,7 +60,7 @@ class PduHost:
             for key, value in env.items():
                 print(f'export {key}="{value}"')
             print(10*'-')
-        script = "scripts/pdu"
+        script = "scripts/eaton"
         exists = resource_exists('rhubarbe', script)
         if not exists:
             print(f"Could not find script '{script}' - exiting")
