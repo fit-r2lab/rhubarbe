@@ -1,3 +1,14 @@
+# 5.3.0 - 2023 Sep 13
+
+* PDUs area:
+  * data model extended with a `type` field for pdu_host
+  * previous pdu boxes are typed as 'eaton'
+  * new type 'relay' is now also available
+    * for the boxes that manage qhat* and pdu*
+  * hopefully exposes a uniform interface for both types
+  * this requires a change in /etc/rhubarbe/inventory-pdus.yaml
+* requires python >= 3.10
+
 # 5.2.11 - 2023 Feb 13
 
 * rhubarbe-share can move an image to another filesystem
