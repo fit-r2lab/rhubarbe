@@ -77,13 +77,13 @@ function -relay-on-off() {
     local outlet="$1"; shift
     [[ "$outlet" -lt 1 || "$outlet" -gt 8 ]] && help
 
-    relay-status $chain $outlet
+    relay-status $chain $outlet >& /dev/null
     local current_status=$?
 
     case $mode in
     on)
         if [ "$current_status" -eq 0 ]; then
-            echo "$COMMAND outlet#$outlet already on"
+            echo "$COMMAND outlet#$outlet already ON"
             exit 0
         fi
         com=1
@@ -100,7 +100,7 @@ function -relay-on-off() {
         #     fi
         # fi
         if [ "$current_status" -eq 1 ]; then
-            echo "$COMMAND outlet#$outlet already off"
+            echo "$COMMAND outlet#$outlet already OFF"
             exit 0
         fi
         com=0
@@ -109,7 +109,7 @@ function -relay-on-off() {
     local code=$((outlet * 2 - 2 + $com))
     code=$(printf "%02d" $code)
     local url="http://$PDU_IP/$PORT/$code"
-    echo "curl  --silent $url > /dev/null"
+    # echo "curl  --silent $url > /dev/null"
     curl --silent $url >/dev/null
 
 }
