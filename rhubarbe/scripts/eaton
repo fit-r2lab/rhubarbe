@@ -256,8 +256,9 @@ EOF
     line=$(relevant-line 3)
     local res=$(sed -n "${line}p" $TMP | sed "s/[^0-9-]//g")
 
+    local MODE=$(tr 'a-z' 'A-Z' <<< $mode)
     if [[ "$res" -eq "$expected" ]]; then
-        echo "chain-$chain@outlet-$outlet ($name): ${mode}"
+        echo "chain-$chain@outlet-$outlet ($name): ${MODE}"
         myexit 0
     else
         echo "Error could not switch ${mode} chain-$chain@outlet-$outlet ($name), returns $res"
