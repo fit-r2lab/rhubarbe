@@ -1,4 +1,4 @@
-# 5.3.0 - 2023 Sep 13
+# 5.3.1 - 2023 Sep 13
 
 * PDUs area:
   * data model extended with a `type` field for pdu_host
@@ -8,6 +8,7 @@
   * hopefully exposes a uniform interface for both types
   * this requires a change in /etc/rhubarbe/inventory-pdus.yaml
 * requires python >= 3.10
+* 5.3.0 is broken
 
 # 5.2.11 - 2023 Feb 13
 
