@@ -36,6 +36,13 @@ pdu_hosts:
     username: root
     password: xxx-hidden-xxx
 
+  # a relay box
+  - name: relay1
+    type: relay
+    IP: 192.168.4.108
+    username: undefined
+    password: undefined
+
 # devices:
 #  each entry is described with
 #    * a name (for using in rhubarbe-pdu)
@@ -85,3 +92,9 @@ devices:
         outlet: 2
       - pdu_host_name: c007_bottom
         outlet: 2
+
+# a box on a relay
+  - name: qhat01
+    inputs:
+      - pdu_host_name: relay1
+        outlet: 5

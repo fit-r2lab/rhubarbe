@@ -55,21 +55,21 @@ class PduHost:
         """
         run the 'pdu' command on the PDU host where this input is attached
         """
-        env = dict(PDU_IP=self.IP, PDU_USERNAME=self.username, PDU_PASSWORD=self.password)
+        env = dict(PDU_USERNAME=self.username, PDU_PASSWORD=self.password)
         if VERBOSE:
             print(10*'-', "debug: the script configuration:")
             for key, value in env.items():
                 print(f'export {key}="{value}"')
             print(10*'-')
-        script = "scripts/eaton"
+        script = f"scripts/{self.type}"
         exists = resource_exists('rhubarbe', script)
         if not exists:
             print(f"Could not find script '{script}' - exiting")
             return 255
 
         command_path = resource_filename('rhubarbe', script)
-        command = f"{command_path} {action} {' '.join(str(arg) for arg in args)}"
-        verbose(f"running {command}")
+        command = f"{command_path} {action} {self.IP} {' '.join(str(arg) for arg in args)}"
+        verbose(f"running command '{command}'")
         proc = await asyncio.create_subprocess_shell(
             command,
             stdout=asyncio.subprocess.PIPE,
@@ -106,15 +106,16 @@ class PduInput:
 
 
     def oneline(self):
+        if self.in_chain == 0:
+            return f"        outlet {self.outlet}"
         return f"chain-{self.in_chain}@outlet-{self.outlet}"
-
 
     async def run_pdu_shell(self, action, *args, device_name=""):
         """
         run the 'pdu' command on the PDU host where this input is attached
         """
         if device_name:
-            message = f"running action {action} on device {device_name}"
+            message = f"running action '{action}' on device {device_name}"
         verbose(message)
         return await self.pdu_host.run_pdu_shell(action, *args)
 
@@ -325,21 +326,25 @@ class InventoryPdus(YAMLWizard):
         whose name is in the list (case ignored)
         """
         if not names:
-            print(f"we have {len(self.pdu_hosts)} PDUs and {len(self.devices)} devices")
+            print(f"we have {len(self.pdu_hosts)} PDUs and {len(self.devices)} devices. "
+                  f"(*) means auto_turn_off")
 
         names = [] if names is None else [n.lower() for n in names]
         pdu_host_width = max(len(pdu_host.name) for pdu_host in self.pdu_hosts)
+        type_width = max(len(pdu_host.type) for pdu_host in self.pdu_hosts)
         device_width = max(len(device.name) for device in self.devices)
         sep = 10 * '='
-        indent = 4 * ' '
+        indent_empty = 5 * ' '
+        indent_auto = ' (*) '
         for pdu_host in self.pdu_hosts:
             # if no name was passed, list all pdu_hosts
             if names and pdu_host.name.lower() not in names:
                 continue
-            print(f"{sep} {pdu_host.name:^{pdu_host_width}} {sep}")
+            print(f"{sep} {pdu_host.name:>{pdu_host_width}} ({pdu_host.type:<{type_width}}) {sep}")
             print(f"{pdu_host.oneline()}")
             for device in self.devices:
                 for input_ in device.inputs:
+                    indent = indent_auto if device.auto_turn_off else indent_empty
                     if input_.pdu_host_name == pdu_host.name:
                         print(f"{indent}{input_.oneline()} "
                               f"→ {device.name:<{device_width}}")

@@ -4,7 +4,9 @@
 
 # the target PDU is supposed to be specified using the following env. variables
 
-[[ -z "$PDU_IP" ]] && { echo variable PDU_IP is not configured - exiting; myexit 255; }
+# PDU_IP is now passed on the command line
+PDU_IP=""
+# [[ -z "$PDU_IP" ]] && { echo variable PDU_IP is not configured - exiting; myexit 255; }
 [[ -z "$PDU_USERNAME" ]] && { echo variable PDU_USERNAME is not configured - exiting; myexit 255; }
 [[ -z "$PDU_PASSWORD" ]] && { echo variable PDU_PASSWORD is not configured - exiting; myexit 255; }
 
@@ -12,9 +14,9 @@
 # supported actions are
 #   list on off status
 # e.g.
-#   eaton list
-#   eaton status 1 7
-#   eaton on 1 7
+#   eaton list ip
+#   eaton status ip 1 7
+#   eaton on ip 1 7
 #
 # each command has its own usage, run with -help to see it
 #
@@ -267,14 +269,18 @@ function eaton-off() {
     -eaton-on-off off "$@"
 }
 
-# so that we can call either
-# eaton-status 0 0
-# or
-# eaton status 0 0
-[[ "$COMMAND" == "eaton" ]] && {
-    subcommand="$1"; shift
-    COMMAND="eaton-${subcommand}"
+function main() {
+    function help() {
+        echo "Usage: $0 <command> IP args..."
+        echo "command among list status on off"
+    }
+    [[ "$#" -le 1 ]] && { help; exit 1; }
+    local subcommand="$1"; shift
+    PDU_IP="$1"; shift
+
+    local function="eaton-${subcommand}"
+    $function "$@"
+    rm -f $TMP
 }
 
-$COMMAND "$@"
-rm -f $TMP
+main "$@"
