@@ -77,11 +77,23 @@ PREFIX_WATTS="enterprises.534.6.6.7.6.5.1.3"
 # root@faraday /tmp # snmpget -c public -v 1 192.168.4.107 1.3.6.1.4.1.534.6.6.7.6.6.1.2.1.8
 # SNMPv2-SMI::enterprises.534.6.6.7.6.6.1.2.1.8 = INTEGER: 0
 
-SNMP_OPTIONS=""
-SNMP_OPTIONS="$SNMP_OPTIONS -c public"
-SNMP_OPTIONS="$SNMP_OPTIONS -v 1"
-SNMPWALK="snmpwalk ${SNMP_OPTIONS} ${PDU_IP}"
-SNMPGET="snmpget ${SNMP_OPTIONS} ${PDU_IP}"
+function init_globals_from_ip() {
+    SNMP_OPTIONS=""
+    SNMP_OPTIONS="$SNMP_OPTIONS -c public"
+    SNMP_OPTIONS="$SNMP_OPTIONS -v 1"
+    SNMPWALK="snmpwalk ${SNMP_OPTIONS} ${PDU_IP}"
+    SNMPGET="snmpget ${SNMP_OPTIONS} ${PDU_IP}"
+
+    SSH_OPTIONS=""
+    SSH_OPTIONS="$SSH_OPTIONS -oLogLevel=ERROR"
+    SSH_OPTIONS="$SSH_OPTIONS -oUserKnownHostsFile=/dev/null"
+    SSH_OPTIONS="$SSH_OPTIONS -oStrictHostKeyChecking=no"
+    SSH_OPTIONS="$SSH_OPTIONS -oKexAlgorithms=+diffie-hellman-group1-sha1"
+    SSH_OPTIONS="$SSH_OPTIONS -oPreferredAuthentications=password"
+
+    SSH="sshpass -p${PDU_PASSWORD} ssh ${SSH_OPTIONS} -l${PDU_USERNAME} ${PDU_IP}"
+
+}
 
 ##### SSH
 
@@ -95,15 +107,6 @@ function myexit() {
 }
 
 #echo using PDU_PASSWORD=${PDU_PASSWORD} PDU_USERNAME=${PDU_USERNAME} PDU_IP=${PDU_IP}
-
-SSH_OPTIONS=""
-SSH_OPTIONS="$SSH_OPTIONS -oLogLevel=ERROR"
-SSH_OPTIONS="$SSH_OPTIONS -oUserKnownHostsFile=/dev/null"
-SSH_OPTIONS="$SSH_OPTIONS -oStrictHostKeyChecking=no"
-SSH_OPTIONS="$SSH_OPTIONS -oKexAlgorithms=+diffie-hellman-group1-sha1"
-SSH_OPTIONS="$SSH_OPTIONS -oPreferredAuthentications=password"
-
-SSH="sshpass -p${PDU_PASSWORD} ssh ${SSH_OPTIONS} -l${PDU_USERNAME} ${PDU_IP}"
 
 # with used to use -i /dev/null instead of  -oPreferredAuthentications=password
 # which we were really meaning in the first place
@@ -138,7 +141,7 @@ function remove-outlet() {
 function eaton-probe() {
     function help() {
         echo "$COMMAND: Retrieve the status and label of all outlets"
-        echo "Usage: $COMMAND"
+        echo "Usage: $COMMAND probe host_or_ip"
         myexit 255
     }
 
@@ -167,8 +170,8 @@ function eaton-status() {
 
     function help() {
         echo "$COMMAND: Retrieve the status of a specific pdu outlet"
-        echo "Usage: $COMMAND chain# outlet#"
-        echo -e "\twith outlet# in [1:8] and chain# in [0:1]"
+        echo "Usage: $COMMAND status host_or_ip chain# outlet#"
+        echo -e "\twith chain# in [0:1] and outlet# in [1:8]"
         myexit 255
     }
 
@@ -205,7 +208,7 @@ function -eaton-on-off() {
 
     function help() {
         echo "$COMMAND: switch $mode a specific pdu outlet"
-        echo "Usage: $COMMAND chain# outlet#"
+        echo "Usage: $COMMAND $mode host_or_ip chain# outlet#"
         echo -e "\twith outlet# in [1:8] and chain# in [0:1]"
         myexit 255
     }
@@ -253,7 +256,7 @@ EOF
     line=$(relevant-line 3)
     local res=$(sed -n "${line}p" $TMP | sed "s/[^0-9-]//g")
 
-    if [ "$res" -eq "$expected" ]; then
+    if [[ "$res" -eq "$expected" ]]; then
         echo "chain-$chain@outlet-$outlet ($name): ${mode}"
         myexit 0
     else
@@ -277,10 +280,15 @@ function main() {
     [[ "$#" -le 1 ]] && { help; exit 1; }
     local subcommand="$1"; shift
     PDU_IP="$1"; shift
+    init_globals_from_ip
 
     local function="eaton-${subcommand}"
     $function "$@"
     rm -f $TMP
 }
 
+[[ "$1" == "--debug" ]] && {
+    shift
+    set -x
+}
 main "$@"

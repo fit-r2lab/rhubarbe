@@ -357,6 +357,7 @@ class InventoryPdus(YAMLWizard):
                 continue
             print(f"{sep} device {device.name:^{device_width}} {sep}")
             for input_ in device.inputs:
+                indent = indent_auto if device.auto_turn_off else indent_empty
                 print(f"{indent}{input_}")
 
     def _get_object(self, name, attribute, kind):
