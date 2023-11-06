@@ -16,6 +16,7 @@ from pathlib import Path
 
 import logging
 import logging.config
+from pathlib import Path
 
 # with systemd it's sooo simpler to log on stdout, that gets managed by journal
 # so, we essentially need
@@ -42,7 +43,7 @@ rhubarbe_logging_config = {
             'level': 'INFO',
             'class': 'logging.FileHandler',
             'formatter': 'standard',
-            'filename': 'rhubarbe.log',
+            'filename': f'{str(Path.home())}/rhubarbe.log',
         },
         'monitor': {
             'level': 'INFO',
