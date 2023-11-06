@@ -1,3 +1,7 @@
+# 5.3.2 - 2023 Nov 6
+
+* rhubarbe.log is created in HOME as advertised
+
 # 5.3.1 - 2023 Sep 13
 
 * PDUs area:
