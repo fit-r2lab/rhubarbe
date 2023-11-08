@@ -12,7 +12,7 @@ from dataclass_wizard import YAMLWizard
 import asyncssh
 
 from .config import Config
-
+from .logger import logger
 
 
 VERBOSE = False
@@ -300,9 +300,10 @@ class InventoryPdus(YAMLWizard):
         try:
             with open(yaml_path) as feed:
                 return InventoryPdus.from_yaml(feed.read()).solve_references()
-        except IOError:
-            print(f"file not found {yaml_path}")
-            raise
+        except FileNotFoundError:
+            # not all deployments have pdus
+            logger.warn(f"file not found {yaml_path}")
+            return InventoryPdus([], [])
         except KeyError as exc:
             print(f"something wrong in config file {yaml_path}, {exc}")
             raise
