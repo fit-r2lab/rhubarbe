@@ -1,3 +1,8 @@
+# 5.3.3 - 2023 Nov 8
+
+* missing pdus inventory no longer fatal
+* updated installation notes after rebuilding preplab.pl.slophia.inria.fr
+
 # 5.3.2 - 2023 Nov 6
 
 * rhubarbe.log is created in HOME as advertised
