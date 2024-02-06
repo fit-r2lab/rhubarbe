@@ -1,3 +1,7 @@
+# 5.4.0 - 2024 Feb 6
+
+* new subcommand freeslot to check for availability of a given timeslot
+
 # 5.3.3 - 2023 Nov 8
 
 * missing pdus inventory no longer fatal
