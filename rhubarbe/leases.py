@@ -100,8 +100,11 @@ class Lease:
         Returns True if both instants belong in the same day
         for local timezone
         """
-        return (   time.strftime("%y-%m-%d", time.localtime(epoch1))
-                == time.strftime("%y-%m-%d", time.localtime(epoch2)))
+        return (
+            time.strftime("%y-%m-%d", time.localtime(epoch1))
+            ==
+            time.strftime("%y-%m-%d", time.localtime(epoch2))
+        )
 
     def booked_now_by(self, hostname, login):
         """

@@ -47,6 +47,7 @@ from .monitor.leases import MonitorLeases
 from .monitor.accountsmanager import AccountsManager
 from .ssh import SshProxy
 from .leases import Leases
+from .freeslot import FreeSlot
 from .inventorynodes import InventoryNodes
 from .inventoryphones import InventoryPhones
 from .inventorypdus import InventoryPdus
@@ -625,6 +626,13 @@ def leases(*argv):
         loop.run_until_complete(leases.main(args.interactive))
         loop.close()
         return 0
+
+####################
+
+
+@subcommand
+def freeslot(*argv):
+    FreeSlot.main(argv)
 
 ####################
 
