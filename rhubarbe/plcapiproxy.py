@@ -9,6 +9,7 @@ connection to a myplc server; typically r2labapi.inria.fr
 # r1705 else after return
 # pylint: disable=c0111, w0703, w1202
 
+import os
 import getpass
 
 import ssl
@@ -18,10 +19,15 @@ from xmlrpc.client import ServerProxy
 
 
 class PlcApiProxy(ServerProxy):                         # pylint: disable=r0903
+    """
+    use the standard plcapi scheme to run on /PLCAPI/
+    always use password auth in this first rough version
+    could be improved by using session authentication
 
-    # use the standard plcapi scheme to run on /PLCAPI/
-    # always use password auth in this first rough version
-    # could be improved by using session authentication
+    if email or password are not provided, they will be
+    - taken from the env variables PLCAPI_EMAIL PLCAPI_PASSWORD if set
+    - or else asked interactively
+    """
     def __init__(self, url, email=None, password=None, debug=False):
         self.url = url
         self.email = email
@@ -39,10 +45,14 @@ class PlcApiProxy(ServerProxy):                         # pylint: disable=r0903
             return {'AuthMethod': 'anonymous'}
         else:
             if not self.email:
-                self.email = input("Enter plcapi email (login) : ")
+                self.email = (
+                    os.environ.get("PLCAPI_EMAIL")
+                    or input("Enter plcapi email (login) : "))
             if not self.password:
-                self.password = getpass.getpass(
-                    f"Enter plcapi password for {self.email} : ")
+                self.password = (
+                    os.environ.get("PLCAPI_PASSWORD")
+                    or getpass.getpass(
+                        f"Enter plcapi password for {self.email} : "))
             return {'AuthMethod': 'password',
                     'Username': self.email,
                     'AuthString': self.password}

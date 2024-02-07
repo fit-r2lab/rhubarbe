@@ -359,7 +359,7 @@ class Leases:                                           # pylint: disable=r0902
                 for error in retcod['errors']:
                     print(f"error: {error}")
         except Exception as exc:
-            print('Error', f"Cannot add lease - exc={exc}")
+            print('Error', f"Cannot add lease {type(exc)}: {exc}")
             traceback.print_exc()
 
     def get_lease_by_rank(self, lease_rank):

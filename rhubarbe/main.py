@@ -47,7 +47,7 @@ from .monitor.leases import MonitorLeases
 from .monitor.accountsmanager import AccountsManager
 from .ssh import SshProxy
 from .leases import Leases
-from .freeslot import FreeSlot
+from .book import Book
 from .inventorynodes import InventoryNodes
 from .inventoryphones import InventoryPhones
 from .inventorypdus import InventoryPdus
@@ -631,8 +631,8 @@ def leases(*argv):
 
 
 @subcommand
-def freeslot(*argv):
-    FreeSlot.main(argv)
+def book(*argv):
+    exit(0 if Book.main(argv) else 1)
 
 ####################
 
