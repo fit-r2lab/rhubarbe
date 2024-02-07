@@ -1,6 +1,10 @@
-# 5.4.0 - 2024 Feb 6
+# 5.4.1 - 2024 Feb 7
 
-* new subcommand freeslot to check for availability of a given timeslot
+* new subcommand rhubarbe book to either
+  * check for availability of a given timeslot
+  * set a lease for a given timeslot
+* transient version 5.4.0 had this (first bullet only)
+  exposed as 'freeslot' but this now deprecated
 
 # 5.3.3 - 2023 Nov 8
 
