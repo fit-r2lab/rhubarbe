@@ -261,7 +261,7 @@ def bye(*argv):
     import os
     inventory_phones = InventoryPhones()
     for phone in inventory_phones.all_phones():
-        command = (f"ssh -i {phone['gw_key']} "
+        command = (f"ssh -i {phone['gw_key']} -o StrictHostKeyChecking=no "
                    f"{phone['gw_user']}@{phone['gw_host']} phone-off")
         print(command)
         os.system(command)
