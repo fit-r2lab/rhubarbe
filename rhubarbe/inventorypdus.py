@@ -162,7 +162,12 @@ class PduDevice:
             return False
         print(f"Doing a soft TURN OFF on device {self.name}")
         command = "shutdown -h now"
-        async with asyncssh.connect(self.ssh_hostname) as conn:
+        ssh_options = {
+            'known_hosts': None,
+            'username': "root",
+        }
+
+        async with asyncssh.connect(self.ssh_hostname, **ssh_options) as conn:
             completed = await conn.run(command)
             return completed.returncode == 0
 
