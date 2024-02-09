@@ -1,3 +1,7 @@
+# 5.4.3 - 2024 Feb 9
+
+* #21: rhubarbe book -d to delete a lease
+
 # 5.4.2 - 2024 Feb 9
 
 * #19: specify root user to ssh when doing soft shutdown
