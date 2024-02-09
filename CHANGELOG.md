@@ -1,3 +1,8 @@
+# 5.4.2 - 2024 Feb 9
+
+* #19: specify root user to ssh when doing soft shutdown
+* #20: tentative fix for using bye from github action
+
 # 5.4.1 - 2024 Feb 7
 
 * new subcommand rhubarbe book to either
@@ -5,6 +10,8 @@
   * set a lease for a given timeslot
 * transient version 5.4.0 had this (first bullet only)
   exposed as 'freeslot' but this now deprecated
+* as an aside, one can now set the PLCAPI email and password
+  through environment variables PLCAPI_EMAIL and PLCAPI_PASSWORD
 
 # 5.3.3 - 2023 Nov 8
 
