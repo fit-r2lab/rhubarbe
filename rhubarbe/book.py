@@ -15,10 +15,14 @@ from .plcapiproxy import PlcApiProxy
 class Book:
 
     def __init__(self, email=None, password=None, verbose=False):
-        self.verbose = verbose
+        self._verbose = verbose
         plcapi_url = Config().value('plcapi', 'url')
         self.plcapi_proxy = PlcApiProxy(plcapi_url, email=email, password=password)
         self.leases_hostname = Config().value('plcapi', 'leases_hostname')
+
+    def verbose(self, *args, **kwargs):
+        if self._verbose:
+            print(*args, **kwargs)
 
 
     def leases(self, start, end) -> list["PlcLease"]:
@@ -71,33 +75,107 @@ class Book:
         )
 
     def query(self, start, end) -> bool:
-        leases = (self.leases(start, end))
-        if self.verbose:
-            print(f"{len(leases)} leases from {self.date_to_string(start)} "
-                f"-> {self.date_to_string(end)}")
-            for lease in leases:
-                print(f"{14*' '}{self.lease_repr(lease)}")
+        """
+        return True if the time slot is free
+        """
+        leases = self.leases(start, end)
+        self.verbose(
+            f"{len(leases)} leases from {self.date_to_string(start)} "
+            f"-> {self.date_to_string(end)}")
+        for lease in leases:
+            self.verbose(f"{14*' '}{self.lease_repr(lease)}")
         return not leases
 
     def book(self, slice, start, end) -> bool:
-        if self.verbose:
-            print(
-                f"booking {slice} from {self.date_to_string(start)} "
-                f"until {self.date_to_string(end)}")
+        """
+        book the time slot - return True if successful
+        """
+        self.verbose(
+            f"booking {slice} from {self.date_to_string(start)} "
+            f"until {self.date_to_string(end)}")
         hostname = self.leases_hostname
         try:
             retcod = self.plcapi_proxy.AddLeases(
                     [hostname], slice, start, end
             )
-            if 'new_ids' in retcod:
-                if self.verbose:
-                    print(f"new lease id: {retcod['new_ids'][0]}")
-                return True
-            else:
-                print(f"error: {retcod}")
+            if retcod['errors']:
+                for error in retcod['errors']:
+                    print(f"error: {error}")
                 return False
+            else:
+                lease_id = retcod['new_ids'][0]
+                self.verbose(f"new lease id: {lease_id}")
+                return True
         except Exception as exc:
             print(f"exception in AddLeases : {type(exc)}: {exc}")
+            return False
+
+    def delete(self, start, end) -> bool:
+        """
+        spots the - expected single - lease during the time slot
+           and deletes it
+        implements the same logic as the website, i.e.:
+        - a lease in the past is not deleted
+        - a currently running lease is updated/shortened so as to release
+          the testbed but still keep track of that lease
+        - a future lease - or a shortly currently lease - is deleted
+
+        return True if everything went well
+        """
+
+        # find the lease
+        leases = self.leases(start, end)
+        if len(leases) != 1:
+            print(f"error: from {self.date_to_string(start)} "
+                f"until {self.date_to_string(end)}")
+            print(f"expected a single lease, found {len(leases)} leases")
+            return False
+
+        lease = leases[0]
+        lease_id = lease['lease_id']
+        now = time.time()
+
+        # if the lease is in the past, do nothing
+        if lease['t_until'] < now:
+            self.verbose(f"won't delete lease in the past")
+            return False
+
+        # how long has it been running ?
+        granularity = self.plcapi_proxy.GetLeaseGranularity()
+        started = now - lease['t_from']
+        # it's been running for more than one granularity, update it
+        if started > granularity:
+            # we keep that many grains
+            nb_grains = int(started // granularity)
+            new_end = lease['t_from'] + nb_grains * granularity
+            self.verbose(
+                f"updating lease {lease_id} until {self.date_to_string(new_end)}")
+            try:
+                retcod = self.plcapi_proxy.UpdateLeases(
+                    [lease_id], {'t_until': new_end})
+                if retcod['errors']:
+                    for error in retcod['errors']:
+                        print(f"error: {error}")
+                    return False
+                else:
+                    return True
+            except Exception as exc:
+                print(f"exception in UpdateLease : {type(exc)}: {exc}")
+                return False
+
+        # still here ? the lease has not yet started,
+        # or it has been running for less than one granularity
+        # delete it
+        self.verbose(f"deleting future lease {lease_id}")
+        try:
+            retcod = self.plcapi_proxy.DeleteLeases([lease_id])
+            if retcod == 1:
+                self.verbose(f"successful")
+                return True
+            print(f"unexpected error {retcod=} while deleting {lease_id=}")
+            return False
+        except Exception as exc:
+            print(f"exception in DeleteLease : {type(exc)}: {exc}")
             return False
 
     @staticmethod
@@ -106,6 +184,9 @@ class Book:
         parser.add_argument(
             "-q", "--query", action="store_true",
             help="does not book, just checks if the slot is free")
+        parser.add_argument(
+            "-d", "--delete", action="store_true",
+            help="delete the lease for the given time slot")
         parser.add_argument(
             "-s", "--slice",
             help="slice name - mandatory unless using -q")
@@ -129,6 +210,8 @@ class Book:
         end = book.canonical_date(args.end)
         if args.query:
             return book.query(start, end)
+        elif args.delete:
+            return book.delete(start, end)
         else:
             if args.slice is None:
                 parser.error("slice is mandatory unless using -q")
