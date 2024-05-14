@@ -56,7 +56,11 @@ class Book:
         if local is None:
             raise ValueError(f"cannot parse date {date}")
         epoch = int((local - DateTime(1970, 1, 1)).total_seconds())
-        return epoch + time.timezone
+
+        # translate to UTC
+        is_dst = time.daylight and time.localtime().tm_isdst > 0
+        utc_offset = (time.altzone if is_dst else time.timezone)
+        return epoch + utc_offset
 
     def date_to_string(self, date):
         """
