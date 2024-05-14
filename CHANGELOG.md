@@ -1,3 +1,7 @@
+# 5.4.4 - 2024 My 14
+
+* #22: rhubarbe book should no longer be off by one hour
+
 # 5.4.3 - 2024 Feb 9
 
 * #21: rhubarbe book -d to delete a lease
