@@ -1,3 +1,9 @@
+# 5.4.5 - 2024 Oct 9
+
+* #23: /etc/security/access.conf was no longer being updated
+  when adding slices through rhubarbe accounts -
+  removed dependency on the `netsop-accessctl` command
+
 # 5.4.4 - 2024 My 14
 
 * #22: rhubarbe book should no longer be off by one hour
