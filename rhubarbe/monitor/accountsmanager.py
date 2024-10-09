@@ -147,14 +147,35 @@ class AccountsManager:
             f"mkdir /home/{slicename}/.ssh",
             f"chmod 700 /home/{slicename}/.ssh",
             f"chown -R {slicename}:{slicename} /home/{slicename}",
-            # see issue #14
-            f"netsop-accessctl add local {slicename}",
+            # see issue #14 and #23
+            # f"netsop-accessctl add local {slicename}",
         ]
         for command in commands:
             logger.info(f"Running {command}")
             retcod = os.system(command)
             if retcod != 0:
                 logger.error(f"{command} -> {retcod}")
+
+
+    # for #23
+    @staticmethod
+    def add_in_access_conf(slicename):
+        # do the job of netsop-accessctl by hand
+        # to get rid of the dependency
+        lines = []
+        with open("/etc/security/access.conf") as f:
+            for line in f:
+                # nothing to do
+                if line.startswith(f"+:{slicename}:"):
+                    return
+                # insert before the first "END local"
+                if "END local" in line:
+                    lines.append(f"+:{slicename}:ALL\n")
+                lines.append(line)
+        with open("/etc/security/access.conf", "w") as f:
+            f.writelines(lines)
+        os.system("chmod 444 /etc/security/access.conf")
+
 
     @staticmethod
     def create_ssh_config(slicename):
@@ -269,6 +290,8 @@ CheckHostIP=no
                 # do this always, allows to propagate later changes
                 self.create_ssh_config(slicename)
                 self.apply_keys(slicename, keys)
+                # do this always too, allows to repair broken accounts
+                self.add_in_access_conf(slicename)
             except Exception:
                 logger.exception(f"Could not deal with slice {slicename}")
 
