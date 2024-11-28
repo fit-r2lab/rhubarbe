@@ -1,4 +1,4 @@
-include Makefile.pypi
+# to publish, use publish-to-pypi-from-pyproject
 
 ##########
 pyfiles:

@@ -1,3 +1,5 @@
-# pylint: disable=c0111
+import importlib
+import importlib.metadata
 
-__version__ = "5.4.5"
+# from pyproject.toml
+__version__ = importlib.metadata.version("rhubarbe")

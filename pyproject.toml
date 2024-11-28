@@ -1,0 +1,86 @@
+[project]
+name = "rhubarbe"
+version = "6.0.0"
+description = "Testbed Management Framework for R2Lab"
+license = "CC-BY-NC-4.0"
+readme = "README.md"
+authors = [
+    {name = "Thierry Parmentelat", email = "thierry.parmentelat@inria.fr"},
+]
+keywords=['R2lab', 'networking', 'testbed', 'wireless']
+requires-python = ">=3.10"
+dependencies = [
+    'asyncssh',
+    'telnetlib3',
+    'aiohttp',
+    'progressbar33',
+    # for PDUs and yaml deserialization
+    'dataclass_wizard',
+    # for monitors
+    'asynciojobs',
+    'r2lab',
+    # for MapDataFrame
+    'pandas',
+    # not yet used
+    #'aioxmlrpc',
+    # we are NOT using aioping, because it requires root privileges,
+    # while forking a ping command works for everybody
+    'websockets>=14',
+]
+
+
+[tool.setuptools.package_data]
+rhubarbe = [
+    'config/*.conf',
+    'config/*.template',
+    'scripts/eaton',
+    'scripts/relay',
+    'scripts/relay-TT',     # just in case
+]
+
+
+[project.scripts]
+rhubarbe = "rhubarbe.__main__:main"
+rhubarbe-nodes = "rhubarbe.__main__:main"
+rhubarbe-status = "rhubarbe.__main__:main"
+rhubarbe-on = "rhubarbe.__main__:main"
+rhubarbe-off = "rhubarbe.__main__:main"
+rhubarbe-reset = "rhubarbe.__main__:main"
+rhubarbe-info = "rhubarbe.__main__:main"
+rhubarbe-usrpstatus = "rhubarbe.__main__:main"
+rhubarbe-usrpon = "rhubarbe.__main__:main"
+rhubarbe-usrpoff = "rhubarbe.__main__:main"
+rhubarbe-bye = "rhubarbe.__main__:main"
+rhubarbe-load = "rhubarbe.__main__:main"
+rhubarbe-save = "rhubarbe.__main__:main"
+rhubarbe-wait = "rhubarbe.__main__:main"
+rhubarbe-images = "rhubarbe.__main__:main"
+rhubarbe-resolve = "rhubarbe.__main__:main"
+rhubarbe-share = "rhubarbe.__main__:main"
+rhubarbe-leases = "rhubarbe.__main__:main"
+rhubarbe-monitornodes = "rhubarbe.__main__:main"
+rhubarbe-monitorphones = "rhubarbe.__main__:main"
+rhubarbe-monitorpdus = "rhubarbe.__main__:main"
+rhubarbe-monitorleases = "rhubarbe.__main__:main"
+rhubarbe-accountsmanager = "rhubarbe.__main__:main"
+rhubarbe-inventory = "rhubarbe.__main__:main"
+rhubarbe-config = "rhubarbe.__main__:main"
+rhubarbe-template = "rhubarbe.__main__:main"
+rhubarbe-pdu = "rhubarbe.__main__:main"
+rhubarbe-version = "rhubarbe.__main__:main"
+
+
+[project.optional-dependencies]
+mapdataframe = ["pandas"]
+tests = ["pytest"]
+
+
+[project.urls]
+Homepage = "https://github.com/fit-r2lab/rhubarbe"
+# never got around to that
+# Documentation = "https://rhubarbe.readthedocs.io"
+
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
