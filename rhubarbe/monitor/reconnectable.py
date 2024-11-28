@@ -1,8 +1,10 @@
 # pylint: disable=c0111
 
-import websockets
 import json
 import asyncio
+
+import websockets.uri
+import websockets.protocol
 
 from r2lab import SidecarAsyncClient
 
@@ -19,7 +21,7 @@ class ReconnectableSidecar:
         self.category = category
         self.keep_period = keep_period
         # caller MUST run keep_connected()
-        self.proto = None
+        self.connection = None
         self.counter = 0
         logger.info(f"reconnectable sidecar to {url} ")
 
@@ -30,7 +32,7 @@ class ReconnectableSidecar:
 
 
     async def emit_infos(self, infos):
-        if not self.proto:
+        if not self.connection:
             logger.warning(f"dropping message {infos}")
             return False
         logger.debug(f"Sending {infos}")
@@ -38,14 +40,14 @@ class ReconnectableSidecar:
         payload = dict(category=self.category, action='info', message=infos)
         # xxx try/except here
         try:
-            await self.proto.send(json.dumps(payload))
+            await self.connection.send(json.dumps(payload))
             self.counter += 1
         except ConnectionRefusedError:
             logger.warning(f"Could not send {self.category} - dropped")
         except Exception as exc:
             # xxx to review
             logger.exception("send failed")
-            self.proto = None
+            self.connection = None
             return False
         return True
 
@@ -55,12 +57,12 @@ class ReconnectableSidecar:
         A continuous loop that keeps the connection open
         """
         while True:
-            logger.debug(f"in keep_connected, proto={self.proto}")
-            if self.proto and self.proto.open:
+            logger.debug(f"in keep_connected, proto={self.connection}")
+            if self.connection and self.connection.state == websockets.protocol.State.OPEN:
                 pass
             else:
                 # xxx should we close() our client ?
-                self.proto = None
+                self.connection = None
                 # see if we need ssl
                 secure = websockets.uri.parse_uri(self.url).secure
                 kwds = {}
@@ -69,7 +71,7 @@ class ReconnectableSidecar:
                     kwds.update(dict(ssl=ssl.SSLContext()))
                 try:
                     logger.info(f"(re)-connecting to {self.url} ...")
-                    self.proto = await SidecarAsyncClient(self.url, **kwds)
+                    self.connection = await SidecarAsyncClient(self.url, **kwds)
                     logger.debug("connected !")
                 except ConnectionRefusedError:
                     logger.warning(f"Could not connect to {self.url} at this time")
@@ -80,12 +82,12 @@ class ReconnectableSidecar:
 
     async def watch_back_channel(self, category, callback):
         while True:
-            if not self.proto:
+            if not self.connection:
                 logger.debug(f"backing off for {self.keep_period}s")
                 await asyncio.sleep(self.keep_period)
                 continue
             try:
-                incoming = await self.proto.recv()
+                incoming = await self.connection.recv()
                 umbrella = json.loads(incoming)
                 logger.info(f"tmp - got incoming {umbrella['category']} x {umbrella['action']}")
                 if (umbrella['category'] == category and
@@ -94,4 +96,4 @@ class ReconnectableSidecar:
             except Exception as exc:
                 ### to review
                 logger.exception("recv failed .. fix me")
-                self.proto = None
+                self.connection = None
