@@ -1,7 +1,12 @@
-# pylint: disable=c0111
+# pylint: disable=logging-fstring-interpolation
+# pylint: disable=broad-exception-caught
+# pylint: disable=missing-docstring
+
+# pylint: disable=fixme
 
 import json
 import asyncio
+import ssl
 
 import websockets.uri
 import websockets.protocol
@@ -46,7 +51,7 @@ class ReconnectableSidecar:
             logger.warning(f"Could not send {self.category} - dropped")
         except Exception as exc:
             # xxx to review
-            logger.exception("send failed")
+            logger.exception(f"send failed: {exc}")
             self.connection = None
             return False
         return True
@@ -67,7 +72,6 @@ class ReconnectableSidecar:
                 secure = websockets.uri.parse_uri(self.url).secure
                 kwds = {}
                 if secure:
-                    import ssl
                     kwds.update(dict(ssl=ssl.SSLContext()))
                 try:
                     logger.info(f"(re)-connecting to {self.url} ...")
@@ -75,8 +79,9 @@ class ReconnectableSidecar:
                     logger.debug("connected !")
                 except ConnectionRefusedError:
                     logger.warning(f"Could not connect to {self.url} at this time")
-                except:
-                    logger.exception(f"Could not connect to {self.url} at this time")
+                except Exception as exc:
+                    logger.exception(
+                        f"Could not connect to {self.url} at this time - uncaught {exc}")
             await asyncio.sleep(self.keep_period)
 
 
@@ -95,5 +100,5 @@ class ReconnectableSidecar:
                     callback(umbrella)
             except Exception as exc:
                 ### to review
-                logger.exception("recv failed .. fix me")
+                logger.exception(f"recv failed .. fix me {exc}")
                 self.connection = None
