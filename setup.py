@@ -49,6 +49,7 @@ INSTALL_REQUIRES = [
     #'aioxmlrpc',
     # we are NOT using aioping, because it requires root privileges,
     # while forking a ping command works for everybody
+    'websockets>=14',
 ]
 
 # add convenience entry points like rhubarbe-load and others
