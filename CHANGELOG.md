@@ -1,3 +1,9 @@
+# 6.0.0 - 2024 Nov 28
+
+* require websockets >= 14 like latest rhubarbe
+* package with pyproject.toml
+* less bloated packaging of the scripts/ area
+
 # 5.4.5 - 2024 Oct 9
 
 * #23: /etc/security/access.conf was no longer being updated
