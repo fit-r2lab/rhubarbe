@@ -8,3 +8,7 @@ foo*
 .eggs
 *.log
 trash
+rhubarbe/scripts/*.txt
+rhubarbe/scripts/*.pdf
+rhubarbe/scripts/*.zip
+
