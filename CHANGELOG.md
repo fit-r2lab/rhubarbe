@@ -1,3 +1,12 @@
+# 6.0.1 - 2024 Dec 2
+
+* attempt to fix a transient bug about the PDU status
+  being not consistently displayed in r2lab.inria.fr
+* to that effct, made the `Reconnectable` class aware of dropped
+  connections, and preserve messages in a backlog for future delivery
+* have observed the bug a couple times, but not able to reproduce 
+  reliably, so not 100% sure this will fix it
+
 # 6.0.0 - 2024 Nov 28
 
 * require websockets >= 14 like latest rhubarbe
@@ -208,7 +217,7 @@
 
 * fix an alien bug with Path.glob() that does not behave as expected
   replaced with glob.glob()
-* PS: a bug was filed in the Python repo here https://bugs.python.org/issue38894 
+* PS: a bug was filed in the Python repo here https://bugs.python.org/issue38894
 
 # 4.0.2 - 2019 Nov 21
 
