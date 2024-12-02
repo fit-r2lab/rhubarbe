@@ -56,11 +56,10 @@ class PduHost:
         run the 'pdu' command on the PDU host where this input is attached
         """
         env = dict(PDU_USERNAME=self.username, PDU_PASSWORD=self.password)
-        if VERBOSE:
-            print(10*'-', "debug: the script configuration:")
-            for key, value in env.items():
-                print(f'export {key}="{value}"')
-            print(10*'-')
+        verbose(10*'-', "debug: the script configuration:")
+        for key, value in env.items():
+            verbose(f'export {key}="{value}"')
+        verbose(10*'-')
         script = f"scripts/{self.type}"
         exists = resource_exists('rhubarbe', script)
         if not exists:
