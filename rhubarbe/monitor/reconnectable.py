@@ -28,7 +28,14 @@ class ReconnectableSidecar:
         # caller MUST run keep_connected()
         self.connection = None
         self.counter = 0
+        self.backlog = []
         logger.info(f"reconnectable sidecar to {url} ")
+
+
+    async def flush_backlog(self):
+        for infos in self.backlog[:]:
+            if await self.emit_info(infos):
+                self.backlog.remove(infos)
 
 
     async def emit_info(self, info):
@@ -38,23 +45,27 @@ class ReconnectableSidecar:
 
     async def emit_infos(self, infos):
         if not self.connection:
-            logger.warning(f"dropping message {infos}")
+            logger.warning(f"[no conn.] message {infos} goes into backlog"
+                           f" (with {len(self.backlog)} others)")
+            self.backlog.append(infos)
             return False
         logger.debug(f"Sending {infos}")
         # xxx use Payload
         payload = dict(category=self.category, action='info', message=infos)
-        # xxx try/except here
         try:
             await self.connection.send(json.dumps(payload))
             self.counter += 1
+            return True
         except ConnectionRefusedError:
-            logger.warning(f"Could not send {self.category} - dropped")
+            logger.warning(f"[conn. refused] message {infos} goes into backlog"
+                           f" (with {len(self.backlog)} others)")
+            self.backlog.append(infos)
+            return False
         except Exception as exc:
             # xxx to review
             logger.exception(f"send failed: {exc}")
             self.connection = None
             return False
-        return True
 
 
     async def keep_connected(self):
@@ -64,7 +75,11 @@ class ReconnectableSidecar:
         while True:
             logger.debug(f"in keep_connected, proto={self.connection}")
             if self.connection and self.connection.state == websockets.protocol.State.OPEN:
-                pass
+                logger.debug(f"connection is open")
+                if self.backlog:
+                    logger.info(f"flushing backlog of {len(self.backlog)} messages")
+                    await self.flush_backlog()
+                    logger.info(f"after flush, backlog now has {len(self.backlog)} messages")
             else:
                 # xxx should we close() our client ?
                 self.connection = None
