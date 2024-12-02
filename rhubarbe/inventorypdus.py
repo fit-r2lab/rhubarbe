@@ -81,7 +81,7 @@ class PduHost:
             print("FAILURE:", stdout.decode(), end="")
             return 255
         verbose("SUCCESS")
-        stdout and print(stdout.decode(), end="")            # pylint: disable=expression-not-assigned
+        stdout and verbose(stdout.decode(), end="")            # pylint: disable=expression-not-assigned
         stderr and print("STDERR", stderr.decode(), end="")  # pylint: disable=expression-not-assigned
         return proc.returncode
 
