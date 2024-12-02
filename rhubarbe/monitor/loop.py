@@ -11,6 +11,8 @@ class MonitorLoop:
 
     def run(self, async_main, logger):
 
+        # using new_event_loop() instead here results in a runtime
+        # error with apparently 2 separate event loops active
         loop = asyncio.get_event_loop()
 
         def exiting(signame):

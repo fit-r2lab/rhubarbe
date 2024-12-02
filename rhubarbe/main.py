@@ -105,7 +105,7 @@ def check_reservation(leases, *,                        # pylint: disable=w0621
             else:
                 print("access denied")
         return is_fine
-    return asyncio.get_event_loop().run_until_complete(check_leases())
+    return asyncio.new_event_loop().run_until_complete(check_leases())
 
 
 def no_reservation(leases):                             # pylint: disable=w0621
@@ -114,7 +114,7 @@ def no_reservation(leases):                             # pylint: disable=w0621
     """
     async def check_leases():
         return not await leases.booked_now_by_anyone()
-    return asyncio.get_event_loop().run_until_complete(check_leases())
+    return asyncio.new_event_loop().run_until_complete(check_leases())
 
 
 ####################
@@ -622,7 +622,7 @@ def leases(*argv):
         access = check_reservation(leases, verbose=True)
         return 0 if access else 1
     else:
-        loop = asyncio.get_event_loop()
+        loop = asyncio.new_event_loop()
         loop.run_until_complete(leases.main(args.interactive))
         loop.close()
         return 0

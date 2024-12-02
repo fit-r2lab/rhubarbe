@@ -189,7 +189,7 @@ if __name__ == '__main__':
         nodes = sys.argv[1:]
         tasks = [probe(node, message_bus) for node in nodes]
 
-        retcods = asyncio.get_event_loop()\
+        retcods = asyncio.new_event_loop()\
             .run_until_complete(asyncio.gather(*tasks))
 
         for node, retcod in zip(nodes, retcods):
