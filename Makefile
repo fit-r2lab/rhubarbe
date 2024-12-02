@@ -1,5 +1,9 @@
 # to publish, use publish-to-pypi-from-pyproject
 
+help:
+	echo "make preplab to push on V0"
+	echo "make r2lab to push on production"
+
 ##########
 pyfiles:
 	@git ls-files | grep '\.py$$'
@@ -31,12 +35,12 @@ endif
 
 # installing in /tmp/rhubarbe-sync for testing
 sync:
-	@echo '===== once copied, do the following as root on $(DEST)'
-	@echo 'conda activate rhubarbe-dev && pip install -e /tmp/rhubarbe-sync'
 	@echo '===== '
 	rsync -ai --relative $$(git ls-files) root@$(DEST):/tmp/rhubarbe-sync/
+	@echo '===== once copied, do the following as root on $(DEST)'
+	@echo 'conda activate rhubarbe-dev && pip install -e /tmp/rhubarbe-sync'
 
-faraday:
+r2lab:
 	$(MAKE) sync deployment=production
 
 preplab:
@@ -49,7 +53,9 @@ infra:
 	apssh -t r2lab.infra pip3 install --upgrade rhubarbe
 	ssh root@faraday.inria.fr systemctl restart monitornodes
 	ssh root@faraday.inria.fr systemctl restart monitorphones
+	ssh root@faraday.inria.fr systemctl restart pdus
 	ssh root@faraday.inria.fr systemctl restart accountsmanager
+
 check:
 	apssh -t r2lab.infra rhubarbe version
 
