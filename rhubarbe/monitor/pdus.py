@@ -2,7 +2,7 @@
 The pdus monitor cyclically checks for the status of all pdus,
 and reports it to the sidecar service
 
-As a start, the tool only reports ON or OFF or UNNKNOWN
+As a start, the tool only reports ON or OFF or UNKNOWN
 """
 
 # pylint: disable=logging-fstring-interpolation, fixme, missing-function-docstring
@@ -41,12 +41,12 @@ class MonitorPdu:
         await self.reconnectable.emit_info(self.info)
 
     async def probe(self):
-
-        if self.verbose:
-            logger.info(f"fetching status of PDU {self.name}")
-        status = await self.pdu_device.status()
+        # avoid clogging the logs
+        status = await self.pdu_device.status(show_stdout=False)
         on_off = 'on' if status == 0 else 'off' if status == 1 else 'unknown'
         self.info['on_off'] = on_off
+        if self.verbose:
+            logger.info(f"on_off on PDU {self.name} is {on_off}")
         await self.emit()
 
     async def probe_forever(self):

@@ -968,6 +968,9 @@ def pdu(*argv):
                         except ValueError as exc:
                             print(exc)
                             exit(255)
+                    case _:
+                        print(f"missing device name for {command}")
+                        die()
             case _:
                 print(f"unknown command {command}")
                 die()

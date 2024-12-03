@@ -51,7 +51,7 @@ class PduHost:
         return self.chain_length > 1
 
 
-    async def run_pdu_shell(self, action, *args):
+    async def run_pdu_shell(self, action, *args, show_stdout=True):
         """
         run the 'pdu' command on the PDU host where this input is attached
         """
@@ -80,13 +80,17 @@ class PduHost:
             print("FAILURE:", stdout.decode(), end="")
             return 255
         verbose("SUCCESS")
-        stdout and verbose(stdout.decode(), end="")            # pylint: disable=expression-not-assigned
-        stderr and print("STDERR", stderr.decode(), end="")  # pylint: disable=expression-not-assigned
+        if stdout and show_stdout:
+            print(stdout.decode(), end="")
+        if stderr:
+            print("STDERR", stderr.decode(), end="")
         return proc.returncode
 
 
     async def probe(self):
-        return await self.run_pdu_shell("probe")
+        probed = await self.run_pdu_shell("probe")
+        print(f"probed {self.name} with {probed}")
+        return probed
 
 
 @dataclass
@@ -109,14 +113,14 @@ class PduInput:
             return f"        outlet {self.outlet}"
         return f"chain-{self.in_chain}@outlet-{self.outlet}"
 
-    async def run_pdu_shell(self, action, *args, device_name=""):
+    async def run_pdu_shell(self, action, *args, device_name="", show_stdout=True):
         """
         run the 'pdu' command on the PDU host where this input is attached
         """
         if device_name:
             message = f"running action '{action}' on device {device_name}"
         verbose(message)
-        return await self.pdu_host.run_pdu_shell(action, *args)
+        return await self.pdu_host.run_pdu_shell(action, *args, show_stdout=show_stdout)
 
 
 
@@ -179,22 +183,25 @@ class PduDevice:
             await asyncio.sleep(15)
 
 
-    async def run_pdu_shell_on_all_inputs(self, action):
+    async def run_pdu_shell_on_all_inputs(self, action, *, show_stdout=True):
         retcod = await asyncio.gather(
-            *(input.run_pdu_shell(action, input.in_chain, input.outlet, device_name = self.name)
+            *(input.run_pdu_shell(
+                action, input.in_chain, input.outlet, device_name = self.name,
+                show_stdout=show_stdout)
             for input in self.inputs)
         )
         return retcod
 
 
-    async def _status_or_on(self, action):
+    async def _status_or_on(self, action, *, show_stdout=True):
         """
         the ON and STATUS actions are similar in their logic
         - we are sure that the node is ON if any input is ON
         - we are sure that the node is OFF if all inputs are OFF
         - otherwise, we don't know for sure
         """
-        retcods = await self.run_pdu_shell_on_all_inputs(action)
+        retcods = await self.run_pdu_shell_on_all_inputs(
+            action, show_stdout=show_stdout)
         # if all inputs fail, we can't say
         if all(retcod == 255 for retcod in retcods):
             self.status_cache = 255
@@ -214,8 +221,8 @@ class PduDevice:
     async def on(self):                                 # pylint: disable=invalid-name
         return await self._status_or_on('on')
 
-    async def status(self):
-        return await self._status_or_on('status')
+    async def status(self, show_stdout=True):
+        return await self._status_or_on('status', show_stdout=show_stdout)
 
     async def off(self):
         """
