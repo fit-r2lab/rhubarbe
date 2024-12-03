@@ -1,3 +1,7 @@
+# 6.0.4 - 2024 Dec 3
+
+- a poorman relay-probe allows to see the status of a relay device as a whole
+
 # 6.0.3 - 2024 Dec 3
 
 * fix rhubarbe pdu status that had become silent
