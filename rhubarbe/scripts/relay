@@ -122,6 +122,13 @@ function relay-off() {
     -relay-on-off off "$@"
 }
 
+function relay-probe() {
+    echo "Probing relay $PDU_IP"
+    for outlet in $(seq 1 8); do
+        relay-status 0 $outlet
+    done
+}
+
 function main() {
 
     function help() {
