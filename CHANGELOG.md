@@ -1,10 +1,14 @@
+# 6.0.2 - 2024 Dec 3
+
+* fix rhubarbe pdu status that had become silent
+
 # 6.0.1 - 2024 Dec 2
 
 * attempt to fix a transient bug about the PDU status
   being not consistently displayed in r2lab.inria.fr
-* to that effct, made the `Reconnectable` class aware of dropped
+* to that effect, made the `Reconnectable` class aware of dropped
   connections, and preserve messages in a backlog for future delivery
-* have observed the bug a couple times, but not able to reproduce 
+* have observed the bug a couple times, but not able to reproduce
   reliably, so not 100% sure this will fix it
 
 # 6.0.0 - 2024 Nov 28
