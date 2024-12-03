@@ -1,4 +1,4 @@
-# 6.0.2 - 2024 Dec 3
+# 6.0.3 - 2024 Dec 3
 
 * fix rhubarbe pdu status that had become silent
 
