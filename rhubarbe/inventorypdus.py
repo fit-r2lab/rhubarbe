@@ -88,9 +88,7 @@ class PduHost:
 
 
     async def probe(self):
-        probed = await self.run_pdu_shell("probe")
-        print(f"probed {self.name} with {probed}")
-        return probed
+        return await self.run_pdu_shell("probe")
 
 
 @dataclass
