@@ -15,7 +15,6 @@ import asyncio
 from apssh.sshproxy import SshProxy
 from apssh.formatters import CaptureFormatter
 
-#from rhubarbe.config import Config
 from rhubarbe.logger import monitor_logger as logger
 
 from rhubarbe.inventoryphones import InventoryPhones

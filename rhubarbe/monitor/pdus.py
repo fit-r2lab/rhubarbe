@@ -9,7 +9,6 @@ As a start, the tool only reports ON or OFF or UNKNOWN
 
 import asyncio
 
-#from rhubarbe.config import Config
 from rhubarbe.logger import monitor_logger as logger
 
 from rhubarbe.inventorypdus import InventoryPdus, PduDevice
