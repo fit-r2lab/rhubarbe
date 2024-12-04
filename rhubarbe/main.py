@@ -940,7 +940,25 @@ def pdu(*argv):
             case 'list':
                 inventory_pdus.list(extras)
 
-            case 'on' | 'off' | 'status' | 'reset':
+            case 'status':
+                if not extras:
+                    inventory_pdus.status()
+                else:
+                    for name in extras:
+                        try:
+                            pdu_host = inventory_pdus.get_pdu_host(name)
+                            retcod = asyncio.run(pdu_host.probe())
+                            continue
+                        except ValueError:
+                            pass
+                        try:
+                            device = inventory_pdus.get_device(name)
+                            retcod = asyncio.run(device.run_action('status'))
+                            continue
+                        except ValueError:
+                            print(f"unknown device {name}")
+                exit(0)
+            case 'on' | 'off' | 'reset':
                 match extras:
                     case (name, ):
                         # status accepts a pdu_host name

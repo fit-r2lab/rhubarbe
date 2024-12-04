@@ -329,6 +329,26 @@ class InventoryPdus(YAMLWizard):
         return self
 
 
+    def status(self):
+        """
+        displays the status for all known devices
+        works sequentially on all hosts so that the output is readable
+        """
+        print(f"we have {len(self.pdu_hosts)} PDUs and {len(self.devices)} devices. ")
+        pdu_host_width = max(len(pdu_host.name) for pdu_host in self.pdu_hosts)
+        type_width = max(len(pdu_host.type) for pdu_host in self.pdu_hosts)
+        sep = 10 * '='
+
+        async def status_all():
+            for pdu_host in self.pdu_hosts:
+                print(f"{sep} {pdu_host.name:>{pdu_host_width}} ({pdu_host.type:<{type_width}}) {sep}")
+                print(f"{pdu_host.oneline()}")
+
+                await pdu_host.probe()
+        with asyncio.Runner() as runner:
+            runner.run(status_all())
+
+
     def list(self, names=None):
         """
         if no name: list all pdu hosts
