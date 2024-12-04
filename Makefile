@@ -33,13 +33,13 @@ else
     DEST=preplab.pl.sophia.inria.fr
 endif
 
-# installing in /tmp/r2lab-dev-rhubarbe for testing
+TMPDIR=/tmp/r2lab-dev-rhubarbe
+# installing in $(TMPDIR) for testing
 sync:
 	@echo '===== '
-
-	rsync -ai --relative $$(git ls-files) root@$(DEST):/tmp/r2lab-dev-rhubarbe/
+	rsync -ai --relative $$(git ls-files) root@$(DEST):$(TMPDIR)/
 	@echo '===== once copied, do the following as root on $(DEST)'
-	@echo 'conda activate r2lab-dev-xxx && pip install -e /tmp/r2lab-dev-rhubarbe'
+	@echo 'conda activate r2lab-dev-xxx && pip install -e $(TMPDIR)'
 
 r2lab:
 	$(MAKE) sync deployment=production
@@ -54,7 +54,7 @@ infra:
 	apssh -t r2lab.infra pip3 install --upgrade rhubarbe
 	ssh root@faraday.inria.fr systemctl restart monitornodes
 	ssh root@faraday.inria.fr systemctl restart monitorphones
-	ssh root@faraday.inria.fr systemctl restart pdus
+	ssh root@faraday.inria.fr systemctl restart monitorpdus
 	ssh root@faraday.inria.fr systemctl restart accountsmanager
 
 check:
