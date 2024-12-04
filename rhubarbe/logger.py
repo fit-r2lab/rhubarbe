@@ -39,26 +39,28 @@ rhubarbe_logging_config = {
         },
     },
     'handlers': {
+        # set to DEBUG, so one can tweak the loggers later on
         'rhubarbe': {
-            'level': 'INFO',
+            'level': 'DEBUG',
             'class': 'logging.FileHandler',
             'formatter': 'standard',
             'filename': f'{str(Path.home())}/rhubarbe.log',
         },
         'monitor': {
-            'level': 'INFO',
+            'level': 'DEBUG',
             'class': 'logging.StreamHandler',
             'formatter': 'standard',
             'stream': sys.stdout,
         },
         'accounts': {
-            'level': 'INFO',
+            'level': 'DEBUG',
             'class': 'logging.StreamHandler',
             'formatter': 'shorter',
             'stream': sys.stdout,
         },
     },
     'loggers': {
+        # the default is INFO and the code sometimes set this to DEBUG
         'monitor': {
             'handlers': ['monitor'],
             'level': 'INFO',
