@@ -640,10 +640,7 @@ def book(*argv):
 @subcommand
 def monitornodes(*argv):                                # pylint: disable=r0914
 
-    # xxx hacky - do a side effect in the logger module
-    import rhubarbe.logger
-    rhubarbe.logger.logger = rhubarbe.logger.monitor_logger
-    from rhubarbe.logger import logger
+    from rhubarbe.logger import monitor_logger as logger
 
     usage = """
     Cyclic probe all selected nodes, and reports
@@ -685,7 +682,7 @@ def monitornodes(*argv):                                # pylint: disable=r0914
         await asyncio.gather(monitornodes.run_forever(),
                              display.run())
 
-    MonitorLoop("monitornodes").run(async_main(), logger)
+    MonitorLoop("monitornodes").run(async_main())
     return 0
 
 ####################
@@ -694,10 +691,7 @@ def monitornodes(*argv):                                # pylint: disable=r0914
 @subcommand
 def monitorphones(*argv):
 
-    # xxx hacky - do a side effect in the logger module
-    import rhubarbe.logger
-    rhubarbe.logger.logger = rhubarbe.logger.monitor_logger
-    from rhubarbe.logger import logger
+    from rhubarbe.logger import monitor_logger as logger
 
     usage = """
     Cyclic probe all known phones, and reports real-time status
@@ -722,9 +716,7 @@ def monitorphones(*argv):
     logger.info("Using all phones")
     monitorphones = MonitorPhones(**vars(args))
 
-    MonitorLoop("monitorphones").run(
-        monitorphones.run_forever(),
-        logger)
+    MonitorLoop("monitorphones").run(monitorphones.run_forever())
     return 0
 
 ####################
@@ -733,10 +725,7 @@ def monitorphones(*argv):
 @subcommand
 def monitorpdus(*argv):
 
-    # xxx hacky - do a side effect in the logger module
-    import rhubarbe.logger
-    rhubarbe.logger.logger = rhubarbe.logger.monitor_logger
-    from rhubarbe.logger import logger
+    from rhubarbe.logger import monitor_logger as logger
 
     usage = """
     Cyclic probe all known pdus, and reports real-time status
@@ -756,15 +745,20 @@ def monitorpdus(*argv):
         help="url for the sidecar server")
     parser.add_argument(
         "-v", "--verbose", action='store_true')
+    parser.add_argument(
+        "-d", "--debug", action='store_true')
     parser.add_argument("names", nargs='*', help="optionally provide device names")
     args = parser.parse_args(argv)
+
+    if args.debug:
+        logger.setLevel(logging.DEBUG)
+        del args.debug
 
     logger.info("Using all pdus")
     monitorpdus = MonitorPdus(**vars(args))
 
-    MonitorLoop("monitorpdus").run(
-        monitorpdus.run_forever(),
-        logger)
+    MonitorLoop("monitorpdus").run(monitorpdus.run_forever())
+
     return 0
 
 ####################
@@ -773,10 +767,7 @@ def monitorpdus(*argv):
 @subcommand
 def monitorleases(*argv):
 
-    # xxx hacky - do a side effect in the logger module
-    import rhubarbe.logger
-    rhubarbe.logger.logger = rhubarbe.logger.monitor_logger
-    from rhubarbe.logger import logger
+    from rhubarbe.logger import monitor_logger as logger
 
     usage="""
     Cyclic check of leases; also reacts to 'request' messages on
@@ -794,16 +785,16 @@ def monitorleases(*argv):
         "-v", "--verbose", default=False, action='store_true')
     args = parser.parse_args(argv)
 
+    logger.info("monitoring leases")
+
     message_bus = asyncio.Queue()
-
-
     monitorleases = MonitorLeases(
         message_bus, args.sidecar_url, args.verbose)
 
-    MonitorLoop("monitorleases").run(
-        monitorleases.run_forever(),
-        logger)
+    MonitorLoop("monitorleases").run(monitorleases.run_forever())
+
     return 0
+
 
 ####################
 

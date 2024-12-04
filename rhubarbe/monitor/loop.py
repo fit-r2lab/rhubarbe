@@ -4,12 +4,15 @@ import functools
 
 import asyncio
 
+from rhubarbe.logger import monitor_logger as logger
+
+
 class MonitorLoop:
 
     def __init__(self, message):
         self.message = message
 
-    def run(self, async_main, logger):
+    def run(self, async_main):
 
         # using new_event_loop() instead here results in a runtime
         # error with apparently 2 separate event loops active
