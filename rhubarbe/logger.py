@@ -20,9 +20,9 @@ from pathlib import Path
 
 # with systemd it's sooo simpler to log on stdout, that gets managed by journal
 # so, we essentially need
-# * one all-purpose logger that goes into $HOME/rhubarbe.log
-# * one special logger for monitor*s that goes onto stdout -> journal
-# * one special logger for accounts - ditto but with a shorter layout
+# * one all-purpose handler that goes into $HOME/rhubarbe.log
+# * one special handler for monitor*s that goes onto stdout -> journal
+# * one special handler for accounts - ditto but with a shorter layout
 
 rhubarbe_logging_config = {
     'version': 1,
@@ -63,7 +63,14 @@ rhubarbe_logging_config = {
         # the default is INFO and the code sometimes set this to DEBUG
         'monitor': {
             'handlers': ['monitor'],
-            'level': 'INFO',
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        # this one is for the r2lab-python library
+        # that is used in the monitors
+        'r2lab-sidecar': {
+            'handlers': ['monitor'],
+            'level': 'DEBUG',
             'propagate': False,
         },
         'accounts': {
@@ -82,15 +89,14 @@ rhubarbe_logging_config = {
 logging.config.dictConfig(rhubarbe_logging_config)
 
 # general case:
-# from rhubarbe.logger import logger
 logger = logging.getLogger('rhubarbe')
 
 # monitor
-# from rhubarbe.logger import monitor_logger as logger
 monitor_logger = logging.getLogger('monitor')
+r2lab_sidecar_logger = logging.getLogger('r2lab-sidecar')
+
 
 # accounts
-# from rhubarbe.logger import accounts_logger as logger
 accounts_logger = logging.getLogger('accounts')
 
 ####################

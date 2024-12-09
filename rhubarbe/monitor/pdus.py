@@ -69,14 +69,15 @@ class MonitorPdus:
         self.reconnectable = ReconnectableSidecar(sidecar_url, 'pdus')
         # xxx this is fragile
         # we rely on the fact that the items in the inventory
-        # match the args of MonitorPhone's constructor
+        # match the args of MonitorPdu's constructor
         self.pdus = [
                 MonitorPdu(
                     pdu_device = device,
                     reconnectable=self.reconnectable,
                     verbose=verbose,
                     cycle=cycle)
-            for device in devices]
+                for device in devices
+            ]
 
     async def run_forever(self):
         await asyncio.gather(

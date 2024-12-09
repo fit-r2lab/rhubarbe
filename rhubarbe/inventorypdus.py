@@ -56,10 +56,11 @@ class PduHost:
         run the 'pdu' command on the PDU host where this input is attached
         """
         env = dict(PDU_USERNAME=self.username, PDU_PASSWORD=self.password)
-        verbose(10*'-', "debug: the script configuration:")
-        for key, value in env.items():
-            verbose(f'export {key}="{value}"')
-        verbose(10*'-')
+        # contains sensitive information
+        # verbose(10*'-', "debug: the script configuration:")
+        # for key, value in env.items():
+        #     verbose(f'export {key}="{value}"')
+        # verbose(10*'-')
         script = f"scripts/{self.type}"
         exists = resource_exists('rhubarbe', script)
         if not exists:
@@ -68,7 +69,7 @@ class PduHost:
 
         command_path = resource_filename('rhubarbe', script)
         command = f"{command_path} {action} {self.IP} {' '.join(str(arg) for arg in args)}"
-        verbose(f"running command '{command}'")
+        verbose(f"PduHost: running command '{command}'")
         proc = await asyncio.create_subprocess_shell(
             command,
             stdout=asyncio.subprocess.PIPE,
@@ -116,7 +117,7 @@ class PduInput:
         run the 'pdu' command on the PDU host where this input is attached
         """
         if device_name:
-            message = f"running action '{action}' on device {device_name}"
+            message = f"PduInput: running action '{action}' on device {device_name}"
         verbose(message)
         return await self.pdu_host.run_pdu_shell(action, *args, show_stdout=show_stdout)
 
@@ -311,7 +312,7 @@ class InventoryPdus(YAMLWizard):
                 return InventoryPdus.from_yaml(feed.read()).solve_references()
         except FileNotFoundError:
             # not all deployments have pdus
-            logger.warn(f"file not found {yaml_path}")
+            logger.warning(f"file not found {yaml_path}")
             return InventoryPdus([], [])
         except KeyError as exc:
             print(f"something wrong in config file {yaml_path}, {exc}")

@@ -752,9 +752,13 @@ def monitorpdus(*argv):
 
     if args.debug:
         logger.setLevel(logging.DEBUG)
-        del args.debug
+    del args.debug
 
-    logger.info("Using all pdus")
+    # from rhubarbe.logger import r2lab_sidecar_logger
+    # print("enabling debug on the r2lab-sidecar logger")
+    # r2lab_sidecar_logger.setLevel('DEBUG')
+
+    logger.info(f"Monitoring pdus: {args.names or 'all'}")
     monitorpdus = MonitorPdus(**vars(args))
 
     MonitorLoop("monitorpdus").run(monitorpdus.run_forever())
@@ -919,10 +923,14 @@ def pdu(*argv):
     parser = ArgumentParser(usage=usage,
                             formatter_class=ArgumentDefaultsHelpFormatter)
     # not yet used
-    #parser.add_argument("-v", "--verbose", default=False, action='store_true')
+    parser.add_argument("-v", "--verbose", default=False, action='store_true')
     parser.add_argument("command", help="one of the supported contrib commands")
     parser.add_argument("extras", nargs="*", help="additional args are passed as is")
     args = parser.parse_args(argv)
+
+    if args.verbose:
+        import rhubarbe.inventorypdus
+        rhubarbe.inventorypdus.VERBOSE = True
 
     command, extras = args.command, args.extras
 

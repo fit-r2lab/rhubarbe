@@ -15,13 +15,10 @@ from r2lab import SidecarAsyncClient
 
 from rhubarbe.logger import monitor_logger as logger
 
-#import logging
-#logger.setLevel(logging.DEBUG)
-
 class ReconnectableSidecar:
 
     def __init__(self, url, category, keep_period=1):
-        # keep_period is the frequency where connection is verified for open-ness
+        # keep_period is the period at which connection is verified for open-ness
         self.url = url
         self.category = category
         self.keep_period = keep_period
@@ -31,26 +28,32 @@ class ReconnectableSidecar:
         self.backlog = []
         logger.info(f"reconnectable sidecar to {url} ")
 
+    def __repr__(self):
+        size = f"no backlog" if not self.backlog else f"backlog={len(self.backlog)}"
+        conn = f"no connection" if not self.connection else f"connection={self.connection.state}"
+        return f"ReconnectableSidecar({self.url}) - {size} - {conn}"
+
 
     async def flush_backlog(self):
+        # do not mess with the iteration subject
         for infos in self.backlog[:]:
-            if await self.emit_info(infos):
+            if await self.emit_infos(infos):
                 self.backlog.remove(infos)
 
 
+    # info singular: create a list with that one info
     async def emit_info(self, info):
-        # create a list with that one info
         return await self.emit_infos([info])
 
 
     async def emit_infos(self, infos):
+        logger.debug(f"{self}: emit_infos is sending {infos}")
         if not self.connection:
-            logger.warning(f"[no conn.] message {infos} goes into backlog"
+            logger.warning(f"[no conn.] backlog ->  {infos}"
                            f" (with {len(self.backlog)} others)")
             self.backlog.append(infos)
             return False
-        logger.debug(f"Sending {infos}")
-        # xxx use Payload
+
         payload = dict(category=self.category, action='info', message=infos)
         try:
             await self.connection.send(json.dumps(payload))
@@ -63,9 +66,11 @@ class ReconnectableSidecar:
             return False
         except Exception as exc:
             # xxx to review
-            logger.exception(f"send failed: {exc}")
+            logger.exception(f"connection.send failed: {type(exc)}: {exc}")
             self.connection = None
             return False
+        finally:
+            logger.debug(f"<<< emit_infos is leaving connection.send() with {payload}")
 
 
     async def keep_connected(self):
@@ -73,9 +78,8 @@ class ReconnectableSidecar:
         A continuous loop that keeps the connection open
         """
         while True:
-            logger.debug(f"in keep_connected, proto={self.connection}")
             if self.connection and self.connection.state == websockets.protocol.State.OPEN:
-                logger.debug(f"connection is open")
+                logger.debug(f"in keep_connected, connection is open")
                 if self.backlog:
                     logger.info(f"flushing backlog of {len(self.backlog)} messages")
                     await self.flush_backlog()
