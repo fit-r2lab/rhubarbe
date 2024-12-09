@@ -1,6 +1,6 @@
 [project]
 name = "rhubarbe"
-version = "6.0.4"
+version = "6.1.0"
 description = "Testbed Management Framework for R2Lab"
 license = "CC-BY-NC-4.0"
 readme = "README.md"

@@ -1,6 +1,18 @@
+# 6.1.0 - 2024 Dec 9
+
+* support for rhubarbe pdu status with no argument
+* monitorpdus can be started with the -v option
+* misc. logger cleanup for better observability
+* the make sync targets push onto /tmp/r2lab-devel-*
+  and expect a conda env named r2lab-dev-313
+* this release has few actual changes, it was done after an
+  intense one-week bug chasing that eventually pointed to
+  websockets new asyncio implementation
+  relevant changes are in the `r2lab` python library
+
 # 6.0.4 - 2024 Dec 3
 
-- a poorman relay-probe allows to see the status of a relay device as a whole
+* a poorman relay-probe allows to see the status of a relay device as a whole
 
 # 6.0.3 - 2024 Dec 3
 
