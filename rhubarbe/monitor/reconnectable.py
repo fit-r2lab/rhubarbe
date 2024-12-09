@@ -64,6 +64,12 @@ class ReconnectableSidecar:
                            f" (with {len(self.backlog)} others)")
             self.backlog.append(infos)
             return False
+        except websockets.exceptions.ConnectionClosedError as exc:
+            logger.warning(f"[conn. closed] message {infos} goes into backlog"
+                           f" (with {len(self.backlog)} others)")
+            self.backlog.append(infos)
+            self.connection = None
+            return False
         except Exception as exc:
             # xxx to review
             logger.exception(f"connection.send failed: {type(exc)}: {exc}")
