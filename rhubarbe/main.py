@@ -750,13 +750,18 @@ def monitorpdus(*argv):
     parser.add_argument("names", nargs='*', help="optionally provide device names")
     args = parser.parse_args(argv)
 
+    from rhubarbe.logger import r2lab_sidecar_logger
+    print("enabling debug on the r2lab-sidecar logger")
     if args.debug:
         logger.setLevel(logging.DEBUG)
+        r2lab_sidecar_logger.setLevel('DEBUG')
+    elif args.verbose:
+        r2lab_sidecar_logger.setLevel('INFO')
+    else:
+        r2lab_sidecar_logger.setLevel('WARNING')
+    # not supported by MonitorPdus
     del args.debug
 
-    # from rhubarbe.logger import r2lab_sidecar_logger
-    # print("enabling debug on the r2lab-sidecar logger")
-    # r2lab_sidecar_logger.setLevel('DEBUG')
 
     logger.info(f"Monitoring pdus: {args.names or 'all'}")
     monitorpdus = MonitorPdus(**vars(args))
