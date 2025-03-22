@@ -756,8 +756,10 @@ def monitorpdus(*argv):
         logger.setLevel(logging.DEBUG)
         r2lab_sidecar_logger.setLevel('DEBUG')
     elif args.verbose:
+        logger.setLevel('INFO')
         r2lab_sidecar_logger.setLevel('INFO')
     else:
+        logger.setLevel('WARNING')
         r2lab_sidecar_logger.setLevel('WARNING')
     # not supported by MonitorPdus
     del args.debug
