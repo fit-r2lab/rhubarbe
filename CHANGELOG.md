@@ -1,3 +1,8 @@
+# 6.1.1 - 2025 Mar 22
+
+* cosmetic only: bye show a message about its various steps
+* monitorpdus: logging level now depends on the -v / -d options
+
 # 6.1.0 - 2024 Dec 9
 
 * support for rhubarbe pdu status with no argument
