@@ -16,6 +16,8 @@ Command-line entry point
 # we need to be able to mess inside the logger module
 # before it gets loaded from another way
 
+import time
+import os
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 import logging
 import asyncio
@@ -250,15 +252,17 @@ def bye(*argv):
         selector.use_all_scope()
 
     bus = asyncio.Queue()
+
+    print(f"{20*'='} urspoff {20*'='}")
     Action('usrpoff', selector).run(bus, args.timeout)
 
     # keep it simple for now
-    import time
     time.sleep(1)
+    print(f"{20*'='} off {20*'='}")
     Action('off', selector).run(bus, args.timeout)
 
     # even simpler
-    import os
+    print(f"{20*'='} phones {20*'='}")
     inventory_phones = InventoryPhones()
     for phone in inventory_phones.all_phones():
         command = (f"ssh -i {phone['gw_key']} -o StrictHostKeyChecking=no "
@@ -266,6 +270,7 @@ def bye(*argv):
         print(command)
         os.system(command)
 
+    print(f"{20*'='} pdus {20*'='}")
     inventory_pdus = InventoryPdus.load()
     # this is a working async version
     # but for safety we will do it sequentially
