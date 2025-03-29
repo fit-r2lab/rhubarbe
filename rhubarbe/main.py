@@ -225,6 +225,11 @@ def usrpoff(*argv):
     return cmc_verb('usrpoff', 'enforce', *argv)
 
 
+@subcommand
+def bothoff(*argv):
+    return cmc_verb('bothoff', 'enforce', *argv)
+
+
 #####
 # xxx should be asynchronous
 @subcommand
@@ -253,15 +258,11 @@ def bye(*argv):
             selector.use_all_scope()
 
         message_bus = asyncio.Queue()
-        print(f"{20*'='} urspoff {20*'='}")
-        Action('usrpoff', selector).run(message_bus, args.timeout)
+        print(f"{20*'='} bothoff {20*'='} (timeout={args.timeout})")
+        Action('bothoff', selector).run(message_bus, args.timeout)
 
         # keep it simple for now
         time.sleep(1)
-
-        message_bus = asyncio.Queue()
-        print(f"{20*'='} off {20*'='}")
-        Action('off', selector).run(message_bus, args.timeout)
 
         # even simpler
         print(f"{20*'='} phones {20*'='}")

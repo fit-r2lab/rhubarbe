@@ -117,6 +117,16 @@ class Node:                                             # pylint: disable=r0902
         result = await self._get_cmc_verb('usrpoff')
         return result
 
+    async def turn_both_off(self):
+        """
+        turn off both USRP and node; expected result would be 'ok' if it goes fine
+        """
+        result1 = await self._get_cmc_verb('usrpoff')
+        result2 = await self._get_cmc_verb('off')
+        if result1 is None or result2 is None:
+            return None
+        return f"{result1} - {result2}"
+
     async def _get_cmc_verb(self, verb, strip_result=True):
         """
         verb typically is 'status', 'on', 'off' or 'info'

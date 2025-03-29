@@ -25,6 +25,7 @@ class Action:
         'usrpstatus': 'get_usrpstatus',
         'usrpon': 'turn_usrpon',
         'usrpoff': 'turn_usrpoff',
+        'bothoff': 'turn_both_off',
     }
 
     def __init__(self, verb, selector):
