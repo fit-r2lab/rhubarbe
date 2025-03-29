@@ -483,7 +483,7 @@ def wait(*argv):                                        # pylint: disable=r0914
             return 0
         else:
             if args.verbose:
-                scheduler.debrief()
+                scheduler.debrief(silence_done_jobs=True)
             return 1
     except KeyboardInterrupt:
         print("rhubarbe-wait : keyboard interrupt - exiting")

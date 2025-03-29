@@ -112,7 +112,7 @@ class ImageLoader:
         try:
             is_ok = scheduler.run()
             if not is_ok:
-                scheduler.debrief()
+                scheduler.debrief(silence_done_jobs=True)
                 self.display.set_goodbye(
                     f"rhubarbe-load failed: {scheduler.why()}")
                 return 1

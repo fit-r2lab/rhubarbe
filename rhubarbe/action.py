@@ -63,7 +63,7 @@ class Action:
             if scheduler.run():
                 return True
             else:
-                scheduler.debrief()
+                scheduler.debrief(silence_done_jobs=True)
                 print(f"rhubarbe-{self.verb} failed: {scheduler.why()}")
                 return False
         except KeyboardInterrupt:
