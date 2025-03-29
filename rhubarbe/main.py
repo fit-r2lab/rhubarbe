@@ -247,43 +247,48 @@ def bye(*argv):
     add_selector_arguments(parser)
     args = parser.parse_args(argv)
 
-    selector = selected_selector(args, defaults_to_all=True)
-    if selector.is_empty():
-        selector.use_all_scope()
+    try:
+        selector = selected_selector(args, defaults_to_all=True)
+        if selector.is_empty():
+            selector.use_all_scope()
 
-    bus = asyncio.Queue()
+        message_bus = asyncio.Queue()
+        print(f"{20*'='} urspoff {20*'='}")
+        Action('usrpoff', selector).run(message_bus, args.timeout)
 
-    print(f"{20*'='} urspoff {20*'='}")
-    Action('usrpoff', selector).run(bus, args.timeout)
+        # keep it simple for now
+        time.sleep(1)
 
-    # keep it simple for now
-    time.sleep(1)
-    print(f"{20*'='} off {20*'='}")
-    Action('off', selector).run(bus, args.timeout)
+        message_bus = asyncio.Queue()
+        print(f"{20*'='} off {20*'='}")
+        Action('off', selector).run(message_bus, args.timeout)
 
-    # even simpler
-    print(f"{20*'='} phones {20*'='}")
-    inventory_phones = InventoryPhones()
-    for phone in inventory_phones.all_phones():
-        command = (f"ssh -i {phone['gw_key']} -o StrictHostKeyChecking=no "
-                   f"{phone['gw_user']}@{phone['gw_host']} phone-off")
-        print(command)
-        os.system(command)
+        # even simpler
+        print(f"{20*'='} phones {20*'='}")
+        inventory_phones = InventoryPhones()
+        for phone in inventory_phones.all_phones():
+            command = (f"ssh -i {phone['gw_key']} -o StrictHostKeyChecking=no "
+                    f"{phone['gw_user']}@{phone['gw_host']} phone-off")
+            print(command)
+            os.system(command)
 
-    print(f"{20*'='} pdus {20*'='}")
-    inventory_pdus = InventoryPdus.load()
-    # this is a working async version
-    # but for safety we will do it sequentially
-    # because the ssh service in the PDU unit looks fragile
-    # async def turn_off_auto_devices():
-    #     await asyncio.gather(
-    #         *(device.off()
-    #                 for device in inventory_pdus.devices
-    #                 if device.auto_turn_off))
-    # asyncio.run(turn_off_auto_devices())
-    for device in inventory_pdus.devices:
-        if device.auto_turn_off:
-            asyncio.run(device.off())
+        print(f"{20*'='} pdus {20*'='}")
+        inventory_pdus = InventoryPdus.load()
+        # this is a working async version
+        # but for safety we will do it sequentially
+        # because the ssh service in the PDU unit looks fragile
+        # async def turn_off_auto_devices():
+        #     await asyncio.gather(
+        #         *(device.off()
+        #                 for device in inventory_pdus.devices
+        #                 if device.auto_turn_off))
+        # asyncio.run(turn_off_auto_devices())
+        for device in inventory_pdus.devices:
+            if device.auto_turn_off:
+                asyncio.run(device.off())
+    except KeyboardInterrupt:
+        print("bye: keyboard interrupt - exiting")
+        return 1
 
 ####################
 
