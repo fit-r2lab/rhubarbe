@@ -243,7 +243,9 @@ def bye(*argv):
     Turn off whole testbed
     """
     config = Config()
-    default_timeout = config.value('nodes', 'cmc_default_timeout')
+    # use a dedicated - longer - timeout
+    # so be on the safe side
+    default_timeout = config.value('nodes', 'cmc_safe_timeout')
     parser = ArgumentParser(usage=usage,
                             formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument("-t", "--timeout", action='store',
