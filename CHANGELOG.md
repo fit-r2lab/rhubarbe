@@ -1,5 +1,14 @@
 # Changelog
 
+## 6.2.0 - 2025 Mar 29
+
+* new action and related command bothoff - used in bye to do 1 pass instead of 2
+* define new config item 'cmc_safe_timeout' to be used by 'bye'
+* these 2 items are intended to make the bye command much more robust
+* debrief schedulers with silence_jobs_done=True to show only problematic nodes
+* thus requires asynciojobs >= 0.20.0
+* protect rhubarbe bye against keyboard interrupts
+
 ## 6.1.1 - 2025 Mar 22
 
 * cosmetic only: bye show a message about its various steps
