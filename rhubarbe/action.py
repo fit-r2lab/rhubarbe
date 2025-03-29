@@ -36,8 +36,7 @@ class Action:
         # send the 'verb' method on node
         method = getattr(node, Action.verb_to_method[verb])
         # bound methods must not be passed the subject !
-        await method()
-        result = getattr(node, verb)
+        result = await method()
         result = result if result is not None else f"{verb} N/A"
         for line in result.split("\n"):
             if line:
