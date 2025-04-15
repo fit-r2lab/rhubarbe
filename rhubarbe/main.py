@@ -648,12 +648,25 @@ def book(*argv):
     exit(0 if Book.main(argv) else 1)
 
 ####################
+from rhubarbe.logger import monitor_logger
+from rhubarbe.logger import r2lab_sidecar_logger
+
+def set_loggers_level(verbose, debug):
+    print("setting logger level on r2lab-sidecar and monitor")
+    if debug:
+        monitor_logger.setLevel(logging.DEBUG)
+        r2lab_sidecar_logger.setLevel('DEBUG')
+    elif verbose:
+        monitor_logger.setLevel('INFO')
+        r2lab_sidecar_logger.setLevel('INFO')
+    else:
+        monitor_logger.setLevel('WARNING')
+        r2lab_sidecar_logger.setLevel('WARNING')
+
 
 
 @subcommand
 def monitornodes(*argv):                                # pylint: disable=r0914
-
-    from rhubarbe.logger import monitor_logger as logger
 
     usage = """
     Cyclic probe all selected nodes, and reports
@@ -671,10 +684,15 @@ def monitornodes(*argv):                                # pylint: disable=r0914
         "-u", "--sidecar-url", dest="sidecar_url",
         default=Config().value('sidecar', 'url'),
         help="url for the sidecar server")
-    parser.add_argument("-v", "--verbose",
-                        action='store_true', default=False)
+    parser.add_argument(
+        "-v", "--verbose", action='store_true')
+    parser.add_argument(
+        "-d", "--debug", action='store_true')
     add_selector_arguments(parser)
     args = parser.parse_args(argv)
+
+    (debug, verbose) = (args.debug, args.verbose)
+    set_loggers_level(verbose, debug)
 
     selector = selected_selector(args)
     message_bus = asyncio.Queue()
@@ -683,7 +701,7 @@ def monitornodes(*argv):                                # pylint: disable=r0914
     # at creation time is a nuisance
     display = Display([], message_bus)
 
-    logger.info({'selected_nodes': selector})
+    monitor_logger.info({'selected_nodes': selector})
     monitornodes = MonitorNodes(selector.cmc_names(),
                                 message_bus=message_bus,
                                 cycle=args.cycle,
@@ -704,8 +722,6 @@ def monitornodes(*argv):                                # pylint: disable=r0914
 @subcommand
 def monitorphones(*argv):
 
-    from rhubarbe.logger import monitor_logger as logger
-
     usage = """
     Cyclic probe all known phones, and reports real-time status
     at a sidecar service over websockets
@@ -724,9 +740,15 @@ def monitorphones(*argv):
         help="url for the sidecar server")
     parser.add_argument(
         "-v", "--verbose", action='store_true')
+    parser.add_argument(
+        "-d", "--debug", action='store_true')
     args = parser.parse_args(argv)
 
-    logger.info("Using all phones")
+    (debug, verbose) = (args.debug, args.verbose)
+    del args.debug
+    set_loggers_level(verbose, debug)
+
+    monitor_logger.info("Using all phones")
     monitorphones = MonitorPhones(**vars(args))
 
     MonitorLoop("monitorphones").run(monitorphones.run_forever())
@@ -737,8 +759,6 @@ def monitorphones(*argv):
 
 @subcommand
 def monitorpdus(*argv):
-
-    from rhubarbe.logger import monitor_logger as logger
 
     usage = """
     Cyclic probe all known pdus, and reports real-time status
@@ -763,22 +783,13 @@ def monitorpdus(*argv):
     parser.add_argument("names", nargs='*', help="optionally provide device names")
     args = parser.parse_args(argv)
 
-    from rhubarbe.logger import r2lab_sidecar_logger
-    print("enabling debug on the r2lab-sidecar logger")
-    if args.debug:
-        logger.setLevel(logging.DEBUG)
-        r2lab_sidecar_logger.setLevel('DEBUG')
-    elif args.verbose:
-        logger.setLevel('INFO')
-        r2lab_sidecar_logger.setLevel('INFO')
-    else:
-        logger.setLevel('WARNING')
-        r2lab_sidecar_logger.setLevel('WARNING')
+    (debug, verbose) = (args.debug, args.verbose)
+    set_loggers_level(verbose, debug)
     # not supported by MonitorPdus
     del args.debug
 
 
-    logger.info(f"Monitoring pdus: {args.names or 'all'}")
+    monitor_logger.info(f"Monitoring pdus: {args.names or 'all'}")
     monitorpdus = MonitorPdus(**vars(args))
 
     MonitorLoop("monitorpdus").run(monitorpdus.run_forever())

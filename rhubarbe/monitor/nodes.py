@@ -196,23 +196,24 @@ class MonitorNode:
                 "--format='{{.State.Running}} {{.Config.Image}}' container",
             ]
         # reconnect each time
+        self.set_info({'control_ssh': 'off'})
         async with SshProxy(self.node) as ssh:
-            if self.verbose:
-                logger.info(f"trying to ssh-connect to {self.node.control_hostname()} "
-                            f"(timeout={ssh_timeout})")
+            logger.info(f"trying to ssh-connect to {self.node.control_hostname()} "
+                        f"(timeout={ssh_timeout})")
             try:
-                connected = await asyncio.wait_for(ssh.connect(),
-                                                   timeout=ssh_timeout)
+                connected = await asyncio.wait_for(
+                    ssh.connect(), timeout=ssh_timeout)
             except asyncio.TimeoutError:
                 connected = False
                 self.set_info({'control_ssh': 'off'})
-            if self.verbose:
-                logger.info(f"{self.node.control_hostname()} ssh-connected={connected}")
+            logger.info(f"{self.node.control_hostname()} ssh-connected={connected}")
             if connected:
+                self.set_info({'control_ssh': 'on'})
                 try:
                     command = ";".join(remote_commands)
-                    output = await asyncio.wait_for(ssh.run(command),
-                                                    timeout=ssh_timeout)
+                    output = await asyncio.wait_for(
+                        ssh.run(command), timeout=ssh_timeout)
+                    logger.debug(f"{output=:20s}...")
                     # padding dict here sets control_ssh and control_ping to on
                     self.parse_ssh_probe_output(output, padding_dict)
                     # required as otherwise we leak openfiles
@@ -221,22 +222,19 @@ class MonitorNode:
                     except Exception:                           # pylint: disable=broad-except
                         logger.exception("monitornodes oops 1")
                 except asyncio.TimeoutError:
-                    if self.verbose:
-                        logger.info(f"received ssh timeout with {self.node.control_hostname()}")
+                    logger.info(f"received ssh timeout with {self.node.control_hostname()}")
                     self.set_info({'control_ssh': 'off'})
                 except Exception:                                   # pylint: disable=broad-except
                     logger.exception("monitornodes remote_command failed")
-        if self.verbose:
-            logger.info(f"{self.node.control_hostname()} ssh-based logic done "
-                        f"ssh is deemed {self.info['control_ssh']}")
+        logger.info(f"{self.node.control_hostname()} ssh-based logic done "
+                    f"ssh is deemed {self.info['control_ssh']}")
 
         # if we could ssh then we're done
         if self.info['control_ssh'] == 'on':
             await self.report_info()
             return
 
-        if self.verbose:
-            logger.info(f"entering pass3, info={self.info}")
+        logger.info(f"entering pass3, info={self.info}")
         # pass3 : node is ON but could not ssh
         # check for ping
         # I don't know of an asyncio library to deal with icmp
@@ -305,7 +303,7 @@ class MonitorNodes:
             delta = f"+ {current-previous}"
             line += f" {current} emits ({delta})"
             previous = current
-            logger.info(line)
+            logger.warning(line)
             await asyncio.sleep(self.log_period)
 
     async def run_forever(self):

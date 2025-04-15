@@ -10,12 +10,15 @@ This code still has it, mostly out of laziness
 # r1705 else after return
 # pylint: disable=c0111, w0703, w1202
 
+import time
 import random
 import asyncio
 import asyncssh
 
 DEBUG = False
 # DEBUG = True
+
+from .logger import monitor_logger as logger
 
 
 class MySSHClientSession(asyncssh.SSHClientSession):
@@ -91,6 +94,7 @@ class SshProxy:
         await self.close()
 
     async def connect(self, timeout=None):
+        begin = time.time()
         try:
             self.conn, self.client = await asyncio.wait_for(
                 asyncssh.create_connection(
@@ -98,18 +102,22 @@ class SshProxy:
                     known_hosts=None
                 ),
                 timeout=timeout)
-            return True
-        except (OSError, asyncssh.Error, asyncio.TimeoutError):
-            # await self.node.feedback('ssh_status', 'connect failed')
-            # print('SshProxy.connect failed: {}'.format(e))
+            retcod = True
+        except (OSError, asyncssh.Error, asyncio.TimeoutError, asyncio.exceptions.CancelledError) as exc:
+            logger.info(f"SSH FAIL on {self.hostname} {type(exc)=} {exc=}")
             self.conn, self.client = None, None
-            return False
+            retcod = False
         except ValueError as exc:
             # seen raised by asyncssh for some reason,
             # anyway bottom line is we can't connect
             #
+            logger.info(f"SSH FAIL on {self.hostname} with ValueError, {exc=}")
             self.conn, self.client = None, None
-            return False
+            retcod = False
+        finally:
+            end = time.time()
+            logger.info(f"SSH connect {self.hostname} took {end-begin:.3f}s {retcod=}")
+            return retcod
 
     async def run(self, command):
         """
@@ -123,13 +131,20 @@ class SshProxy:
                 super().__init__(*args, **kwds)
 
         # print(5*'-', "running on ", self.hostname, ':', command)
+        begin = time.time()
         try:
             chan, session = await self.conn.create_session(
                 ClientsessionClosure, command)
             await chan.wait_closed()
-            return session.data
-        except Exception:
-            return
+            output = session.data
+        except Exception as exc:
+            logger.info(f"failed to SSH run {self.hostname} - {type(exc)=} {exc=}")
+            output = None
+        finally:
+            end = time.time()
+            logger.info(
+                f"SSH run {self.hostname} took {end-begin:.3f}s")
+            return output
 
     # >>> asyncio.iscoroutine(asyncssh.SSHClientConnection.close)
     # False
