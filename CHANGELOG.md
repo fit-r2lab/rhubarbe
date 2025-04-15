@@ -1,5 +1,16 @@
 # Changelog
 
+## 6.2.1 - 2025 Apr 15
+
+* no real change; the ssh_timeout (in /etc/rhubarbe/rhubarbe.conf.local)
+  had to be increased to 10s to get a reliable status to display 
+  in the run view on the web
+* otoh no change was needed in the cmc timeout, the default (3s) is fine again
+  (after a misconfig was spotted in the networking hardware)
+* as a side effect, this version comes with much cleaner logs; 
+  all 3 monitor take the -v and -d options that map to logger.info() and logger.debug() resp.
+  also the summary line in monitornodes is shown with a warning level so it always shows
+
 ## 6.2.0 - 2025 Mar 29
 
 * new action and related command bothoff - used in bye to do 1 pass instead of 2
