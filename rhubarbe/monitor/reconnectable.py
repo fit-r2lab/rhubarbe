@@ -47,7 +47,7 @@ class ReconnectableSidecar:
 
 
     async def emit_infos(self, infos):
-        logger.debug(f"{self}: emit_infos is sending {infos}")
+        # logger.debug(f"{self}: emit_infos is sending {infos}")
         if not self.connection:
             logger.warning(f"[no conn.] backlog ->  {infos}"
                            f" (with {len(self.backlog)} others)")
@@ -76,7 +76,8 @@ class ReconnectableSidecar:
             self.connection = None
             return False
         finally:
-            logger.debug(f"<<< emit_infos is leaving connection.send() with {payload}")
+            pass
+            # logger.debug(f"<<< emit_infos is leaving connection.send() with {payload}")
 
 
     async def keep_connected(self):
