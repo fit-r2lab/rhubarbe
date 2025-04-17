@@ -1,5 +1,9 @@
 # Changelog
 
+## 6.2.2 - 2025 Apr 17
+
+- add a new config item `ssh_nightly_timeout` to be used by the nightly script
+
 ## 6.2.1 - 2025 Apr 15
 
 * no real change; the ssh_timeout (in /etc/rhubarbe/rhubarbe.conf.local)
