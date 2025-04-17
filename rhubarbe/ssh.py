@@ -104,19 +104,19 @@ class SshProxy:
                 timeout=timeout)
             retcod = True
         except (OSError, asyncssh.Error, asyncio.TimeoutError, asyncio.exceptions.CancelledError) as exc:
-            logger.info(f"SSH FAIL on {self.hostname} {type(exc)=} {exc=}")
+            logger.debug(f"SSH FAIL on {self.hostname} {type(exc)=} {exc=}")
             self.conn, self.client = None, None
             retcod = False
         except ValueError as exc:
             # seen raised by asyncssh for some reason,
             # anyway bottom line is we can't connect
             #
-            logger.info(f"SSH FAIL on {self.hostname} with ValueError, {exc=}")
+            logger.debug(f"SSH FAIL on {self.hostname} with ValueError, {exc=}")
             self.conn, self.client = None, None
             retcod = False
         finally:
             end = time.time()
-            logger.info(f"SSH connect {self.hostname} took {end-begin:.3f}s {retcod=}")
+            logger.debug(f"SSH connect {self.hostname} took {end-begin:.3f}s {retcod=}")
             return retcod
 
     async def run(self, command):
@@ -142,8 +142,7 @@ class SshProxy:
             output = None
         finally:
             end = time.time()
-            logger.info(
-                f"SSH run {self.hostname} took {end-begin:.3f}s")
+            logger.info(f"SSH run {self.hostname} took {end-begin:.3f}s")
             return output
 
     # >>> asyncio.iscoroutine(asyncssh.SSHClientConnection.close)
@@ -154,7 +153,7 @@ class SshProxy:
             await self.conn.wait_closed()
         self.conn = None
 
-    async def wait_for(self, backoff, timeout=1.):
+    async def wait_for(self, backoff, timeout=5.):
         """
         Wait until the ssh service is usable
         """
