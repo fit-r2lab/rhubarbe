@@ -95,6 +95,9 @@ class SshProxy:
 
     async def connect(self, timeout=None):
         begin = time.time()
+        # if we don't ctch the exception (typically CancelError)
+        # we need this to be set
+        retcod = False
         try:
             self.conn, self.client = await asyncio.wait_for(
                 asyncssh.create_connection(
@@ -103,7 +106,11 @@ class SshProxy:
                 ),
                 timeout=timeout)
             retcod = True
-        except (OSError, asyncssh.Error, asyncio.TimeoutError, asyncio.exceptions.CancelledError) as exc:
+        # we need to let CancelError propagate here, otherwise there is no way to
+        # stop the task from continuing when a timeout has occurred and we want to abort
+        # typically within the nightly script, or other waiting tasks when a node is not well
+        except (OSError, asyncssh.Error, asyncio.TimeoutError) as exc:
+        # except (OSError, asyncssh.Error, asyncio.TimeoutError, asyncio.exceptions.CancelledError) as exc:
             logger.debug(f"SSH FAIL on {self.hostname} {type(exc)=} {exc=}")
             self.conn, self.client = None, None
             retcod = False
