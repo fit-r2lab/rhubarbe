@@ -1,5 +1,11 @@
 # Changelog
 
+## 6.3.0 - 2025 Apr 25
+
+- ssh: do **NOT** catch `asyncio.exceptions.CancelledError` as this makes
+  the asynciojobs scheduler unable to properly finish the jobs; which in turns
+  makes the nightly script unable to finish
+
 ## 6.2.2 - 2025 Apr 17
 
 - add a new config item `ssh_nightly_timeout` to be used by the nightly script
