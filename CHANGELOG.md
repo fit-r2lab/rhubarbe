@@ -1,5 +1,9 @@
 # Changelog
 
+## 6.4.0 - 2025 May 7
+
+- new type of pdu host `raspberry` is now available
+
 ## 6.3.0 - 2025 Apr 25
 
 - ssh: do **NOT** catch `asyncio.exceptions.CancelledError` as this makes
