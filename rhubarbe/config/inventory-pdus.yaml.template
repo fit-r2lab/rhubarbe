@@ -37,11 +37,21 @@ pdu_hosts:
     password: xxx-hidden-xxx
 
   # a relay box
+  # the 'relay' type supports 8 outlets
   - name: relay1
     type: relay
     IP: 192.168.4.108
     username: undefined
     password: undefined
+
+  # new type of relays is based on raspberry pi
+  # only 3 outlets available on each raspberry
+  - name: relay-01
+    type: raspberry
+    IP: relay-01
+    username: undefined
+    password: undefined
+
 
 # devices:
 #  each entry is described with
@@ -98,3 +108,9 @@ devices:
     inputs:
       - pdu_host_name: relay1
         outlet: 5
+
+# or on a raspberry pi
+  - name: qhat02
+    inputs:
+      - pdu_host_name: relay-01
+        outlet: 3
