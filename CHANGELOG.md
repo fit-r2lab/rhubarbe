@@ -1,5 +1,11 @@
 # Changelog
 
+## 6.5.0 - 2025 May 19
+
+- pdu data model: WIP
+  - pdu_host can have an optional location; e.g. fit04
+  - pdu_host's username and password become optional
+
 ## 6.4.0 - 2025 May 7
 
 - new type of pdu host `raspberry` is now available
