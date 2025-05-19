@@ -26,24 +26,27 @@ def verbose(*args, **kwds):
 
 
 
-
 @dataclass
 class PduHost:
 
     name: str
     type: str
     IP: str                                     # pylint: disable=invalid-name
-    username: str
-    password: str
+    username: str = "undefined"
+    password: str = "undefined"
     chain_length: int = 1
-
+    location: str = ""
 
     def oneline(self):
-        text = f"ssh = {self.username}@{self.IP}"
-        if self.is_chained():
-            text += f" == daisy chain of {self.chain_length} boxes"
+        text = ""
+        if self.username == "undefined":
+            text += f"no username"
         else:
-            text += " == no chaining"
+            text += f"ssh = {self.username}@{self.IP}"
+        if self.is_chained():
+            text += f" / daisy chain of {self.chain_length} boxes"
+        else:
+            text += " / no chaining"
         return text
 
 
@@ -337,12 +340,15 @@ class InventoryPdus(YAMLWizard):
         """
         print(f"we have {len(self.pdu_hosts)} PDUs and {len(self.devices)} devices. ")
         pdu_host_width = max(len(pdu_host.name) for pdu_host in self.pdu_hosts)
+        pdu_location_width = max(len(pdu_host.location) for pdu_host in self.pdu_hosts)
         type_width = max(len(pdu_host.type) for pdu_host in self.pdu_hosts)
         sep = 10 * '='
 
         async def status_all():
             for pdu_host in self.pdu_hosts:
-                print(f"{sep} {pdu_host.name:>{pdu_host_width}} ({pdu_host.type:<{type_width}}) {sep}")
+                location_message = (" "*(pdu_location_width+2)
+                    if not pdu_host.location else f" @{pdu_host.location:{pdu_location_width}}")
+                print(f"{sep} {pdu_host.name:>{pdu_host_width}} ({pdu_host.type:<{type_width}}){location_message} {sep}")
                 print(f"{pdu_host.oneline()}")
 
                 await pdu_host.probe()
@@ -362,6 +368,7 @@ class InventoryPdus(YAMLWizard):
 
         names = [] if names is None else [n.lower() for n in names]
         pdu_host_width = max(len(pdu_host.name) for pdu_host in self.pdu_hosts)
+        pdu_location_width = max(len(pdu_host.location) for pdu_host in self.pdu_hosts)
         type_width = max(len(pdu_host.type) for pdu_host in self.pdu_hosts)
         device_width = max(len(device.name) for device in self.devices)
         sep = 10 * '='
@@ -371,7 +378,9 @@ class InventoryPdus(YAMLWizard):
             # if no name was passed, list all pdu_hosts
             if names and pdu_host.name.lower() not in names:
                 continue
-            print(f"{sep} {pdu_host.name:>{pdu_host_width}} ({pdu_host.type:<{type_width}}) {sep}")
+            location_message = (" "*(pdu_location_width+2)
+                if not pdu_host.location else f" @{pdu_host.location:{pdu_location_width}}")
+            print(f"{sep} {pdu_host.name:>{pdu_host_width}} ({pdu_host.type:<{type_width}}){location_message} {sep}")
             print(f"{pdu_host.oneline()}")
             for device in self.devices:
                 for input_ in device.inputs:
