@@ -24,18 +24,18 @@ from pathlib import Path
 # * one special handler for monitor*s that goes onto stdout -> journal
 # * one special handler for accounts - ditto but with a shorter layout
 
+# most logs now end upin journalctl so the timestamp is redundant
 rhubarbe_logging_config = {
     'version': 1,
     'disable_existing_loggers': True,
     'formatters': {
         'standard': {
-            'format': '%(asctime)s %(levelname)s '
-                      '%(filename)s:%(lineno)d %(message)s',
-            'datefmt': '%m-%d %H:%M:%S'
+            'format': '%(levelname)s %(filename)s:%(lineno)d %(message)s',
+            # 'datefmt': '%m-%d %H:%M:%S'
         },
         'shorter': {
-            'format': '%(asctime)s %(levelname)s %(message)s',
-            'datefmt': '%d %H:%M:%S'
+            'format': '%(levelname)s %(message)s',
+            # 'datefmt': '%d %H:%M:%S'
         },
     },
     'handlers': {

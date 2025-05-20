@@ -298,14 +298,14 @@ CheckHostIP=no
     def run_forever(self, cycle, policy):
         while True:
             beg = time.time()
-            logger.info("---------- rhubarbe accounts manager "
+            logger.info("accounts manager "
                         f"policy = {policy}, cycle {cycle}s")
             self.manage_accounts(policy)
             now = time.time()
             duration = now - beg
             towait = cycle - duration
             if towait > 0:
-                logger.info(f"---------- rhubarbe accounts manager - "
+                logger.info(f"accounts manager - "
                             f"sleeping for {towait:.2f}s")
                 time.sleep(towait)
             else:
@@ -332,6 +332,6 @@ CheckHostIP=no
         if cycle != 0:
             self.run_forever(cycle, policy)
         else:
-            logger.info(f"---------- rhubarbe accounts manager oneshot "
+            logger.info(f"accounts manager oneshot "
                         f"policy = {policy}")
             self.manage_accounts(policy)
