@@ -1,6 +1,10 @@
 # Changelog
 
-## 6.5.1 - 2025 May 19
+## 6.5.2 - 2025 May 20
+
+- shorter outputs, as they go through journalctl and get a timestamp already
+
+## 6.5.1 - 2025 May 20
 
 - pdu data model
   - pdu_host's username and password become optional
