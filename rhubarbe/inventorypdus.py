@@ -330,6 +330,7 @@ class InventoryPdus(YAMLWizard):
         for device in self.devices:
             for input_ in device.inputs:
                 input_.pdu_host = hosts_by_name[input_.pdu_host_name]
+            device.location = self.get_device_location(device.name)
         return self
 
 
@@ -410,3 +411,13 @@ class InventoryPdus(YAMLWizard):
         return self._get_object(name, 'devices', 'device')
     def get_pdu_host(self, name) -> PduHost:
         return self._get_object(name, 'pdu_hosts', 'pdu_host')
+
+    def get_device_location(self, device_name):
+        """
+        returns the location of the device
+        """
+        device = self.get_device(device_name)
+        if not device:
+            return None
+        pdu_host = self.get_pdu_host(device.inputs[0].pdu_host_name)
+        return pdu_host.location

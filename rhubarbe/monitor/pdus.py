@@ -44,6 +44,8 @@ class MonitorPdu:
         status = await self.pdu_device.status(show_stdout=False)
         on_off = 'on' if status == 0 else 'off' if status == 1 else 'unknown'
         self.info['on_off'] = on_off
+        if location := self.pdu_device.location:
+            self.info['location'] = location
         if self.verbose:
             logger.info(f"on_off on PDU {self.name} is {on_off}")
         await self.emit()
