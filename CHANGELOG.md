@@ -1,10 +1,11 @@
 # Changelog
 
-## 6.5.0 - 2025 May 19
+## 6.5.1 - 2025 May 19
 
-- pdu data model: WIP
-  - pdu_host can have an optional location; e.g. fit04
+- pdu data model
   - pdu_host's username and password become optional
+  - pdu_host can have an optional location; e.g. fit04
+  - this is propagated to the attached pdu_devices, and exposed by monitorpdus too
 
 ## 6.4.0 - 2025 May 7
 
@@ -23,11 +24,11 @@
 ## 6.2.1 - 2025 Apr 15
 
 * no real change; the ssh_timeout (in /etc/rhubarbe/rhubarbe.conf.local)
-  had to be increased to 10s to get a reliable status to display 
+  had to be increased to 10s to get a reliable status to display
   in the run view on the web
 * otoh no change was needed in the cmc timeout, the default (3s) is fine again
   (after a misconfig was spotted in the networking hardware)
-* as a side effect, this version comes with much cleaner logs; 
+* as a side effect, this version comes with much cleaner logs;
   all 3 monitor take the -v and -d options that map to logger.info() and logger.debug() resp.
   also the summary line in monitornodes is shown with a warning level so it always shows
 
