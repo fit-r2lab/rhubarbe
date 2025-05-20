@@ -47,7 +47,7 @@ class MonitorPdu:
         if location := self.pdu_device.location:
             self.info['location'] = location
         if self.verbose:
-            logger.info(f"on_off on PDU {self.name} is {on_off}")
+            logger.info(f"on_off on PDU {self.name} {location=} is {on_off}")
         await self.emit()
 
     async def probe_forever(self):
