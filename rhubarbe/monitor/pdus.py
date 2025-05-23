@@ -8,6 +8,7 @@ As a start, the tool only reports ON or OFF or UNKNOWN
 # pylint: disable=logging-fstring-interpolation, fixme, missing-function-docstring
 
 import asyncio
+from math import nan
 
 from rhubarbe.logger import monitor_logger as logger
 
@@ -44,9 +45,34 @@ class MonitorPdu:
         status = await self.pdu_device.status(show_stdout=False)
         on_off = 'on' if status == 0 else 'off' if status == 1 else 'unknown'
         self.info['on_off'] = on_off
+        self.publish_extras()
         if self.verbose:
             logger.info(f"on_off on PDU {self.name} is {on_off}")
         await self.emit()
+
+    def publish_extras(self):
+        """
+        propagate positions information and other cosmetic information
+        """
+        dev = self.pdu_device
+        if dev.icon_x_rank is nan and dev.icon_y_rank is nan:
+            pass
+        elif dev.icon_x_rank is not nan and dev.icon_y_rank is not nan:
+            logger.warning(
+                f"pdu {dev.name} has both icon_x_rank and icon_y_rank defined - ignored"
+            )
+        elif dev.icon_x_rank is not nan:
+            self.info['icon_x_rank'] = dev.icon_x_rank
+            self.info['icon_y_rank'] = 0
+        else:
+            self.info['icon_x_rank'] = 0
+            self.info['icon_y_rank'] = dev.icon_y_rank
+        if dev.location_x_grid is not nan:
+            self.info['location_x_grid'] = dev.location_x_grid
+        if dev.location_y_grid is not nan:
+            self.info['location_y_grid'] = dev.location_y_grid
+        if dev.label:
+            self.info['label'] = dev.label
 
     async def probe_forever(self):
         while True:

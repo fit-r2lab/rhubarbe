@@ -4,6 +4,7 @@ the classes that help manage our PDU devices
 
 # pylint: disable=fixme, unspecified-encoding
 
+from math import nan
 from dataclasses import dataclass
 import asyncio
 
@@ -13,7 +14,6 @@ import asyncssh
 
 from .config import Config
 from .logger import logger
-
 
 VERBOSE = False
 #VERBOSE = True
@@ -139,6 +139,11 @@ class PduDevice:
     status_cache: bool | None = None
     # if set to True, the device will be turned off when the testbed is idle
     auto_turn_off: bool = False
+    icon_x_rank: float = nan
+    icon_y_rank: float = nan
+    location_x_grid: float = nan
+    location_y_grid: float = nan
+    label: str = ""
 
 
     async def is_pingable(self, timeout=1) -> bool:
