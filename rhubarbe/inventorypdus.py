@@ -26,7 +26,6 @@ def verbose(*args, **kwds):
 
 
 
-
 @dataclass
 class PduHost:
 
@@ -141,6 +140,7 @@ class PduDevice:
     auto_turn_off: bool = False
     icon_x_rank: float = nan
     icon_y_rank: float = nan
+    icon_units: str = "grid"  # can be set to 'grid' or 'rank'
     location_x_grid: float = nan
     location_y_grid: float = nan
     label: str = ""

@@ -64,9 +64,11 @@ class MonitorPdu:
         elif dev.icon_x_rank is not nan:
             self.info['icon_x_rank'] = dev.icon_x_rank
             self.info['icon_y_rank'] = 0
+            self.info['icon_units'] = dev.icon_units
         else:
             self.info['icon_x_rank'] = 0
             self.info['icon_y_rank'] = dev.icon_y_rank
+            self.info['icon_units'] = dev.icon_units
         if dev.location_x_grid is not nan:
             self.info['location_x_grid'] = dev.location_x_grid
         if dev.location_y_grid is not nan:
