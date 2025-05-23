@@ -1,5 +1,21 @@
 # Changelog
 
+## 7.0.0 - 2025 May 23
+
+- pdu_device data model: add fields to describe where the icon and antennas are located
+  on the map:
+  - icon_x_rank
+  - icon_y_rank
+  - icon_units
+  - location_x_grid
+  - location_y_grid
+- pdu_device data model: add a 'label' field
+- pdu_host data model: username and password are now optional
+
+## 6.5.x
+
+DO NOT USE THESE VERSIONS, we've changed track after that
+
 ## 6.4.0 - 2025 May 7
 
 - new type of pdu host `raspberry` is now available
