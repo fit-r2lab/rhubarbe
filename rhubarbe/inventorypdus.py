@@ -33,17 +33,21 @@ class PduHost:
     name: str
     type: str
     IP: str                                     # pylint: disable=invalid-name
-    username: str
-    password: str
+    username: str = ""
+    password: str = ""
     chain_length: int = 1
 
 
     def oneline(self):
-        text = f"ssh = {self.username}@{self.IP}"
-        if self.is_chained():
-            text += f" == daisy chain of {self.chain_length} boxes"
+        text = ""
+        if self.username == "":
+            text += f"no ssh"
         else:
-            text += " == no chaining"
+            text += f"ssh = {self.username}@{self.IP}"
+        if self.is_chained():
+            text += f" / daisy chain of {self.chain_length} boxes"
+        else:
+            text += " / no chaining"
         return text
 
 
