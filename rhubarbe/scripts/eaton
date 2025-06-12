@@ -275,12 +275,13 @@ function eaton-off() {
 
 function main() {
     function help() {
-        echo "Usage: $0 <command> IP args..."
+        echo "Usage: $0 <command> IP NAME args..."
         echo "command among list status on off"
     }
-    [[ "$#" -le 1 ]] && { help; exit 1; }
+    [[ "$#" -le 2 ]] && { help; exit 1; }
     local subcommand="$1"; shift
     PDU_IP="$1"; shift
+    DEVICE_NAME="$1"; shift
     init_globals_from_ip
 
     local function="eaton-${subcommand}"

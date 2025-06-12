@@ -28,22 +28,23 @@ function raspberry-status() {
     # provided but ignored
     local _chain="$1"; shift
     local outlet="$1"; shift
-    [[ "$outlet" -lt 1 || "$outlet" -gt 3 ]] && help
+    [[ "${outlet}" -lt 1 || "${outlet}" -gt 3 ]] && help
 
     local url="http://$PDU_IP:8000/api/v1/relay/CH${outlet}/status"
     local status=$(http GET $url | jq -r .status )
 
     case "$status" in
     off)
-        echo "raspberry-$relay@outlet-$outlet: OFF"
+        echo "${PDU_IP}@outlet-${outlet} ($DEVICE_NAME): OFF"
         return 1
         ;;
     on)
-        echo "raspberry-$relay@outlet-$outlet: ON"
+        echo "${PDU_IP}@outlet-${outlet} ($DEVICE_NAME): ON"
         return 0
         ;;
     *)
-        echo "Could not retrieve raspberry-$relay@outlet-$outlet status, returned $status"
+        echo "Could not retrieve ${PDU_IP}@outlet-${outlet} ($DEVICE_NAME) status, GET returned '$status'"
+        echo "with url = $url"
         return 255
         ;;
     esac
@@ -65,22 +66,22 @@ function -raspberry-on-off() {
     # provided but ignored
     local _chain="$1"; shift
     local outlet="$1"; shift
-    [[ "$outlet" -lt 1 || "$outlet" -gt 3 ]] && help
+    [[ "${outlet}" -lt 1 || "${outlet}" -gt 3 ]] && help
 
-    raspberry-status $_chain $outlet >& /dev/null
+    raspberry-status $_chain ${outlet} >& /dev/null
     local current_status=$?
 
     case $mode in
     on)
         if [ "$current_status" -eq 0 ]; then
-            echo "$COMMAND outlet#$outlet already ON"
+            echo "${PDU_IP}@outlet-${outlet} ($DEVICE_NAME) already ON"
             exit 0
         fi
         com=1
         ;;
     off)
         if [ "$current_status" -eq 1 ]; then
-            echo "$COMMAND outlet#$outlet already OFF"
+            echo "${PDU_IP}@outlet-${outlet} ($DEVICE_NAME) already OFF"
             exit 0
         fi
         com=0
@@ -102,20 +103,21 @@ function raspberry-off() {
 function raspberry-probe() {
     echo "Probing raspberry $PDU_IP"
     for outlet in $(seq 1 3); do
-        raspberry-status 0 $outlet
+        raspberry-status 0 ${outlet}
     done
 }
 
 function main() {
 
     function help() {
-        echo "Usage: $0 status|on|off IP chain outlet"
+        echo "Usage: $0 status|on|off IP NAME chain outlet"
         exit 255
     }
 
-    [[ "$#" -le 1 ]] && { help; exit 1; }
+    [[ "$#" -le 2 ]] && { help; exit 1; }
     local subcommand="$1"; shift
     PDU_IP="$1"; shift
+    DEVICE_NAME="$1"; shift
 
     local function="raspberry-${subcommand}"
     $function "$@"

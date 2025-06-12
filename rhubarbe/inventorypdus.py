@@ -54,9 +54,10 @@ class PduHost:
         return self.chain_length > 1
 
 
-    async def run_pdu_shell(self, action, *args, show_stdout=True):
+    async def run_pdu_shell(self, action, device_name, *args, show_stdout=True):
         """
         run the 'pdu' command on the PDU host where this input is attached
+        when this targets a device, the device_name is set - otherwise it is None
         """
         env = dict(PDU_USERNAME=self.username, PDU_PASSWORD=self.password)
         # contains sensitive information
@@ -71,8 +72,8 @@ class PduHost:
             return 255
 
         command_path = resource_filename('rhubarbe', script)
-        command = f"{command_path} {action} {self.IP} {' '.join(str(arg) for arg in args)}"
-        verbose(f"PduHost: running command '{command}'")
+        command = f"{command_path} {action} {self.IP} {device_name or '""'} {' '.join(str(arg) for arg in args)}"
+        verbose(f"PduHost: running command '{command}' with {device_name=}")
         proc = await asyncio.create_subprocess_shell(
             command,
             stdout=asyncio.subprocess.PIPE,
@@ -92,7 +93,7 @@ class PduHost:
 
 
     async def probe(self):
-        return await self.run_pdu_shell("probe")
+        return await self.run_pdu_shell("probe", None)
 
 
 @dataclass
@@ -122,7 +123,7 @@ class PduInput:
         if device_name:
             message = f"PduInput: running action '{action}' on device {device_name}"
         verbose(message)
-        return await self.pdu_host.run_pdu_shell(action, *args, show_stdout=show_stdout)
+        return await self.pdu_host.run_pdu_shell(action, device_name, *args, show_stdout=show_stdout)
 
 
 
