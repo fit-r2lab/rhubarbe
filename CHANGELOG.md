@@ -1,5 +1,12 @@
 # Changelog
 
+## 7.0.1 - 2025 Jun 12
+
+- pdu commands: more explicit messages; notably they now include the target
+  device name
+- the `relay` type of pdu_host is now deprecated, and has been removed
+  altogether from the code
+
 ## 7.0.0 - 2025 May 23
 
 - pdu_device data model: add fields to describe where the icon and antennas are located
