@@ -149,7 +149,7 @@ function eaton-probe() {
 
     ${SNMPWALK} ${PREFIX_NAME} | while read line; do
         local address=$(snmp-extract-address <<< $line)
-        local name=$(snmp-extract-string <<< $line | remove-outlet)
+        # local name=$(snmp-extract-string <<< $line | remove-outlet)
         local status_integer=$(${SNMPGET} ${PREFIX_STATUS}.${address} | snmp-extract-integer)
         local watts=$(${SNMPGET} ${PREFIX_WATTS}.${address} | snmp-extract-integer)
         local status="???"
@@ -160,7 +160,7 @@ function eaton-probe() {
             1) status="ON"; power=" (${watts}W)" ;;
         esac
 
-        echo $address: $name $status$power
+        echo $address: $DEVICE_NAME $status$power
     done
     myexit 0
 }
@@ -183,19 +183,19 @@ function eaton-status() {
     [[ "$outlet" -lt 1 || "$outlet" -gt 8 || "$chain" -lt 0 || "$chain" -gt 1 ]] && help
 
     local status_integer=$(${SNMPGET} ${PREFIX_STATUS}.${chain}.${outlet} | snmp-extract-integer)
-    local name=$(${SNMPGET} ${PREFIX_NAME}.${chain}.${outlet} | snmp-extract-string | remove-outlet)
+    # local name=$(${SNMPGET} ${PREFIX_NAME}.${chain}.${outlet} | snmp-extract-string | remove-outlet)
     local watts=$(${SNMPGET} ${PREFIX_WATTS}.${chain}.${outlet} | snmp-extract-integer)
     case "$status_integer" in
         0)
-            echo "chain-$chain@outlet-$outlet ($name): OFF"
+            echo "$PDU_IP chain-$chain@outlet-$outlet ($DEVICE_NAME): OFF"
             myexit 1
             ;;
         1)
-            echo "chain-$chain@outlet-$outlet ($name): ON (${watts}W)"
+            echo "$PDU_IP chain-$chain@outlet-$outlet ($DEVICE_NAME): ON (${watts}W)"
             myexit 0
             ;;
         *)
-            echo "Could not retrieve chain-$chain@outlet-$outlet ($name) status, returned $res"
+            echo "Could not retrieve $PDU_IP chain-$chain@outlet-$outlet ($DEVICE_NAME) status, returned $res"
             myexit 255
     esac
 }
@@ -252,16 +252,16 @@ function -eaton-on-off() {
 EOF
 
     local line=$(relevant-line 5)
-    local name=$(sed -n "${line}p" $TMP | sed "s/[^0-9a-zA-Z ]//g" | sed -e 's|Outlet ||')
+    # local name=$(sed -n "${line}p" $TMP | sed "s/[^0-9a-zA-Z ]//g" | sed -e 's|Outlet ||')
     line=$(relevant-line 3)
     local res=$(sed -n "${line}p" $TMP | sed "s/[^0-9-]//g")
 
     local MODE=$(tr 'a-z' 'A-Z' <<< $mode)
     if [[ "$res" -eq "$expected" ]]; then
-        echo "chain-$chain@outlet-$outlet ($name): ${MODE}"
+        echo "$PDU_IP chain-$chain@outlet-$outlet (${DEVICE_NAME}): ${MODE}"
         myexit 0
     else
-        echo "Error could not switch ${mode} chain-$chain@outlet-$outlet ($name), returns $res"
+        echo "Error could not switch ${mode} $PDU_IP chain-$chain@outlet-$outlet (${DEVICE_NAME}), returns $res"
         myexit 255
     fi
 }
