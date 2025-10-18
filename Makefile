@@ -41,13 +41,13 @@ sync:
 	@echo '===== once copied, do the following as root on $(DEST)'
 	@echo 'conda activate r2lab-dev-313 && pip install -e $(TMPDIR)'
 
-r2lab:
+r2lab faraday:
 	$(MAKE) sync deployment=production
 
 preplab:
 	$(MAKE) sync deployment=preplab
 
-.PHONY: sync faraday preplab
+.PHONY: sync r2lab faraday preplab
 
 ########## actually install
 infra:
