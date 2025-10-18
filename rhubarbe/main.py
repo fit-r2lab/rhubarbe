@@ -22,8 +22,8 @@ from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 import logging
 import asyncio
 
-
-from pkg_resources import resource_string #, resource_exists, resource_filename
+# pkg_resources is deprecated in favor of importlib.resources
+from importlib import resources
 
 from asynciojobs import Scheduler, Job
 
@@ -902,23 +902,31 @@ def template(*argv):
         "-p", "--phones", dest='phones',
         action='store_true', default=False,
         help="Show template for /etc/rhubarbe/inventory-phones.json")
+    parser.add_argument(
+        "-u", "--pdus", dest='pdus',
+        action='store_true', default=False,
+        help="Show template for /etc/rhubarbe/inventory-pdus.json")
+
     args = parser.parse_args(argv)
 
-    def show_template(nodes_or_phones):
-        template = resource_string(
-            'rhubarbe', f"config/inventory-{nodes_or_phones}.json.template")
+    def show_template(hardware_kind, format):
+        template = (
+            resources.files("rhubarbe")
+            / f"config/inventory-{hardware_kind}.{format}.template"
+        ).read_bytes()
         print("# =========="
-              f" template for /etc/rhubarbe/inventory-{nodes_or_phones}.json")
+              f" template for /etc/rhubarbe/inventory-{hardware_kind}.json")
         print(template.decode(encoding='utf-8'))
 
     # pick -n by default
-    if not args.nodes and not args.phones:
+    if not args.nodes and not args.phones and not args.pdus:
         args.nodes = True
 
-    for nodes_or_phones in ('nodes', 'phones'):
-        selected = getattr(args, nodes_or_phones)
+    for hardware_kind, format in zip(
+        ('nodes', 'phones', 'pdus'), ('json', 'json', 'yaml')):
+        selected = getattr(args, hardware_kind)
         if selected:
-            show_template(nodes_or_phones)
+            show_template(hardware_kind, format)
     return 0
 
 ####################

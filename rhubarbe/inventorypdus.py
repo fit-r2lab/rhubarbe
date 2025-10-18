@@ -8,7 +8,7 @@ from math import nan
 from dataclasses import dataclass
 import asyncio
 
-from pkg_resources import resource_exists, resource_filename
+from importlib import resources
 from dataclass_wizard import YAMLWizard
 import asyncssh
 
@@ -66,12 +66,11 @@ class PduHost:
         #     verbose(f'export {key}="{value}"')
         # verbose(10*'-')
         script = f"scripts/{self.type}"
-        exists = resource_exists('rhubarbe', script)
-        if not exists:
-            print(f"Could not find script '{script}' - exiting")
+        command_path = (resources.files("rhubarbe") / script)
+        if not command_path.exists():
+            print(f"Could not locate script '{script}' - exiting")
             return 255
 
-        command_path = resource_filename('rhubarbe', script)
         command = f"{command_path} {action} {self.IP} {device_name or '""'} {' '.join(str(arg) for arg in args)}"
         verbose(f"PduHost: running command '{command}' with {device_name=}")
         proc = await asyncio.create_subprocess_shell(

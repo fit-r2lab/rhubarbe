@@ -8,7 +8,7 @@ import socket
 import configparser
 from pathlib import Path
 
-from pkg_resources import resource_exists, resource_filename
+from importlib import resources
 
 from rhubarbe.singleton import Singleton
 from rhubarbe.logger import logger
@@ -20,10 +20,9 @@ from rhubarbe.logger import logger
 # pylint: disable=c0111,w1202,r1705
 # pylint: disable=logging-fstring-interpolation, import-outside-toplevel
 
-# http://setuptools.readthedocs.io/en/latest/pkg_resources.html
-# says to not use os.path to check for resources
-DEFAULT_EXISTS = resource_exists('rhubarbe', 'config/rhubarbe.conf')
-DEFAULT_LOCATION = resource_filename('rhubarbe', 'config/rhubarbe.conf')
+# pkg_resources is deprecated in favor of importlib.resources
+DEFAULT_LOCATION = resources.files("rhubarbe") / "config" / "rhubarbe.conf"
+DEFAULT_EXISTS = DEFAULT_LOCATION.is_file()
 
 LOCATIONS = [
     # all the files found in these locations are considered
