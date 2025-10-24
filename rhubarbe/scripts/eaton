@@ -108,7 +108,7 @@ function myexit() {
 
 #echo using PDU_PASSWORD=${PDU_PASSWORD} PDU_USERNAME=${PDU_USERNAME} PDU_IP=${PDU_IP}
 
-# with used to use -i /dev/null instead of  -oPreferredAuthentications=password
+# we used to use -i /dev/null instead of  -oPreferredAuthentications=password
 # which we were really meaning in the first place
 # regardless, with that setting involving /dev/null the output
 # was garbled with 7 lines of warning messages
