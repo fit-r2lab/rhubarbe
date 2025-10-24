@@ -1,5 +1,9 @@
 # Changelog
 
+## 7.0.2 - 2025 Oct 24
+
+- replace deprecated pkg_resources with importlib.resources
+
 ## 7.0.1 - 2025 Jun 12
 
 - pdu commands: more explicit messages; notably they now include the target
