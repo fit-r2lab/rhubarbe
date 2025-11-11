@@ -1,5 +1,15 @@
 # Changelog
 
+## 8.0.0 - 2025 Nov 11
+
+- a new type of objects 'relay' is now available
+- rhubarbe relay print: prints the current temperatures of all relays
+- rhubarbe relay store: stores the current temperatures of all relays
+  under /etc/rhubarbe/relay-01.csv
+- a new systemd service 'relaystemperatures.service' is now provided
+  and triggers through an hourly timer, to remember all temperatures
+- inventory provided in /etc/rhubarbe/inventory-relays.yaml
+
 ## 7.0.2 - 2025 Oct 24
 
 - replace deprecated pkg_resources with importlib.resources
