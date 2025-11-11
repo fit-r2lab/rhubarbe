@@ -1,0 +1,12 @@
+# this is meant to be installed under /etc/systemd/system
+[Unit]
+Description=runs a HTTP API to read Rhubarbe relay temperatures
+
+[Service]
+#Environment="PYTHONASYNCIODEBUG=1"
+ExecStart=/bin/bash -c "rhubarbe-relaysapi"
+Restart=always
+RestartSec=60s
+
+[Install]
+WantedBy=multi-user.target

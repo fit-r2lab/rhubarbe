@@ -28,6 +28,8 @@ dependencies = [
     'websockets>=14',
     # the raspberry script for PDUs uses the http CLI
     'httpie',
+    # for relaysapi service
+    'fastapi[standard]',
 ]
 
 
@@ -71,6 +73,7 @@ rhubarbe-config = "rhubarbe.__main__:main"
 rhubarbe-template = "rhubarbe.__main__:main"
 rhubarbe-pdu = "rhubarbe.__main__:main"
 rhubarbe-relay = "rhubarbe.__main__:main"
+rhubarbe-relaysapi = "rhubarbe.__main__:main"
 rhubarbe-version = "rhubarbe.__main__:main"
 
 

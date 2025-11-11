@@ -1034,6 +1034,7 @@ def pdu(*argv):
     except ValueError as exc:
         print(exc)
         exit(255)
+
 ####################
 
 @subcommand
@@ -1062,6 +1063,22 @@ def relay(*argv):
         case 'store' | 'store-temperatures':
             inventory_relays.get_temperatures(mode='store')
 
+####################
+
+@subcommand
+def relaysapi(*argv):
+    usage = """
+    run the relay API service
+    """
+    parser = ArgumentParser(
+        usage=usage,
+        formatter_class=ArgumentDefaultsHelpFormatter)
+    args = parser.parse_args(argv)
+    from rhubarbe.api.relays import run_relays_api_service
+    run_relays_api_service()
+    return 0
+
+####################
 
 @subcommand
 def version(*_):

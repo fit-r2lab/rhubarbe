@@ -11,6 +11,8 @@ from datetime import datetime as DateTime
 from pathlib import Path
 import asyncio
 
+import pandas as pd
+
 from importlib import resources
 from dataclass_wizard import YAMLWizard
 import asyncssh
@@ -43,6 +45,7 @@ class Relay:
         raw3 = raw2.split("'")[0]
         return float(raw3)
 
+
     def store_current_temperature(self, temperature):
         now = DateTime.now().replace(microsecond=0).isoformat()
         # temperature = asyncio.run(self.get_temperature())
@@ -52,6 +55,26 @@ class Relay:
             folder.mkdir(parents=True, exist_ok=True)
         with (Path(folder) / f"{self.host}.csv").open('a') as writer:
             print(f"{now},{temperature}", file=writer)
+
+
+    def load_past_data(self, *, duration=None, resample_period=None):
+        folder = Path(Config().value('testbed', 'relays_database_folder'))
+        try:
+            df = pd.read_csv(
+                Path(folder) / f"{self.host}.csv",
+                names=['timestamp', self.host],
+                parse_dates=['timestamp'],
+                index_col='timestamp'
+            )
+            if duration is not None:
+                time_threshold = DateTime.now() - duration
+                df = df[df.index >= time_threshold]
+            if resample_period is not None:
+                df = df.resample(resample_period).mean()
+            return df
+        except FileNotFoundError:
+            logger.warning(f"no past data for relay {self.host}")
+            return pd.DataFrame()
 
 @dataclass
 class InventoryRelays(YAMLWizard):
@@ -96,3 +119,14 @@ class InventoryRelays(YAMLWizard):
         return iter(self.relays)
     def __len__(self):
         return len(self.relays)
+
+    def load_past_data(self, *, duration=None, resample_period=None):
+        pieces = []
+        for relay in self.relays:
+            piece = relay.load_past_data(
+                duration=duration,
+                resample_period=resample_period
+            )
+            piece['relay'] = relay.host
+            pieces.append(piece)
+        return pd.concat(pieces, axis=0)
