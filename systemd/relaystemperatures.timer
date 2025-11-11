@@ -2,7 +2,7 @@
 Description=acquire all relays temperatures on an hourly basis
 
 [Timer]
-OnCalendar=*-*-* *:01
+OnCalendar=*-*-* *:0/15
 Unit=relaystemperatures.service
 
 [Install]
