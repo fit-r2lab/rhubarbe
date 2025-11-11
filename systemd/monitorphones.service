@@ -6,6 +6,7 @@ Description=testbed phones probe - reports to sidecar using websockets
 # also available is
 #  --sidecar-url http://r2lab.inria.fr:999/
 [Service]
+#Environment="PYTHONASYNCIODEBUG=1"
 ExecStart=/bin/bash -c "rhubarbe-monitorphones -v"
 Restart=always
 RestartSec=60s
