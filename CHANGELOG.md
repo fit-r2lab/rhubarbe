@@ -1,6 +1,6 @@
 # Changelog
 
-## 8.0.0 - 2025 Nov 11
+## 8.0.1 - 2025 Nov 11
 
 - a new type of objects 'relay' is now available
 - rhubarbe relay print: prints the current temperatures of all relays
@@ -9,6 +9,7 @@
 - a new systemd service 'relaystemperatures.service' is now provided
   and triggers through an hourly timer, to remember all temperatures
 - inventory provided in /etc/rhubarbe/inventory-relays.yaml
+- rhubarbe relaysapi: a FastAPI-based API service to get relay temperatures
 
 ## 7.0.2 - 2025 Oct 24
 
