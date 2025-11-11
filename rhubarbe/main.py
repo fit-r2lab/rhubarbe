@@ -53,6 +53,7 @@ from .book import Book
 from .inventorynodes import InventoryNodes
 from .inventoryphones import InventoryPhones
 from .inventorypdus import InventoryPdus
+from .inventoryrelays import InventoryRelays
 
 
 # a supported command comes with a driver function
@@ -1034,6 +1035,32 @@ def pdu(*argv):
         print(exc)
         exit(255)
 ####################
+
+@subcommand
+def relay(*argv):
+    usage = """
+    perform temperature acquisition on the known relays
+
+    one mandatory argument: mode must be either 'print' or 'store'; the former
+    means printing current temperatures on stdout, the latter means create an entry
+    in the temperatures database.
+    """
+    parser = ArgumentParser(
+        usage=usage,
+        formatter_class=ArgumentDefaultsHelpFormatter)
+    parser.add_argument(
+        'mode',
+        choices=['store-temperatures', 'store', 'print-temperatures', 'print'],
+        default='print',
+    )
+    args = parser.parse_args(argv)
+
+    inventory_relays = InventoryRelays.load()
+    match args.mode:
+        case 'print' | 'print-temperatures':
+            inventory_relays.get_temperatures(mode='print')
+        case 'store' | 'store-temperatures':
+            inventory_relays.get_temperatures(mode='store')
 
 
 @subcommand

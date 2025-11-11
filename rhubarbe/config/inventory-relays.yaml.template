@@ -1,0 +1,11 @@
+relays:
+  - host: relay-01
+  - host: relay-02
+  - host: relay-03
+  - host: relay-04
+  - host: relay-05
+  - host: relay-06
+  - host: relay-07
+  - host: relay-08
+  - host: relay-09
+  - host: relay-10

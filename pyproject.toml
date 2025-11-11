@@ -70,6 +70,7 @@ rhubarbe-inventory = "rhubarbe.__main__:main"
 rhubarbe-config = "rhubarbe.__main__:main"
 rhubarbe-template = "rhubarbe.__main__:main"
 rhubarbe-pdu = "rhubarbe.__main__:main"
+rhubarbe-relay = "rhubarbe.__main__:main"
 rhubarbe-version = "rhubarbe.__main__:main"
 
 

@@ -1,0 +1,9 @@
+[Unit]
+Description=acquire all relays temperatures on an hourly basis
+
+[Timer]
+OnCalendar=*-*-* *:01
+Unit=relaystemperatures.service
+
+[Install]
+WantedBy=multi-user.target
