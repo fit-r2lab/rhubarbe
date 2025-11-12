@@ -1,6 +1,6 @@
 # Changelog
 
-## 8.0.3 - 2025 Nov 12
+## 8.0.4 - 2025 Nov 12
 
 - a new type of objects 'relay' is now available
 - rhubarbe relay print: prints the current temperatures of all relays
