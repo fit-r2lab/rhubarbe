@@ -23,7 +23,7 @@ async def get_relays_temperatures(
         duration=pd_duration,
         resample_period=pd_resample_period
     )
-    return df.to_csv()
+    return df.to_json(orient='records')
 
 app.include_router(api_v1)
 def run_relays_api_service():

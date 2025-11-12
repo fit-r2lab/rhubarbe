@@ -57,25 +57,6 @@ class Relay:
             print(f"{now},{self.host},{temperature}", file=writer)
 
 
-    def load_past_data(self, *, duration=None, resample_period=None):
-        folder = Path(Config().value('testbed', 'relays_database_folder'))
-        try:
-            df = pd.read_csv(
-                Path(folder) / f"{self.host}.csv",
-                names=['timestamp', self.host],
-                parse_dates=['timestamp'],
-                index_col='timestamp'
-            )
-            if duration is not None:
-                time_threshold = DateTime.now() - duration
-                df = df[df.index >= time_threshold]
-            if resample_period is not None:
-                df = df.resample(resample_period).mean()
-            return df
-        except FileNotFoundError:
-            logger.warning(f"no past data for relay {self.host}")
-            return pd.DataFrame()
-
 @dataclass
 class InventoryRelays(YAMLWizard):
 
@@ -121,12 +102,18 @@ class InventoryRelays(YAMLWizard):
         return len(self.relays)
 
     def load_past_data(self, *, duration=None, resample_period=None):
-        pieces = []
-        for relay in self.relays:
-            piece = relay.load_past_data(
-                duration=duration,
-                resample_period=resample_period
-            )
-            piece['relay'] = relay.host
-            pieces.append(piece)
-        return pd.concat(pieces, axis=0)
+        folder = Path(Config().value('testbed', 'relays_database_folder'))
+        df = pd.read_csv(
+            folder / "temperatures.csv",
+            names=["timestamp", "relay", "temperature"])
+        df['timestamp'] = pd.to_datetime(df['timestamp'], format="ISO8601")
+        df.set_index('timestamp', inplace=True)
+        if duration is not None:
+            duration = pd.Timedelta(duration)
+            # print(type(duration))
+            time_threshold = pd.Timestamp.now() - duration
+            df = df[df.index >= time_threshold]
+        if resample_period is not None:
+            # resample already has string builtin conversion
+            df = df.groupby('relay').resample(resample_period).mean()
+        return df
