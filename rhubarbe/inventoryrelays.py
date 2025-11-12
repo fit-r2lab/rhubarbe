@@ -53,8 +53,10 @@ class Relay:
         if not folder.is_dir():
             print(f"Creating folder {folder}")
             folder.mkdir(parents=True, exist_ok=True)
-        with (Path(folder) / f"{self.host}.csv").open('a') as writer:
-            print(f"{now},{temperature}", file=writer)
+        # with (folder / f"{self.host}.csv").open('a') as writer:
+        #     print(f"{now},{temperature}", file=writer)
+        with (folder / "temperatures.csv").open('a') as writer:
+            print(f"{self.host},{now},{temperature}", file=writer)
 
 
     def load_past_data(self, *, duration=None, resample_period=None):
