@@ -22,7 +22,7 @@ async def get_relays_temperatures(
     df = inventory_relays.load_past_data(
         duration=pd_duration,
         resample_period=pd_resample_period
-    )
+    ).reset_index()
     return df.to_json(orient='records')
 
 app.include_router(api_v1)
