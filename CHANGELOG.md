@@ -1,15 +1,18 @@
 # Changelog
 
-## 8.0.4 - 2025 Nov 12
+## 8.0.5 - 2025 Nov 13
 
 - a new type of objects 'relay' is now available
-- rhubarbe relay print: prints the current temperatures of all relays
-- rhubarbe relay store: stores the current temperatures of all relays
-  under /etc/rhubarbe/relays/temperatures.csv
+- inventory expected in /etc/rhubarbe/inventory-relays.yaml
+- rhubarbe relay
+  - rhubarbe relay print: prints the current temperatures of all relays
+  - rhubarbe relay store: stores the current temperatures of all relays
+    under /etc/rhubarbe/relays/temperatures.csv
 - a new systemd service 'relaystemperatures.service' is now provided
-  and triggers through an 15 min timer, to remember all temperatures
-- inventory provided in /etc/rhubarbe/inventory-relays.yaml
+  and triggers through an 15 min timer, to record all temperatures in said file
 - rhubarbe relaysapi: a FastAPI-based API service to get relay temperatures
+  runs on port 8000 and exposes a POST /api/v1/relays/temperatures endpoint
+  that accepts optional JSON body with 'duration' and 'resample_period' parameters
 
 ## 7.0.2 - 2025 Oct 24
 
