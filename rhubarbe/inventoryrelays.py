@@ -7,7 +7,6 @@ the entry point for acquiring temperatures
 
 from math import nan
 from dataclasses import dataclass
-from datetime import datetime as DateTime
 from pathlib import Path
 import asyncio
 
@@ -47,7 +46,7 @@ class Relay:
 
 
     def store_current_temperature(self, temperature):
-        now = DateTime.now().replace(microsecond=0).isoformat()
+        now = pd.Timestamp.now().replace(microsecond=0).tz_localize("Europe/Paris").isoformat()
         # temperature = asyncio.run(self.get_temperature())
         folder = Path(Config().value('testbed', 'relays_database_folder'))
         if not folder.is_dir():
