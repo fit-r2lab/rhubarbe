@@ -1,6 +1,6 @@
 # Changelog
 
-## 8.0.6 - 2025 Nov 13
+## 8.0.7 - 2025 Nov 13
 
 - a new type of objects 'relay' is now available
 - inventory expected in /etc/rhubarbe/inventory-relays.yaml
