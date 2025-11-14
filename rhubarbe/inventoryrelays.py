@@ -46,7 +46,12 @@ class Relay:
 
 
     def store_current_temperature(self, temperature):
-        now = pd.Timestamp.now().replace(microsecond=0).tz_localize("Europe/Paris").isoformat()
+        now = (
+            pd.Timestamp.utcnow()
+            .replace(microsecond=0)
+            .isoformat()
+            .replace("+00:00","Z")
+        )
         # temperature = asyncio.run(self.get_temperature())
         folder = Path(Config().value('testbed', 'relays_database_folder'))
         if not folder.is_dir():
