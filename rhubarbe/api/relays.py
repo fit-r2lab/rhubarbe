@@ -28,7 +28,7 @@ async def get_relays_temperatures(params: RelayTemperatureQuery):
         duration=params.duration,
         resample_period=params.resample_period
     ).reset_index()
-    return df.to_json(orient='records')
+    return df.to_json(orient='records', date_format='iso')
 
 app.include_router(api_v1)
 def run_relays_api_service():
