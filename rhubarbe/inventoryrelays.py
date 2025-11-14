@@ -114,7 +114,7 @@ class InventoryRelays(YAMLWizard):
         df.set_index('timestamp', inplace=True)
         if duration is not None:
             duration = pd.Timedelta(duration)
-            time_threshold = pd.Timestamp.utcnow() - duration
+            time_threshold = pd.to_datetime(pd.Timestamp.utcnow()) - duration
             df = df[df.index >= time_threshold]
         if resample_period is not None:
             # resample already has string builtin conversion
