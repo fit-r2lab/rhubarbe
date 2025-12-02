@@ -532,6 +532,9 @@ def images(*argv):
     parser.add_argument("focus", nargs="*", type=str,
                         help="if provided, only images that contain "
                         "one of these strings are displayed")
+    parser.add_argument("-a", "--and", help="use AND logic instead of OR",
+                        dest='and_or', action='store_const',
+                        const='and', default='or')
     args = parser.parse_args(argv)
     imagesrepo = ImagesRepo()
     if args.sort_size is not None:
@@ -540,11 +543,12 @@ def images(*argv):
         args.sort_by = 'date'
     else:
         args.sort_by = 'name'
+    and_or = args.and_or
 
     # if focus is an empty list, then everything is shown
     return imagesrepo.images(
         args.focus, args.sort_by, args.reverse,
-        args.labeled, args.public_only, args.narrow)
+        args.labeled, args.public_only, args.narrow, and_or)
 
 ####################
 

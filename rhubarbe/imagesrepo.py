@@ -286,7 +286,7 @@ class ImagesRepo(metaclass=Singleton):
 
 
     def images(self, focus, sort_by, reverse,           # pylint: disable=r0913
-               labeled, public_only, narrow):
+               labeled, public_only, narrow, and_or):
         show_dot = not public_only
         # avoid showing images twice if already in the public repo
         show_public = True
@@ -298,13 +298,15 @@ class ImagesRepo(metaclass=Singleton):
             # an empty focus means to show all
             if not focus:
                 return True
-            # in this context a cluster is just a list of infos
-            for image_path in cluster:
-                for filtr in focus:
-                    # rough : no regexp, just find the filter or not
-                    if str(image_path).find(filtr) >= 0:
-                        return True
-            return False
+            def match_one(filtr):
+                # rough : no regexp, just find the filter or not
+                return any(str(image_path).find(filtr) >= 0 for image_path in cluster)
+            # default is 'or'
+            if and_or == 'and':
+                return all(match_one(filtr) for filtr in focus)
+            else:
+                return any(match_one(filtr) for filtr in focus)
+
         def select_labeled(cluster):
             if not labeled:
                 return True
