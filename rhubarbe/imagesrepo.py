@@ -288,7 +288,10 @@ class ImagesRepo(metaclass=Singleton):
     def images(self, focus, sort_by, reverse,           # pylint: disable=r0913
                labeled, public_only, narrow):
         show_dot = not public_only
+        # avoid showing images twice if already in the public repo
         show_public = True
+        if Path.cwd().absolute() == self.public.absolute():
+            show_public = False
         long_format = not narrow
         # is a given cluster filtered by focus
         def in_focus(cluster):
