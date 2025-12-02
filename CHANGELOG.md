@@ -1,5 +1,12 @@
 # Changelog
 
+## 8.1.0 - 2025 Dec 2
+
+- rhubarbe images no longer shows duplicates when run in /var/lib/rhubarbe-images
+- rhubarbe images has a new -a option to search for all terms, not just any term
+  useful example to locate ubuntu AND 24
+- rhubarbe wait no longer shows ssh debug messages
+
 ## 8.0.10 - 2025 Nov 13
 
 - a new type of objects 'relay' is now available
