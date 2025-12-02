@@ -55,6 +55,15 @@ from .inventoryphones import InventoryPhones
 from .inventorypdus import InventoryPdus
 from .inventoryrelays import InventoryRelays
 
+from .logger import monitor_logger
+
+# ssh.py logs its debug messages in monitor_logger
+# we want that off in interactive commands
+def turn_off_ssh_debug_messages():
+    class NoDebugFilter(logging.Filter):
+        def filter(self, record):
+            return record.levelno != logging.DEBUG
+    monitor_logger.addFilter(NoDebugFilter())
 
 # a supported command comes with a driver function
 # in this module, that takes a list of args
@@ -430,6 +439,7 @@ def wait(*argv):                                        # pylint: disable=r0914
     """
     # suppress info log messages from asyncssh
     asyncssh_set_log_level(logging.WARNING)
+    turn_off_ssh_debug_messages()
 
     config = Config()
     parser = ArgumentParser(usage=usage,
