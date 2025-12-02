@@ -124,7 +124,7 @@ class SshProxy:
         finally:
             end = time.time()
             logger.debug(f"SSH connect {self.hostname} took {end-begin:.3f}s {retcod=}")
-            return retcod
+        return retcod
 
     async def run(self, command):
         """
@@ -150,7 +150,7 @@ class SshProxy:
         finally:
             end = time.time()
             logger.info(f"SSH run {self.hostname} took {end-begin:.3f}s")
-            return output
+        return output
 
     # >>> asyncio.iscoroutine(asyncssh.SSHClientConnection.close)
     # False
