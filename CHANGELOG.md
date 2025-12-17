@@ -1,5 +1,10 @@
 # Changelog
 
+## 8.2.0 - 2025 Dec 17
+
+- for 3.14: `MonitorLoop` was using `get_event_loop()` that no longer works as before,
+  use asyncio.Runner() instead
+
 ## 8.1.0 - 2025 Dec 2
 
 - rhubarbe images no longer shows duplicates when run in /var/lib/rhubarbe-images
