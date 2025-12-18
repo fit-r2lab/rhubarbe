@@ -362,8 +362,9 @@ class InventoryPdus(YAMLWizard):
 
     # this method used to be called plain 'list'
     # however when moving to 3.14 it started to conflict with builtin 'list'
-    # especially in the definition of the dataclass fields 
+    # especially in the definition of the dataclass fields
     # and that was screwing up dataclass_wizard; not quite sure how that happened
+    # see also https://github.com/rnag/dataclass-wizard/issues/219
     def display_list(self, names=None):
         """
         if no name: list all pdu hosts
