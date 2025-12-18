@@ -1000,7 +1000,7 @@ def pdu(*argv):
 
         match command:
             case 'list':
-                inventory_pdus.list(extras)
+                inventory_pdus.display_list(extras)
 
             case 'status':
                 if not extras:
