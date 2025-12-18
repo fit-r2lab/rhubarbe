@@ -1,5 +1,11 @@
 # Changelog
 
+## 8.2.1 - 2025 Dec 18
+
+- fix inventorypdus.py that was breaking with 3.14 because
+  of a weird interaction with local method 'list'
+  see also https://github.com/rnag/dataclass-wizard/issues/219
+
 ## 8.2.0 - 2025 Dec 17
 
 - for 3.14: `MonitorLoop` was using `get_event_loop()` that no longer works as before,
