@@ -99,16 +99,13 @@ class SshProxy:
         # we need this to be set
         retcod = False
         try:
-            self.conn, self.client = await asyncio.wait_for(
-                asyncssh.create_connection(
+            self.conn, self.client = await asyncssh.create_connection(
                     MySSHClient, self.hostname, username=self.username,
-                    known_hosts=None
-                ),
-                timeout=timeout)
+                known_hosts=None,
+                connect_timeout=timeout)
             retcod = True
-        # we need to let CancelError propagate here, otherwise there is no way to
-        # stop the task from continuing when a timeout has occurred and we want to abort
-        # typically within the nightly script, or other waiting tasks when a node is not well
+        # connect_timeout fires as asyncio.TimeoutError from within asyncssh,
+        # without going through asyncio.wait_for cancellation machinery
         except (OSError, asyncssh.Error, asyncio.TimeoutError) as exc:
         # except (OSError, asyncssh.Error, asyncio.TimeoutError, asyncio.exceptions.CancelledError) as exc:
             logger.debug(f"SSH FAIL on {self.hostname} {type(exc)=} {exc=}")
