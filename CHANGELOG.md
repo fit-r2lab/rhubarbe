@@ -1,5 +1,10 @@
 # Changelog
 
+## 8.2.2 - 2026 Feb 26
+
+- timeouts: node.py & aiohttp requests, use the lib's timetout mechanisms
+- timeouts: ssh.py, use asyncssh's connect_timeout instead of asyncio.wait_for
+
 ## 8.2.1 - 2025 Dec 18
 
 - fix inventorypdus.py that was breaking with 3.14 because
