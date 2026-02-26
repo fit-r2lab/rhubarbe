@@ -100,7 +100,7 @@ class SshProxy:
         retcod = False
         try:
             self.conn, self.client = await asyncssh.create_connection(
-                    MySSHClient, self.hostname, username=self.username,
+                MySSHClient, self.hostname, username=self.username,
                 known_hosts=None,
                 connect_timeout=timeout)
             retcod = True
