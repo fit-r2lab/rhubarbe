@@ -8,8 +8,10 @@ querying status, turning on or off, and similar
 # w0703 catch Exception
 # r1705 else after return
 # pylint: disable=c0111, w0703, w1202
+# pylint: disable=logging-fstring-interpolation
 
 import os.path
+import traceback
 
 import asyncio
 import aiohttp
@@ -37,6 +39,9 @@ class Node:                                             # pylint: disable=r0902
         # for monitornodes
         self.id = int("".join([x for x in cmc_name      # pylint: disable=c0103
                                if x in "0123456789"]))
+        # used later
+        self.frisbee = None
+        self.imagezip = None
 
     def __repr__(self):
         return f"<Node {self.control_hostname()}>"
@@ -146,7 +151,6 @@ class Node:                                             # pylint: disable=r0902
             setattr(self, verb, None)
             return None
         except Exception:
-            import traceback
             traceback.print_exc()
             setattr(self, verb, None)
             return None

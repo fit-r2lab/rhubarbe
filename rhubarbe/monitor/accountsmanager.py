@@ -5,7 +5,6 @@ takes care of the defined / authorized logins
 think of it as a dedicated nodemanager
 """
 
-# XXX:
 # current implementation drawbacks:
 # when migrating from an old box to a new box, it would make sense
 # for this tool to enforce things that are metastable
@@ -21,6 +20,7 @@ think of it as a dedicated nodemanager
 # w0703 catch Exception
 # r1705 else after return
 # pylint: disable=c0111,w0703,w1202,w1202
+# pylint: disable=logging-fstring-interpolation
 
 import time
 import os
@@ -64,8 +64,9 @@ def replace_file_with_string(destination_path, new_contents,
                 f"replace_file_with_string: removing file {destination_path}")
             try:
                 destination_path.unlink()
-            finally:
-                return True                             # pylint: disable=w0150
+            except IOError as exc:
+                logger.error(f"Could not remove file {destination_path}: {exc}")
+            return True
         # we're done and have nothing to do
         return False
     # overwrite file: create a temp in the same directory
@@ -78,7 +79,7 @@ def replace_file_with_string(destination_path, new_contents,
             os.system(f"chown {owner} {destination_path}")
         return True
     except IOError as exc:
-        logger.error(f"Cannot create {destination_path}")
+        logger.error(f"Cannot create {destination_path}, {exc}")
         return None
 
 ####################
@@ -163,7 +164,7 @@ class AccountsManager:
         # do the job of netsop-accessctl by hand
         # to get rid of the dependency
         lines = []
-        with open("/etc/security/access.conf") as f:
+        with open("/etc/security/access.conf", encoding="utf-8") as f:
             for line in f:
                 # nothing to do
                 if line.startswith(f"+:{slicename}:"):
@@ -172,7 +173,7 @@ class AccountsManager:
                 if "END local" in line:
                     lines.append(f"+:{slicename}:ALL\n")
                 lines.append(line)
-        with open("/etc/security/access.conf", "w") as f:
+        with open("/etc/security/access.conf", "w", encoding="utf-8") as f:
             f.writelines(lines)
         os.system("chmod 444 /etc/security/access.conf")
 

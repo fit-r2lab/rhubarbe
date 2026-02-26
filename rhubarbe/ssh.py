@@ -9,16 +9,17 @@ This code still has it, mostly out of laziness
 # w0703 catch Exception
 # r1705 else after return
 # pylint: disable=c0111, w0703, w1202
+# pylint: disable=logging-fstring-interpolation
 
 import time
 import random
 import asyncio
 import asyncssh
 
+from .logger import monitor_logger as logger
+
 DEBUG = False
 # DEBUG = True
-
-from .logger import monitor_logger as logger
 
 
 class MySSHClientSession(asyncssh.SSHClientSession):
@@ -37,13 +38,13 @@ class MySSHClientSession(asyncssh.SSHClientSession):
     def data_received(self, data, datatype):
         # not adding a \n since it's already in there
         if DEBUG:
-            print('SSS DR: {}:{}-> {} [[of type {}]]'.
-                  format(self.node, self.command, data, datatype), end='')
+            print(f'SSS DR: {self.node}:{self.command}-> {data} [[of type {datatype}]]',
+                  end='')
         self.data += data
 
-    def connection_made(self, conn):                    # pylint: disable=w0221
+    def connection_made(self, chan):                    # pylint: disable=w0221
         if DEBUG:
-            print(f'SSS CM: {self.node} {conn}')
+            print(f'SSS CM: {self.node} {chan}')
 
     def connection_lost(self, exc):
         if exc:
@@ -89,8 +90,7 @@ class SshProxy:
         return self
 
     async def __aexit__(self, exc_type, exc_value, traceback):
-        # xxx this might be a little harsh, in the case
-        # where an exception did occur
+        # this might be a little harsh, in the case where an exception did occur
         await self.close()
 
     async def connect(self, timeout=None):
@@ -107,7 +107,6 @@ class SshProxy:
         # connect_timeout fires as asyncio.TimeoutError from within asyncssh,
         # without going through asyncio.wait_for cancellation machinery
         except (OSError, asyncssh.Error, asyncio.TimeoutError) as exc:
-        # except (OSError, asyncssh.Error, asyncio.TimeoutError, asyncio.exceptions.CancelledError) as exc:
             logger.debug(f"SSH FAIL on {self.hostname} {type(exc)=} {exc=}")
             self.conn, self.client = None, None
             retcod = False
@@ -185,8 +184,8 @@ class SshProxy:
 if __name__ == '__main__':
 
     def main():
-        import sys
-        from rhubarbe.node import Node
+        import sys                              # pylint: disable=import-outside-toplevel
+        from rhubarbe.node import Node          # pylint: disable=import-outside-toplevel
 
         async def probe(host, message_bus):
             node = Node(host, message_bus)
