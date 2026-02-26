@@ -132,8 +132,10 @@ class Node:                                             # pylint: disable=r0902
         verb typically is 'status', 'on', 'off' or 'info'
         """
         url = f"http://{self.cmc_name}/{verb}"
+        cmc_timeout = float(Config().value('nodes', 'cmc_default_timeout'))
+        http_timeout = aiohttp.ClientTimeout(connect=cmc_timeout, total=cmc_timeout)
         try:
-            async with aiohttp.ClientSession() as session:
+            async with aiohttp.ClientSession(timeout=http_timeout) as session:
                 async with session.get(url) as response:
                     text = await response.text(encoding='utf-8')
                     if strip_result:
@@ -181,8 +183,10 @@ class Node:                                             # pylint: disable=r0902
           * None if something goes wrong
         """
         url = f"http://{self.cmc_name}/{message}"
+        cmc_timeout = float(Config().value('nodes', 'cmc_default_timeout'))
+        http_timeout = aiohttp.ClientTimeout(connect=cmc_timeout, total=cmc_timeout)
         try:
-            async with aiohttp.ClientSession() as session:
+            async with aiohttp.ClientSession(timeout=http_timeout) as session:
                 async with session.get(url) as response:
                     text = await response.text(encoding='utf-8')
         except Exception:
