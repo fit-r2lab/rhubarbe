@@ -45,7 +45,6 @@ from .monitor.loop import MonitorLoop
 from .monitor.nodes import MonitorNodes
 from .monitor.phones import MonitorPhones
 from .monitor.pdus import MonitorPdus
-from .monitor.leases import MonitorLeases
 from .monitor.accountsmanager import AccountsManager
 from .ssh import SshProxy
 from .leases import Leases
@@ -810,41 +809,6 @@ def monitorpdus(*argv):
     MonitorLoop("monitorpdus").run(monitorpdus.run_forever())
 
     return 0
-
-####################
-
-
-@subcommand
-def monitorleases(*argv):
-
-    from rhubarbe.logger import monitor_logger as logger
-
-    usage="""
-    Cyclic check of leases; also reacts to 'request' messages on
-    the sidecar channel, which triggers leases acquisition right away.
-    See config for defaults.
-    """
-    #config = Config()
-    parser = ArgumentParser(
-        usage=usage, formatter_class=ArgumentDefaultsHelpFormatter)
-    parser.add_argument(
-        "-u", "--sidecar-url", dest="sidecar_url",
-        default=Config().value('sidecar', 'url'),
-        help="url for the sidecar server")
-    parser.add_argument(
-        "-v", "--verbose", default=False, action='store_true')
-    args = parser.parse_args(argv)
-
-    logger.info("monitoring leases")
-
-    message_bus = asyncio.Queue()
-    monitorleases = MonitorLeases(
-        message_bus, args.sidecar_url, args.verbose)
-
-    MonitorLoop("monitorleases").run(monitorleases.run_forever())
-
-    return 0
-
 
 ####################
 
