@@ -15,10 +15,11 @@ import os
 import pwd
 import time
 import traceback
+from datetime import datetime, timezone
 
 from .logger import logger
 from .config import Config
-from .plcapiproxy import PlcApiProxy
+from .r2labapiproxy import R2labApiProxy, iso_to_epoch, epoch_to_iso
 
 DEBUG = False
 DEBUG = True
@@ -31,21 +32,16 @@ class Lease:
 
     wire_timeformat = "%Y-%m-%dT%H:%M:%S%Z"
 
-    def __init__(self, plc_lease):
+    def __init__(self, api_lease):
         try:
-            self.leases_hostname = Config().value('plcapi', 'leases_hostname')
-            self.owner = plc_lease['name']
-            self.lease_id = plc_lease['lease_id']
-            self.subjects = [plc_lease['hostname']]
-            self.ifrom, self.iuntil = plc_lease['t_from'], plc_lease['t_until']
+            self.owner = api_lease.get('slice_name') or '(unknown)'
+            self.lease_id = api_lease['id']
+            self.ifrom = iso_to_epoch(api_lease['t_from'])
+            self.iuntil = iso_to_epoch(api_lease['t_until'])
             self.broken = False
-            # this is only to get __repr__ as short as possible
 
         except Exception as exc:
             self.broken = f"lease broken b/c of exception {exc}"
-
-        if not self.subjects:
-            self.broken = "(no component)"
 
     # show a 2-chars prefix
     # one for rights (computed by caller - not shown if not provided)
@@ -65,15 +61,8 @@ class Lease:
         second_day = not self.same_date(self.ifrom, self.iuntil)
         time_message = (f"from {self.human(self.ifrom, show_timezone=False)}"
                         f" until {self.human(self.iuntil, show_date=second_day)}")
-        # usual case is that self.subjects == [leases_hostname]
-        if (len(self.subjects) == 1
-            and self.subjects[0] == self.leases_hostname):
-            scope = ""
-        else:
-            msg = " & ".join(self.subjects)
-            scope = f" -> {msg}"
         return (f"{rights_char}{time_char}"
-                f" {time_message} {self.owner} {scope}")
+                f" {time_message} {self.owner}")
 
     def sort_key(self):
         """
@@ -106,14 +95,14 @@ class Lease:
             time.strftime("%y-%m-%d", time.localtime(epoch2))
         )
 
-    def booked_now_by(self, hostname, login):
+    def booked_now_by(self, login):
         """
         tells if this lease is held right now, by that login (if not None)
         or by anyone (if login is None)
         """
-        return self.booked_at_by(hostname, time.time(), login)
+        return self.booked_at_by(time.time(), login)
 
-    def booked_at_by(self, hostname, instant, login):
+    def booked_at_by(self, instant, login):
         """
         tells if this lease is held at that time, by that login (if not None)
         or by anyone (if login is None)
@@ -125,10 +114,6 @@ class Lease:
         if not self.ifrom <= instant <= self.iuntil:
             if DEBUG:
                 logger.info(f"{self} : wrong timerange")
-            return False
-        if hostname not in self.subjects:
-            if DEBUG:
-                logger.info(f"{hostname} not among subjects {self.subjects}")
             return False
         if login is not None and not self.owner == login:
             if DEBUG:
@@ -142,30 +127,30 @@ class Leases:                                           # pylint: disable=r0902
     """
     A list of leases as downloaded from the API
     """
-    # the details of the plcapi_proxy instance where to look for leases
 
     def __init__(self, message_bus):
         self.message_bus = message_bus
         # don't use os.getlogin() as this gives root if under su
         self.login = pwd.getpwuid(os.getuid())[0]
-        # the hostname of the plcapi node that we attach leases to
-        self.leases_hostname = Config().value('plcapi', 'leases_hostname')
-        plcapi_url = Config().value('plcapi', 'url')
-        self.plcapi_proxy = PlcApiProxy(plcapi_url)
+        the_config = Config()
+        api_url = the_config.value('r2labapi', 'url')
+        self.resource_name = the_config.value('r2labapi', 'resource_name')
+        # no token: reads are public, writes will prompt for credentials
+        self.proxy = R2labApiProxy(api_url)
         # computed later
         # a list of Lease objects
         self.leases = None
-        # the result of GetLeases - essentially as-is
-        self.plc_leases = None
+        # the raw API response
+        self.api_leases = None
         # xxx this is still used by monitornodes
         # should be cleaned up
         self.resources = None
 
     def __repr__(self):
         if self.leases is None:
-            return (f"<Leases from {self.plcapi_proxy} - **(UNFETCHED)**>")
+            return (f"<Leases from {self.proxy} - **(UNFETCHED)**>")
         else:
-            return (f"<Leases from {self.plcapi_proxy}"
+            return (f"<Leases from {self.proxy}"
                     f" - {len(self.leases)} lease(s)>")
 
     async def feedback(self, field, msg):
@@ -218,12 +203,12 @@ class Leases:                                           # pylint: disable=r0902
     # the following 2 methods assume the leases have been fetched
     def _booked_now_by_login(self, login):
         # must have run fetch_all() before calling this
-        return any([lease.booked_now_by(self.leases_hostname, login)
+        return any([lease.booked_now_by(login)
                     for lease in self.leases])
 
     def _booked_now_by_anyone(self):
         # must have run fetch_all() before calling this
-        return any([lease.booked_now_by(self.leases_hostname, login=None)
+        return any([lease.booked_now_by(login=None)
                     for lease in self.leases])
 
     async def fetch_all(self):
@@ -252,26 +237,31 @@ class Leases:                                           # pylint: disable=r0902
     def epoch_to_ui_ts(epoch):
         return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(epoch))
 
-    def resource_from_lease(self, plc_lease):
-        return {'uuid': plc_lease['lease_id'],
-                'slicename': plc_lease['name'],
-                'valid_from': self.epoch_to_ui_ts(plc_lease['t_from']),
-                'valid_until': self.epoch_to_ui_ts(plc_lease['t_until']),
+    def resource_from_lease(self, api_lease):
+        return {'uuid': api_lease['id'],
+                'slicename': api_lease.get('slice_name', ''),
+                'valid_from': self.epoch_to_ui_ts(
+                    iso_to_epoch(api_lease['t_from'])),
+                'valid_until': self.epoch_to_ui_ts(
+                    iso_to_epoch(api_lease['t_until'])),
                 'ok': True}
 
     async def _fetch_leases(self):
         self.leases = None
         try:
             logger.info("Leases are being fetched..")
-            self.plc_leases = self.plcapi_proxy.GetLeases(
-                {'day': 0}, anonymous=True)
-            logger.info(f"{len(self.plc_leases)} leases received")
+            # fetch leases from today onwards
+            today = datetime.now(tz=timezone.utc).replace(
+                hour=0, minute=0, second=0, microsecond=0)
+            self.api_leases = self.proxy.get_leases(
+                after=today.isoformat())
+            logger.info(f"{len(self.api_leases)} leases received")
             # decoded as a list of Lease objects
-            self.leases = [Lease(resource) for resource in self.plc_leases]
+            self.leases = [Lease(entry) for entry in self.api_leases]
             self.sort_leases()
             self.resources = [
-                self.resource_from_lease(plc_lease)
-                for plc_lease in self.plc_leases
+                self.resource_from_lease(api_lease)
+                for api_lease in self.api_leases
             ]
 
         except Exception as exc:
@@ -280,7 +270,7 @@ class Leases:                                           # pylint: disable=r0902
             traceback.print_exc()
             await self.feedback(
                 'leases_error',
-                f"cannot get leases from {self} - exception {exc}")
+                f"cannot get leases from {self} - exception {exc}")
 
     # this can be used with a fake message queue, it's synchroneous
     def print(self):
@@ -296,7 +286,7 @@ class Leases:                                           # pylint: disable=r0902
                 if self.has_special_privileges():
                     return 'S'
                 # * for yes you can use it
-                if lease.booked_now_by(self.leases_hostname, self.login):
+                if lease.booked_now_by(self.login):
                     return '*'
                 return ' '
             for i, lease in enumerate(self.leases):
@@ -344,20 +334,16 @@ class Leases:                                           # pylint: disable=r0902
         if not t_until:
             print(f"invalid time until: {input_until}")
             return
-        # just making sure
         try:
-            hostname = self.leases_hostname
-            retcod = self.plcapi_proxy.AddLeases(
-                [hostname], owner, t_from, t_until)
-            if 'new_ids' in retcod:
-                # do we want to automatically
-                # recompute the index ?
-                print("OK")
-                # force next reload
-                self.leases = None
-            elif 'errors' in retcod and retcod['errors']:
-                for error in retcod['errors']:
-                    print(f"error: {error}")
+            self.proxy.create_lease({
+                'resource_name': self.resource_name,
+                'slice_name': owner,
+                't_from': epoch_to_iso(t_from),
+                't_until': epoch_to_iso(t_until),
+            })
+            print("OK")
+            # force next reload
+            self.leases = None
         except Exception as exc:
             print('Error', f"Cannot add lease {type(exc)}: {exc}")
             traceback.print_exc()
@@ -379,27 +365,25 @@ class Leases:                                           # pylint: disable=r0902
             if not t_from:
                 print(f"invalid time from: {input_from}")
                 return
-            update_fields['t_from'] = t_from
+            update_fields['t_from'] = epoch_to_iso(t_from)
         if input_until:
             t_until = Leases.to_epoch(input_until)
             if not t_until:
                 print(f"invalid time until: {input_until}")
                 return
-            update_fields['t_until'] = t_until
+            update_fields['t_until'] = epoch_to_iso(t_until)
         # lease_rank could be a rank as displayed by self.print()
         the_lease = self.get_lease_by_rank(lease_rank)
         if not the_lease:
             print(f"Cannot find lease with rank {lease_rank}")
             return
-        lease_ids = [the_lease.lease_id]
-        retcod = self.plcapi_proxy.UpdateLeases(lease_ids, update_fields)
-        if 'errors' in retcod and retcod['errors']:
-            for error in retcod['errors']:
-                print(f"error: {error}")
-        else:
+        try:
+            self.proxy.update_lease(the_lease.lease_id, update_fields)
             print("OK")
             # force next reload
             self.leases = None
+        except Exception as exc:
+            print(f"error: {exc}")
 
     async def _delete_lease(self, lease_rank):
         # lease_rank could be a rank as displayed by self.print()
@@ -407,14 +391,13 @@ class Leases:                                           # pylint: disable=r0902
         if not the_lease:
             print(f"Cannot find lease with rank {lease_rank}")
             return
-        lease_ids = [the_lease.lease_id]
-        retcod = self.plcapi_proxy.DeleteLeases(lease_ids)
-        if retcod == 1:
+        try:
+            self.proxy.delete_lease(the_lease.lease_id)
             print("OK")
             # force next reload
             self.leases = None
-        else:
-            print("not deleted")
+        except Exception as exc:
+            print(f"not deleted: {exc}")
 
     async def main(self, interactive):
         await self.fetch_all()
