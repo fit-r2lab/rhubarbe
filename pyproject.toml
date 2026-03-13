@@ -30,6 +30,8 @@ dependencies = [
     'httpie',
     # for relaysapi service
     'fastapi[standard]',
+    # for r2labapi REST client
+    'requests',
 ]
 
 
