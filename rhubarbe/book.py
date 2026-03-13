@@ -10,33 +10,41 @@ from datetime import datetime as DateTime
 import argparse
 
 from .config import Config
-from .plcapiproxy import PlcApiProxy
+from .r2labapiproxy import R2labApiProxy, iso_to_epoch, epoch_to_iso
 
 class Book:
 
     def __init__(self, email=None, password=None, verbose=False):
         self._verbose = verbose
-        plcapi_url = Config().value('plcapi', 'url')
-        self.plcapi_proxy = PlcApiProxy(plcapi_url, email=email, password=password)
-        self.leases_hostname = Config().value('plcapi', 'leases_hostname')
+        the_config = Config()
+        api_url = the_config.value('r2labapi', 'url')
+        self.resource_name = the_config.value('r2labapi', 'resource_name')
+        self.proxy = R2labApiProxy(api_url)
+        if email and password:
+            self.proxy.login(email, password)
 
     def verbose(self, *args, **kwargs):
         if self._verbose:
             print(*args, **kwargs)
 
 
-    def leases(self, start, end) -> list["PlcLease"]:
+    def leases(self, start, end) -> list:
         """
         return the leases for the given time slot
         """
-        leases = self.plcapi_proxy.GetLeases({'clip': (start, end)})
-        # sort by start time
-        leases.sort(key=lambda lease: lease['t_from'])
-        return leases
+        # after = t_until > start, before = t_from < end
+        # i.e. leases that overlap with [start, end]
+        api_leases = self.proxy.get_leases(
+            after=epoch_to_iso(start),
+            before=epoch_to_iso(end),
+        )
+        # sort by start time; ISO strings sort lexicographically
+        api_leases.sort(key=lambda lease: lease['t_from'])
+        return api_leases
 
     def canonical_date(self, date):
         """
-        return a date in the format expected by the plcapi
+        return a date as a Unix epoch
         tries to be flexible and to understand various formats
         """
         # if the date is given as just hh:mm, assume it is today
@@ -64,7 +72,7 @@ class Book:
 
     def date_to_string(self, date):
         """
-        return a date in the format expected by the plcapi
+        return a human-readable date string from an epoch
         """
         return DateTime.fromtimestamp(date).strftime('%Y-%m-%dT%H:%M')
 
@@ -72,10 +80,12 @@ class Book:
         """
         return a string representation of the lease
         """
+        t_from = iso_to_epoch(lease['t_from'])
+        t_until = iso_to_epoch(lease['t_until'])
         return (
-            f"{self.date_to_string(lease['t_from'])} -> "
-            f"{self.date_to_string(lease['t_until'])} "
-            f"{lease['name']} "
+            f"{self.date_to_string(t_from)} -> "
+            f"{self.date_to_string(t_until)} "
+            f"{lease.get('slice_name', '')} "
         )
 
     def query(self, start, end) -> bool:
@@ -90,28 +100,24 @@ class Book:
             self.verbose(f"{14*' '}{self.lease_repr(lease)}")
         return not leases
 
-    def book(self, slice, start, end) -> bool:
+    def book(self, slice_name, start, end) -> bool:
         """
         book the time slot - return True if successful
         """
         self.verbose(
-            f"booking {slice} from {self.date_to_string(start)} "
+            f"booking {slice_name} from {self.date_to_string(start)} "
             f"until {self.date_to_string(end)}")
-        hostname = self.leases_hostname
         try:
-            retcod = self.plcapi_proxy.AddLeases(
-                    [hostname], slice, start, end
-            )
-            if retcod['errors']:
-                for error in retcod['errors']:
-                    print(f"error: {error}")
-                return False
-            else:
-                lease_id = retcod['new_ids'][0]
-                self.verbose(f"new lease id: {lease_id}")
-                return True
+            lease = self.proxy.create_lease({
+                'resource_name': self.resource_name,
+                'slice_name': slice_name,
+                't_from': epoch_to_iso(start),
+                't_until': epoch_to_iso(end),
+            })
+            self.verbose(f"new lease id: {lease['id']}")
+            return True
         except Exception as exc:
-            print(f"exception in AddLeases : {type(exc)}: {exc}")
+            print(f"exception creating lease: {type(exc)}: {exc}")
             return False
 
     def delete(self, start, end) -> bool:
@@ -136,35 +142,33 @@ class Book:
             return False
 
         lease = leases[0]
-        lease_id = lease['lease_id']
+        lease_id = lease['id']
+        t_from = iso_to_epoch(lease['t_from'])
+        t_until = iso_to_epoch(lease['t_until'])
         now = time.time()
 
         # if the lease is in the past, do nothing
-        if lease['t_until'] < now:
+        if t_until < now:
             self.verbose(f"won't delete lease in the past")
             return False
 
         # how long has it been running ?
-        granularity = self.plcapi_proxy.GetLeaseGranularity()
-        started = now - lease['t_from']
+        resource = self.proxy.get_resource_by_name(self.resource_name)
+        granularity = resource['granularity']
+        started = now - t_from
         # it's been running for more than one granularity, update it
         if started > granularity:
             # we keep that many grains
             nb_grains = int(started // granularity)
-            new_end = lease['t_from'] + nb_grains * granularity
+            new_end = t_from + nb_grains * granularity
             self.verbose(
                 f"updating lease {lease_id} until {self.date_to_string(new_end)}")
             try:
-                retcod = self.plcapi_proxy.UpdateLeases(
-                    [lease_id], {'t_until': new_end})
-                if retcod['errors']:
-                    for error in retcod['errors']:
-                        print(f"error: {error}")
-                    return False
-                else:
-                    return True
+                self.proxy.update_lease(
+                    lease_id, {'t_until': epoch_to_iso(new_end)})
+                return True
             except Exception as exc:
-                print(f"exception in UpdateLease : {type(exc)}: {exc}")
+                print(f"exception in update_lease: {type(exc)}: {exc}")
                 return False
 
         # still here ? the lease has not yet started,
@@ -172,14 +176,11 @@ class Book:
         # delete it
         self.verbose(f"deleting future lease {lease_id}")
         try:
-            retcod = self.plcapi_proxy.DeleteLeases([lease_id])
-            if retcod == 1:
-                self.verbose(f"successful")
-                return True
-            print(f"unexpected error {retcod=} while deleting {lease_id=}")
-            return False
+            self.proxy.delete_lease(lease_id)
+            self.verbose(f"successful")
+            return True
         except Exception as exc:
-            print(f"exception in DeleteLease : {type(exc)}: {exc}")
+            print(f"exception in delete_lease: {type(exc)}: {exc}")
             return False
 
     @staticmethod
