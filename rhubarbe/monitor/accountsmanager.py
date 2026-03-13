@@ -30,7 +30,7 @@ from pathlib import Path
 
 from rhubarbe.logger import accounts_logger as logger
 from rhubarbe.config import Config
-from rhubarbe.plcapiproxy import PlcApiProxy
+from rhubarbe.r2labapiproxy import R2labApiProxy
 
 
 ####################
@@ -89,19 +89,14 @@ class AccountsManager:
 
     def __init__(self):
         the_config = Config()
-        self.plcapiurl = the_config.value('plcapi', 'url')
-        self.email = the_config.value('plcapi', 'admin_email')
-        self.password = the_config.value('plcapi', 'admin_password')
+        self.api_url = the_config.value('r2labapi', 'url')
+        self.admin_token = the_config.value('r2labapi', 'admin_token')
 
         self._proxy = None
 
-    # not reconnectable for now
     def proxy(self):
         if self._proxy is None:
-            # also set debug=True if needed
-            self._proxy = PlcApiProxy(self.plcapiurl,
-                                      email=self.email,
-                                      password=self.password)
+            self._proxy = R2labApiProxy(self.api_url, self.admin_token)
         return self._proxy
 
     @staticmethod
@@ -214,47 +209,42 @@ CheckHostIP=no
                                  remove_if_empty=True)
 
     ##########
-    @staticmethod
-    def authorized_key_lines(plc_slice, plc_persons_by_id, plc_keys_by_id):
+    def fetch_authorized_keys(self, slicename):
         """
-        returns the expected contents of that slice's authorized_keys file
+        Fetch all SSH keys for all members of the given slice,
+        using the /slices/by-name/{name}/keys endpoint.
+        Returns a canonical authorized_keys string.
         """
-        persons = [plc_persons_by_id[id] for id in plc_slice['person_ids']]
-        key_ids = set(sum((p['key_ids'] for p in persons), []))
-        # somtimes the key comes with a final "\n"
-        keys = [plc_keys_by_id[id] for id in key_ids]
-        key_lines = [(k['key'].replace("\n", "") + "\n") for k in keys]
-        # this is so we get something canonical that does not
-        # change everytime
+        try:
+            ssh_keys = self.proxy().get_slice_keys(slicename)
+        except Exception as exc:
+            logger.error(
+                f"Could not fetch keys for slice {slicename}: {exc}")
+            return ""
+        key_lines = [(k['key'].replace("\n", "") + "\n")
+                     for k in ssh_keys]
         key_lines.sort()
         return "".join(key_lines)
 
     ##########
     def manage_accounts(self, policy):             # pylint: disable=r0914
 
-        # get plcapi specification of what should be
-        slices = self.proxy().GetSlices(
-            {}, ['slice_id', 'name', 'expires', 'person_ids'])
-        persons = self.proxy().GetPersons(
-            {}, ['person_id', 'email', 'slice_ids', 'key_ids'])
-        keys = self.proxy().GetKeys()
-
-        current_leases = []
-        if policy == 'leased':
-            now = int(time.time())
-            current_leases = self.proxy().GetLeases(
-                {'alive': now}, ['name'])
-
-        if (current_leases is None or slices is None
-                or persons is None or keys is None):
-            logger.info("PLCAPI unreachable - back to sleep")
+        try:
+            slices = self.proxy().get_slices()
+        except Exception as exc:
+            logger.info(f"r2labapi unreachable ({exc}) - back to sleep")
             return
 
-        # prepare data
-        persons_by_id = {p['person_id']: p for p in persons}
-        keys_by_id = {k['key_id']: k for k in keys}
-        # current_slicenames will contain 0 or 1 item
-        current_slicenames = [lease['name'] for lease in current_leases]
+        current_slicenames = []
+        if policy == 'leased':
+            try:
+                current_leases = self.proxy().get_current_leases()
+                current_slicenames = [
+                    lease['slice_name'] for lease in current_leases]
+            except Exception as exc:
+                logger.info(
+                    f"r2labapi: cannot get leases ({exc}) - back to sleep")
+                return
 
         # initialize with the slice names that are in /etc/passwd
         logins = self.slices_from_passwd()
@@ -273,13 +263,11 @@ CheckHostIP=no
             elif policy == 'leased':
                 authorized_keys = ""
                 if slicename in current_slicenames:
-                    authorized_keys = self.authorized_key_lines(
-                        sliceobj, persons_by_id, keys_by_id)
+                    authorized_keys = self.fetch_authorized_keys(slicename)
 
             # policy == 'open'
             else:
-                authorized_keys = self.authorized_key_lines(
-                    sliceobj, persons_by_id, keys_by_id)
+                authorized_keys = self.fetch_authorized_keys(slicename)
 
             auths_by_login[slicename] = authorized_keys
 
