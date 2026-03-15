@@ -9,6 +9,8 @@ import time
 from datetime import datetime as DateTime
 import argparse
 
+import requests
+
 from .config import Config
 from .r2labapiproxy import R2labApiProxy, iso_to_epoch, epoch_to_iso
 
@@ -116,6 +118,12 @@ class Book:
             })
             self.verbose(f"new lease id: {lease['id']}")
             return True
+        except requests.exceptions.HTTPError as exc:
+            if exc.response.status_code == 409:
+                print(f"conflict: the slot is not free")
+            else:
+                print(f"HTTP error creating lease: {exc}")
+            return False
         except Exception as exc:
             print(f"exception creating lease: {type(exc)}: {exc}")
             return False
