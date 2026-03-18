@@ -1,5 +1,13 @@
 # Changelog
 
+## 9.0.0 - 2026 Mar 18
+
+- relies on r2labapi instead of plcapi
+- monitorleases no longer a service, as leases are now retrieved
+  by sidecar directly from r2labapi
+- config adapted accordingly, with new section [r2labapi]
+  and dropped section [plcapi]
+
 ## 8.2.2 - 2026 Feb 26
 
 - timeouts: node.py & aiohttp requests, use the lib's timetout mechanisms
