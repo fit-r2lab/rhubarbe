@@ -221,12 +221,19 @@ class Book:
             email=args.email, password=args.password, verbose=args.verbose)
         start = book.canonical_date(args.start)
         end = book.canonical_date(args.end)
-        if args.query:
-            return book.query(start, end)
-        elif args.delete:
-            return book.delete(start, end)
-        else:
-            if args.slice is None:
-                parser.error("slice is mandatory unless using -q")
-                exit(1)
-            return book.book(args.slice, start, end)
+        try:
+            if args.query:
+                return book.query(start, end)
+            elif args.delete:
+                return book.delete(start, end)
+            else:
+                if args.slice is None:
+                    parser.error("slice is mandatory unless using -q")
+                    exit(1)
+                return book.book(args.slice, start, end)
+        except requests.exceptions.RequestException as exc:
+            if hasattr(exc, 'response') and exc.response is not None:
+                print(f"HTTP error ({exc.response.status_code}): {exc}")
+            else:
+                print(f"Could not reach the r2lab API: {exc}")
+            return False

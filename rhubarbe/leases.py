@@ -17,6 +17,8 @@ import time
 import traceback
 from datetime import datetime, timezone
 
+import requests
+
 from .logger import logger
 from .config import Config
 from .r2labapiproxy import R2labApiProxy, iso_to_epoch, epoch_to_iso
@@ -264,6 +266,15 @@ class Leases:                                           # pylint: disable=r0902
                 for api_lease in self.api_leases
             ]
 
+        except requests.exceptions.RequestException as exc:
+            if hasattr(exc, 'response') and exc.response is not None:
+                message = (f"HTTP error ({exc.response.status_code})"
+                           f" from {self.proxy}")
+            else:
+                message = f"cannot reach r2lab API at {self.proxy}: {exc}"
+            logger.error(message)
+            print(message)
+            await self.feedback('leases_error', message)
         except Exception as exc:
             if DEBUG:
                 print(f"Leases.fetch: exception {exc}")
