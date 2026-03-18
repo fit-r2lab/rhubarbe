@@ -1,6 +1,6 @@
 # Changelog
 
-## 9.0.0 - 2026 Mar 18
+## 9.0.1 - 2026 Mar 18
 
 - relies on r2labapi instead of plcapi
 - monitorleases no longer a service, as leases are now retrieved
