@@ -1,5 +1,14 @@
 # Changelog
 
+## 9.0.2 - 2026 Mar 19
+
+- accountsmanager adapted to new r2labapi:
+  - avoid doing needless actions
+  - slice names must contain either a _ or a -
+  - uids <= 1000 are ignored
+  - faraday account is ignored
+  - can run with debug mode to spell out the accounts considered
+
 ## 9.0.1 - 2026 Mar 18
 
 - relies on r2labapi instead of plcapi
