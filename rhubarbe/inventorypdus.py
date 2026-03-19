@@ -240,7 +240,12 @@ class PduDevice:
         * retcod can only be 0 or 255 (not 1)
         * and retcod == 0 means the OFF has succeeded
         """
-        await self.attempt_soft_reset()
+        try:
+            await self.attempt_soft_reset()
+        except Exception as exc:
+            logger.warning(f"soft reset failed for device {self.name}, {exc}")
+            logger.warning("still going on with hard reset")
+
         retcods = await self.run_pdu_shell_on_all_inputs('off')
         # if all inputs say 0 (they were turned off), node is off
         if all(retcod == 0 for retcod in retcods):
