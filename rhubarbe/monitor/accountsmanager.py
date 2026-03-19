@@ -25,6 +25,7 @@ think of it as a dedicated nodemanager
 import time
 import os
 import pwd
+import logging
 
 from pathlib import Path
 
@@ -32,6 +33,12 @@ from rhubarbe.logger import accounts_logger as logger
 from rhubarbe.config import Config
 from rhubarbe.r2labapiproxy import R2labApiProxy
 
+# accounts that the manager should leave alone
+# xxx could be configurable
+LEGIT_ACCOUNTS = {'faraday'}
+
+def legal_name(name):
+    return ('_' in name or '-' in name)
 
 ####################
 # adapted from historical planetlab nodemanager
@@ -100,16 +107,26 @@ class AccountsManager:
         return self._proxy
 
     @staticmethod
-    def slices_from_passwd():
+    def is_slice_account(record):
         """
-        Inspect /etc/passwd and return all logins
+        A slice account has uid >= 1001 and shell /bin/bash
+        This filters out system accounts (systemd-network, etc.)
+        and individual accounts with other shells
+        explicity exclude the 'faraday' account that is used for other purposes
+        """
+        return (record.pw_name not in LEGIT_ACCOUNTS
+                and legal_name(record.pw_name)
+                and record.pw_uid >= 1001
+                and record.pw_shell == '/bin/bash'
+                and Path(record.pw_dir).exists())
 
-        ignore the ones that do not have a '_' in them so that
-        we leave alone individual accounts
+    @classmethod
+    def slices_from_passwd(cls):
+        """
+        Inspect /etc/passwd and return all slice logins
         """
         return [record.pw_name for record in pwd.getpwall()
-                if '_' in record.pw_name
-                and Path(record.pw_dir).exists()]
+                if cls.is_slice_account(record)]
 
     @staticmethod
     def slices_with_authorized():
@@ -125,7 +142,9 @@ class AccountsManager:
         for authorized in homeroot.glob('*/.ssh/authorized_keys'):
             # need to move 2 steps up
             basename = authorized.parts[-3]
-            if '_' not in basename:
+            if basename in LEGIT_ACCOUNTS:
+                continue
+            if not legal_name(basename):
                 continue
             yield basename
 
@@ -133,24 +152,38 @@ class AccountsManager:
     def create_account(slicename):
         """
         Does useradd with the right options
-        Plus, creates an empty .ssh dir with proper permissions
-        NOTE that this addresses ubuntu for now, fedora 'useradd'
-        being slightly different as far as I remember
-        (at least wrt homedir creation, IIRC again)
+        Plus, creates .ssh dir with proper permissions
+        Idempotent: skips steps already done, only logs real errors
         """
-        commands = [
-            f"useradd --create-home --user-group {slicename} --shell /bin/bash",
-            f"mkdir /home/{slicename}/.ssh",
-            f"chmod 700 /home/{slicename}/.ssh",
-            f"chown -R {slicename}:{slicename} /home/{slicename}",
-            # see issue #14 and #23
-            # f"netsop-accessctl add local {slicename}",
-        ]
-        for command in commands:
+        homedir = Path(f"/home/{slicename}")
+        sshdir = homedir / ".ssh"
+
+        # create user only if it doesn't exist yet
+        try:
+            pwd.getpwnam(slicename)
+        except KeyError:
+            command = (f"useradd --create-home --user-group"
+                       f" {slicename} --shell /bin/bash")
             logger.info(f"Running {command}")
             retcod = os.system(command)
             if retcod != 0:
                 logger.error(f"{command} -> {retcod}")
+                return
+
+        # create .ssh dir if needed, ensure permissions
+        if not sshdir.exists():
+            logger.info(f"Creating {sshdir}")
+            sshdir.mkdir(mode=0o700)
+        else:
+            sshdir.chmod(0o700)
+
+        # ensure correct ownership (silent unless it fails)
+        retcod = os.system(
+            f"chown -R {slicename}:{slicename} {homedir}")
+        if retcod != 0:
+            logger.error(
+                f"chown -R {slicename}:{slicename}"
+                f" {homedir} -> {retcod}")
 
 
     # for #23
@@ -248,6 +281,7 @@ CheckHostIP=no
 
         # initialize with the slice names that are in /etc/passwd
         logins = self.slices_from_passwd()
+        logger.debug(f"{len(logins)} current slice accounts in /etc/passwd:\n{logins}")
 
         # initialize map login_name -> authorized_keys contents
         # this is where we handle the fact that obsolete slices
@@ -272,8 +306,10 @@ CheckHostIP=no
             auths_by_login[slicename] = authorized_keys
 
         # implement it
+        managed = 0
         for slicename, keys in auths_by_login.items():
             try:
+                logger.debug(f"managing account {slicename} with {keys.count(chr(10))} keys")
                 if slicename not in logins:
                     self.create_account(slicename)
                 # do this always, allows to propagate later changes
@@ -281,8 +317,10 @@ CheckHostIP=no
                 self.apply_keys(slicename, keys)
                 # do this always too, allows to repair broken accounts
                 self.add_in_access_conf(slicename)
+                managed += 1
             except Exception:
                 logger.exception(f"Could not deal with slice {slicename}")
+        logger.debug(f"managed {managed} accounts")
 
     def run_forever(self, cycle, policy):
         while True:
@@ -294,14 +332,14 @@ CheckHostIP=no
             duration = now - beg
             towait = cycle - duration
             if towait > 0:
-                logger.info(f"accounts manager - "
+                logger.info(f"----- accounts manager - "
                             f"sleeping for {towait:.2f}s")
                 time.sleep(towait)
             else:
                 logger.info(f"duration {duration}s exceeded cycle {cycle}s - "
                             f"skipping sleep")
 
-    def main(self, cycle):
+    def main(self, cycle, debug):
         """
         cycle is the duration in seconds of one cycle
 
@@ -310,6 +348,8 @@ CheckHostIP=no
         * cycle = 0 : run just once (for debug mostly)
         """
 
+        if debug:
+            logger.setLevel(logging.DEBUG)
         if cycle is None:
             cycle = Config().value('accounts', 'cycle')
         cycle = int(cycle)

@@ -824,10 +824,11 @@ def accountsmanager(*argv):
                         help="Set cycle in seconds; 0 means run only once;"
                              " default from config file.",
                         default=None)
+    parser.add_argument("-d", "--debug", action='store_true')
     args = parser.parse_args(argv)
 
     accounts_manager = AccountsManager()
-    return accounts_manager.main(args.cycle)
+    return accounts_manager.main(args.cycle, args.debug)
 
 ####################
 
