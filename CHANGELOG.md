@@ -1,5 +1,9 @@
 # Changelog
 
+## 9.0.3 - 2026 Mar 19
+
+- pdu off: go on with a hard reset if soft reset fails
+
 ## 9.0.2 - 2026 Mar 19
 
 - accountsmanager adapted to new r2labapi:
