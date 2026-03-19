@@ -26,6 +26,8 @@ import time
 import os
 import pwd
 import logging
+import subprocess
+import shlex
 
 from pathlib import Path
 
@@ -39,6 +41,25 @@ LEGIT_ACCOUNTS = {'faraday'}
 
 def legal_name(name):
     return ('_' in name or '-' in name)
+
+def run_command(command):
+    """
+    Run a shell command via subprocess.
+    Returns True on success, False on failure (logged as error).
+    """
+    args = shlex.split(command)
+    try:
+        result = subprocess.run(
+            args, capture_output=True, text=True, check=False)
+        if result.returncode != 0:
+            stderr = result.stderr.strip()
+            logger.error(f"{command} -> rc={result.returncode}"
+                         + (f": {stderr}" if stderr else ""))
+            return False
+        return True
+    except OSError as exc:
+        logger.error(f"{command} -> {exc}")
+        return False
 
 ####################
 # adapted from historical planetlab nodemanager
@@ -83,7 +104,7 @@ def replace_file_with_string(destination_path, new_contents,
         if chmod:
             destination_path.chmod(chmod)
         if owner:
-            os.system(f"chown {owner} {destination_path}")
+            run_command(f"chown {owner} {destination_path}")
         return True
     except IOError as exc:
         logger.error(f"Cannot create {destination_path}, {exc}")
@@ -165,9 +186,7 @@ class AccountsManager:
             command = (f"useradd --create-home --user-group"
                        f" {slicename} --shell /bin/bash")
             logger.info(f"Running {command}")
-            retcod = os.system(command)
-            if retcod != 0:
-                logger.error(f"{command} -> {retcod}")
+            if not run_command(command):
                 return
 
         # create .ssh dir if needed, ensure permissions
@@ -178,12 +197,8 @@ class AccountsManager:
             sshdir.chmod(0o700)
 
         # ensure correct ownership (silent unless it fails)
-        retcod = os.system(
+        run_command(
             f"chown -R {slicename}:{slicename} {homedir}")
-        if retcod != 0:
-            logger.error(
-                f"chown -R {slicename}:{slicename}"
-                f" {homedir} -> {retcod}")
 
 
     # for #23
@@ -203,7 +218,7 @@ class AccountsManager:
                 lines.append(line)
         with open("/etc/security/access.conf", "w", encoding="utf-8") as f:
             f.writelines(lines)
-        os.system("chmod 444 /etc/security/access.conf")
+        run_command("chmod 444 /etc/security/access.conf")
 
 
     @staticmethod
