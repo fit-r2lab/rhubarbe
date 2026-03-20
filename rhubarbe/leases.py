@@ -15,7 +15,7 @@ import os
 import pwd
 import time
 import traceback
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import requests
 
@@ -130,6 +130,28 @@ class Leases:                                           # pylint: disable=r0902
     A list of leases as downloaded from the API
     """
 
+    ADMIN_PREFIX = 'r2lab-'
+
+    @staticmethod
+    def resolve_time_keyword(value):
+        """
+        Resolve a time keyword or ISO timestamp to an epoch.
+        Supported keywords: 'now', 'today', 'tomorrow'
+        """
+        if value == 'now':
+            return time.time()
+        if value == 'today':
+            today = datetime.now().replace(
+                hour=0, minute=0, second=0, microsecond=0)
+            return today.timestamp()
+        if value == 'tomorrow':
+            tomorrow = (datetime.now().replace(
+                hour=0, minute=0, second=0, microsecond=0)
+                + timedelta(days=1))
+            return tomorrow.timestamp()
+        # try ISO format
+        return iso_to_epoch(value)
+
     def __init__(self, message_bus):
         self.message_bus = message_bus
         # don't use os.getlogin() as this gives root if under su
@@ -139,6 +161,10 @@ class Leases:                                           # pylint: disable=r0902
         self.resource_name = the_config.value('r2labapi', 'resource_name')
         # no token: reads are public, writes will prompt for credentials
         self.proxy = R2labApiProxy(api_url)
+        # display filters (epochs); set before calling main()
+        self.after_filter = None
+        self.before_filter = None
+        self.no_admin = False
         # computed later
         # a list of Lease objects
         self.leases = None
@@ -252,11 +278,17 @@ class Leases:                                           # pylint: disable=r0902
         self.leases = None
         try:
             logger.info("Leases are being fetched..")
-            # fetch leases from today onwards
-            today = datetime.now(tz=timezone.utc).replace(
-                hour=0, minute=0, second=0, microsecond=0)
-            self.api_leases = self.proxy.get_leases(
-                after=today.isoformat())
+            params = {}
+            if self.after_filter is not None:
+                params['after'] = epoch_to_iso(self.after_filter)
+            else:
+                # default for non-CLI callers: from today onwards
+                today = datetime.now(tz=timezone.utc).replace(
+                    hour=0, minute=0, second=0, microsecond=0)
+                params['after'] = today.isoformat()
+            if self.before_filter is not None:
+                params['before'] = epoch_to_iso(self.before_filter)
+            self.api_leases = self.proxy.get_leases(**params)
             logger.info(f"{len(self.api_leases)} leases received")
             # decoded as a list of Lease objects
             self.leases = [Lease(entry) for entry in self.api_leases]
@@ -283,198 +315,63 @@ class Leases:                                           # pylint: disable=r0902
                 'leases_error',
                 f"cannot get leases from {self} - exception {exc}")
 
+    def filtered_leases(self):
+        """
+        Apply display filters (after, before, no_admin)
+        on the fetched leases.
+        """
+        if self.leases is None:
+            return []
+        result = self.leases
+        if self.after_filter is not None:
+            # keep leases that haven't ended before the filter
+            result = [l for l in result if l.iuntil > self.after_filter]
+        if self.before_filter is not None:
+            # keep leases that start before the filter
+            result = [l for l in result if l.ifrom < self.before_filter]
+        if self.no_admin:
+            result = [l for l in result
+                      if not l.owner.startswith(self.ADMIN_PREFIX)]
+        return result
+
     # this can be used with a fake message queue, it's synchroneous
     def print(self):
-        print(5 * '-', self,
-              "with special privileges"
-              if self.has_special_privileges() else "")
-        if self.leases is not None:
-            def rights_char(lease):
-                # B like broken
-                if lease.broken:
-                    return 'B'
-                # S like super user
-                if self.has_special_privileges():
-                    return 'S'
-                # * for yes you can use it
-                if lease.booked_now_by(self.login):
-                    return '*'
-                return ' '
-            for i, lease in enumerate(self.leases):
-                msg = lease.__repr__(rights_char=rights_char(lease))
-                print(f"{i+1:3d} {msg}")
-
-    # material to create and modify leases
-    @staticmethod
-    def to_epoch(incoming):
-        if not incoming:
-            return time.time()
-        if isinstance(incoming, (int, float)):
-            return incoming
-        patterns = [
-            # fill in year
-            "%Y-{}:00%Z",  # "%Y-{}:00",
-            "%Y-%m-{}:00%Z",  # "%Y-%m-{}:00",
-            "%Y-%m-%dT{}:00%Z",  # "%Y-%m-%dT{}:00",
-            "%Y-%m-%dT{}:00:00%Z",  # "%Y-%m-%dT{}:%M:00",
-        ]
-
-        for pattern in patterns:
-            fill = time.strftime(pattern).format(incoming)
-            try:
-                struct_time = time.strptime(fill, Lease.wire_timeformat)
-                return int(time.mktime(struct_time))
-            except Exception:
-                pass
-
-    @staticmethod
-    def check_user(user):
-        return os.path.exists(f"/home/{user}")
-
-    async def _add_lease(self, owner, input_from, input_until):
-        if owner != 'root':
-            if not self.check_user(owner):
-                print(f"user {owner} not found under /home - giving up")
-                logger.error(f"Unknown user {owner}")
-                return
-        t_from = Leases.to_epoch(input_from)
-        if not t_from:
-            print(f"invalid time from: {input_from}")
+        if self.leases is None:
+            print("Could not fetch leases")
             return
-        t_until = Leases.to_epoch(input_until)
-        if not t_until:
-            print(f"invalid time until: {input_until}")
-            return
-        try:
-            self.proxy.create_lease({
-                'resource_name': self.resource_name,
-                'slice_name': owner,
-                't_from': epoch_to_iso(t_from),
-                't_until': epoch_to_iso(t_until),
-            })
-            print("OK")
-            # force next reload
-            self.leases = None
-        except Exception as exc:
-            print('Error', f"Cannot add lease {type(exc)}: {exc}")
-            traceback.print_exc()
+        displayed = self.filtered_leases()
+        # line 1: time window
+        time_parts = []
+        if self.after_filter is not None:
+            time_parts.append(f"after {Lease.human(self.after_filter)}")
+        if self.before_filter is not None:
+            time_parts.append(f"before {Lease.human(self.before_filter)}")
+        print(f"----- From {', '.join(time_parts)}" if time_parts
+              else "No time filter")
+        # line 2: count + extras
+        extras = []
+        if self.no_admin:
+            extras.append(f"hiding {self.ADMIN_PREFIX}*")
+        if self.has_special_privileges():
+            extras.append("with special privileges")
+        suffix = f" ({', '.join(extras)})" if extras else ""
+        print(f"--- {len(displayed)} lease(s){suffix}")
+        def rights_char(lease):
+            # B like broken
+            if lease.broken:
+                return 'B'
+            # S like super user
+            if self.has_special_privileges():
+                return 'S'
+            # * for yes you can use it
+            if lease.booked_now_by(self.login):
+                return '*'
+            return ' '
+        for i, lease in enumerate(displayed):
+            msg = lease.__repr__(rights_char=rights_char(lease))
+            print(f"{i+1:3d} {msg}")
 
-    def get_lease_by_rank(self, lease_rank):
-        try:
-            irank = int(lease_rank)
-            return self.leases[irank - 1]
-        except Exception:
-            pass
-
-    async def _update_lease(self, lease_rank, input_from, input_until):
-        update_fields = {}
-        if not input_from and not input_until:
-            logger.info("update_lease : nothing to do")
-            return
-        if input_from:
-            t_from = Leases.to_epoch(input_from)
-            if not t_from:
-                print(f"invalid time from: {input_from}")
-                return
-            update_fields['t_from'] = epoch_to_iso(t_from)
-        if input_until:
-            t_until = Leases.to_epoch(input_until)
-            if not t_until:
-                print(f"invalid time until: {input_until}")
-                return
-            update_fields['t_until'] = epoch_to_iso(t_until)
-        # lease_rank could be a rank as displayed by self.print()
-        the_lease = self.get_lease_by_rank(lease_rank)
-        if not the_lease:
-            print(f"Cannot find lease with rank {lease_rank}")
-            return
-        try:
-            self.proxy.update_lease(the_lease.lease_id, update_fields)
-            print("OK")
-            # force next reload
-            self.leases = None
-        except Exception as exc:
-            print(f"error: {exc}")
-
-    async def _delete_lease(self, lease_rank):
-        # lease_rank could be a rank as displayed by self.print()
-        the_lease = self.get_lease_by_rank(lease_rank)
-        if not the_lease:
-            print(f"Cannot find lease with rank {lease_rank}")
-            return
-        try:
-            self.proxy.delete_lease(the_lease.lease_id)
-            print("OK")
-            # force next reload
-            self.leases = None
-        except Exception as exc:
-            print(f"not deleted: {exc}")
-
-    async def main(self, interactive):
+    async def main(self):
         await self.fetch_all()
         self.print()
-        if not interactive:
-            return 0
-        try:
-            result = await self.interactive()
-            return result
-        except (KeyboardInterrupt, EOFError):
-            print("Bye")
-            return 1
-
-    async def interactive(self):
-        help_message = """
-Enter one of the letters inside [], and answer the questions
-
-A lease index is a number as shown on the left in the leases list
-
-Times can be entered simply as
-* just 14, or 14:00, for today at 2p.m.
-* 14:30 for today at 2:30 p.m., or
-* 27T10:30 for the 27th this month at 10:30 a.m., or
-* 12-10T01:00 for the 12th december this year at 1 a.m., or
-* 2016-01-02T08:00 for January 1st, 2016, at 8:00
-
-In all the above cases, times will be understood as local time (France).
-
-Leaving a time empty means either 'now', or 'do not change',
-depending on the context
-"""
-        # interactive mode
-        while True:
-            current_time = time.strftime("%H:%M")
-            answer = input(f"{current_time} - Enter command "
-                           f"([l]ist, [a]dd, [u]pdate, "
-                           f"[d]elete, [r]efresh, [q]uit : ")
-            char = answer[0].lower() if answer else 'l'
-            if char == 'l':
-                self.print()
-            elif char == 'a':
-                if self.has_special_privileges():
-                    owner = input("For slice name : ")
-                else:
-                    owner = self.login
-                time_from = input("From : ")
-                time_until = input("Until : ")
-                print(f"owner={owner}")
-                await self._add_lease(owner, time_from, time_until)
-                await self.fetch_all()
-            elif char == 'u':
-                rank = input("Enter lease index : ")
-                time_from = input("From : ")
-                time_until = input("Until : ")
-                await self._update_lease(rank, time_from, time_until)
-                await self.fetch_all()
-            elif char == 'd':
-                rank = input("Enter lease index : ")
-                await self._delete_lease(rank)
-                await self.fetch_all()
-            elif char == 'r':
-                await self.refresh()
-                self.print()
-            elif char == 'q':
-                print('bye')
-                break
-            else:
-                print(help_message)
         return 0

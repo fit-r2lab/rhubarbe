@@ -631,16 +631,23 @@ def share(*argv):
 @subcommand
 def leases(*argv):
     usage = """
-    Unless otherwise specified, displays current leases, from today onwards
+    Display leases; by default shows from now until midnight.
+    Time filters accept ISO timestamps or keywords: now, today, tomorrow.
     """
     parser = ArgumentParser(usage=usage,
                             formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument('-c', '--check', action='store_true', default=False,
                         help="Check if you currently have a lease")
-    parser.add_argument('-i', '--interactive', action='store_true',
+    parser.add_argument('-a', '--after', default='now',
+                        help="Show leases ending after this time")
+    parser.add_argument('-b', '--before', default='tomorrow',
+                        help="Show leases starting before this time")
+    parser.add_argument('-u', '--upcoming', action='store_true',
                         default=False,
-                        help="Interactively prompt for commands "
-                             "(create, update, delete)")
+                        help="Show all upcoming leases (no end-of-day cutoff)")
+    parser.add_argument('-n', '--no-admin', action='store_true',
+                        default=False,
+                        help="Hide admin slices (r2lab-*)")
     args = parser.parse_args(argv)
 
     message_bus = asyncio.Queue()
@@ -649,8 +656,14 @@ def leases(*argv):
         access = check_reservation(leases, verbose=True)
         return 0 if access else 1
     else:
+        leases.after_filter = Leases.resolve_time_keyword(args.after)
+        if args.upcoming:
+            leases.before_filter = None
+        else:
+            leases.before_filter = Leases.resolve_time_keyword(args.before)
+        leases.no_admin = args.no_admin
         loop = asyncio.new_event_loop()
-        loop.run_until_complete(leases.main(args.interactive))
+        loop.run_until_complete(leases.main())
         loop.close()
         return 0
 
