@@ -34,6 +34,8 @@ dependencies = [
     'requests',
     # for Prometheus /metrics export from monitors
     'prometheus_client',
+    # for CLI
+    'click',
 ]
 
 

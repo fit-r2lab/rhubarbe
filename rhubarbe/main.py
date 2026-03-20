@@ -22,6 +22,9 @@ from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 import logging
 import asyncio
 
+import click
+import requests
+
 # pkg_resources is deprecated in favor of importlib.resources
 from importlib import resources
 
@@ -137,6 +140,21 @@ supported_subcommands = []                              # pylint: disable=c0103
 def subcommand(driver):
     supported_subcommands.append(driver.__name__)
     return driver
+
+
+def run_click(click_command, argv):
+    """
+    Bridge between the rhubarbe __main__ dispatcher and click commands.
+    Handles --help (SystemExit), parse errors (ClickException),
+    and normal return values.
+    """
+    try:
+        return click_command(list(argv), standalone_mode=False) or 0
+    except SystemExit as exc:
+        return exc.code or 0
+    except click.ClickException as exc:
+        exc.show()
+        return exc.exit_code
 
 ####################
 
@@ -629,51 +647,87 @@ def share(*argv):
 ####################
 
 
+TIME_HELP = "ISO timestamp, or keyword: now, today, tomorrow"
+
+@click.command('rhubarbe leases')
+@click.option('-c', '--check', is_flag=True,
+              help="Check if you currently have a lease.")
+@click.option('-a', '--after', default='now', show_default=True,
+              help=f"Show leases ending after this time ({TIME_HELP}).")
+@click.option('-b', '--before', default='tomorrow', show_default=True,
+              help=f"Show leases starting before this time ({TIME_HELP}).")
+@click.option('-u', '--upcoming', is_flag=True,
+              help="Show all upcoming leases (ignore --before).")
+@click.option('-n', '--no-admin', is_flag=True,
+              help="Hide admin slices (r2lab-*).")
+def leases_cli(check, after, before, upcoming, no_admin):
+    """Display leases; by default shows from now until midnight."""
+    message_bus = asyncio.Queue()
+    the_leases = Leases(message_bus)
+    if check:
+        access = check_reservation(the_leases, verbose=True)
+        return 0 if access else 1
+    the_leases.after_filter = Leases.resolve_time_keyword(after)
+    if upcoming:
+        the_leases.before_filter = None
+    else:
+        the_leases.before_filter = Leases.resolve_time_keyword(before)
+    the_leases.no_admin = no_admin
+    loop = asyncio.new_event_loop()
+    loop.run_until_complete(the_leases.main())
+    loop.close()
+    return 0
+
 @subcommand
 def leases(*argv):
-    usage = """
-    Display leases; by default shows from now until midnight.
-    Time filters accept ISO timestamps or keywords: now, today, tomorrow.
-    """
-    parser = ArgumentParser(usage=usage,
-                            formatter_class=ArgumentDefaultsHelpFormatter)
-    parser.add_argument('-c', '--check', action='store_true', default=False,
-                        help="Check if you currently have a lease")
-    parser.add_argument('-a', '--after', default='now',
-                        help="Show leases ending after this time")
-    parser.add_argument('-b', '--before', default='tomorrow',
-                        help="Show leases starting before this time")
-    parser.add_argument('-u', '--upcoming', action='store_true',
-                        default=False,
-                        help="Show all upcoming leases (no end-of-day cutoff)")
-    parser.add_argument('-n', '--no-admin', action='store_true',
-                        default=False,
-                        help="Hide admin slices (r2lab-*)")
-    args = parser.parse_args(argv)
-
-    message_bus = asyncio.Queue()
-    leases = Leases(message_bus)
-    if args.check:
-        access = check_reservation(leases, verbose=True)
-        return 0 if access else 1
-    else:
-        leases.after_filter = Leases.resolve_time_keyword(args.after)
-        if args.upcoming:
-            leases.before_filter = None
-        else:
-            leases.before_filter = Leases.resolve_time_keyword(args.before)
-        leases.no_admin = args.no_admin
-        loop = asyncio.new_event_loop()
-        loop.run_until_complete(leases.main())
-        loop.close()
-        return 0
+    return run_click(leases_cli, argv)
 
 ####################
 
 
+@click.command('rhubarbe book')
+@click.argument('start')
+@click.argument('end')
+@click.option('-q', '--query', is_flag=True,
+              help="Don't book, just check if the slot is free.")
+@click.option('-d', '--delete', is_flag=True,
+              help="Delete the lease for the given time slot.")
+@click.option('-s', '--slice', 'slice_name',
+              help="Slice name (mandatory unless using -q or -d).")
+@click.option('-e', '--email', help="Email for authentication.")
+@click.option('-p', '--password', help="Password for authentication.")
+@click.option('-v', '--verbose', is_flag=True, help="Be verbose.")
+def book_cli(start, end, query, delete, slice_name,
+             email, password, verbose):
+    """Book, query, or delete a lease on the testbed.
+
+    START and END are time specs: 2020-01-01T00:00, "2020-01-01 00:00",
+    or 14:00 (meaning today).
+    """
+    book_obj = Book(email=email, password=password, verbose=verbose)
+    start_epoch = book_obj.canonical_date(start)
+    end_epoch = book_obj.canonical_date(end)
+    try:
+        if query:
+            ok = book_obj.query(start_epoch, end_epoch)
+        elif delete:
+            ok = book_obj.delete(start_epoch, end_epoch)
+        else:
+            if slice_name is None:
+                raise click.UsageError(
+                    "--slice is mandatory unless using -q or -d")
+            ok = book_obj.book(slice_name, start_epoch, end_epoch)
+    except requests.exceptions.RequestException as exc:
+        if hasattr(exc, 'response') and exc.response is not None:
+            print(f"HTTP error ({exc.response.status_code}): {exc}")
+        else:
+            print(f"Could not reach the r2lab API: {exc}")
+        ok = False
+    return 0 if ok else 1
+
 @subcommand
 def book(*argv):
-    exit(0 if Book.main(argv) else 1)
+    return run_click(book_cli, argv)
 
 ####################
 from rhubarbe.logger import monitor_logger

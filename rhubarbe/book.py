@@ -7,7 +7,6 @@ a utility to check if the testbed is free for a given time slot
 
 import time
 from datetime import datetime as DateTime
-import argparse
 
 import requests
 
@@ -105,6 +104,8 @@ class Book:
     def book(self, slice_name, start, end) -> bool:
         """
         book the time slot - return True if successful
+        raises on HTTP/connection errors (handled by caller)
+        except for 409 (conflict) which is a normal business case
         """
         self.verbose(
             f"booking {slice_name} from {self.date_to_string(start)} "
@@ -120,13 +121,9 @@ class Book:
             return True
         except requests.exceptions.HTTPError as exc:
             if exc.response.status_code == 409:
-                print(f"conflict: the slot is not free")
-            else:
-                print(f"HTTP error creating lease: {exc}")
-            return False
-        except Exception as exc:
-            print(f"exception creating lease: {type(exc)}: {exc}")
-            return False
+                print("conflict: the slot is not free")
+                return False
+            raise
 
     def delete(self, start, end) -> bool:
         """
@@ -171,69 +168,14 @@ class Book:
             new_end = t_from + nb_grains * granularity
             self.verbose(
                 f"updating lease {lease_id} until {self.date_to_string(new_end)}")
-            try:
-                self.proxy.update_lease(
-                    lease_id, {'t_until': epoch_to_iso(new_end)})
-                return True
-            except Exception as exc:
-                print(f"exception in update_lease: {type(exc)}: {exc}")
-                return False
+            self.proxy.update_lease(
+                lease_id, {'t_until': epoch_to_iso(new_end)})
+            return True
 
         # still here ? the lease has not yet started,
         # or it has been running for less than one granularity
         # delete it
         self.verbose(f"deleting future lease {lease_id}")
-        try:
-            self.proxy.delete_lease(lease_id)
-            self.verbose(f"successful")
-            return True
-        except Exception as exc:
-            print(f"exception in delete_lease: {type(exc)}: {exc}")
-            return False
-
-    @staticmethod
-    def main(*argv) -> bool:
-        parser = argparse.ArgumentParser()
-        parser.add_argument(
-            "-q", "--query", action="store_true",
-            help="does not book, just checks if the slot is free")
-        parser.add_argument(
-            "-d", "--delete", action="store_true",
-            help="delete the lease for the given time slot")
-        parser.add_argument(
-            "-s", "--slice",
-            help="slice name - mandatory unless using -q")
-        parser.add_argument(
-            "-e", "--email", help="email")
-        parser.add_argument(
-            "-p", "--password", help="password")
-        parser.add_argument(
-            "-v", "--verbose", action="store_true",
-            help="be verbose")
-        parser.add_argument(
-            "start",
-            help="start time format: 2020-01-01T00:00 or 2020-01-01 00:00 or 14:00")
-        parser.add_argument(
-            "end",
-            help="end time, same format as start time")
-        args = parser.parse_args(*argv)
-        book = Book(
-            email=args.email, password=args.password, verbose=args.verbose)
-        start = book.canonical_date(args.start)
-        end = book.canonical_date(args.end)
-        try:
-            if args.query:
-                return book.query(start, end)
-            elif args.delete:
-                return book.delete(start, end)
-            else:
-                if args.slice is None:
-                    parser.error("slice is mandatory unless using -q")
-                    exit(1)
-                return book.book(args.slice, start, end)
-        except requests.exceptions.RequestException as exc:
-            if hasattr(exc, 'response') and exc.response is not None:
-                print(f"HTTP error ({exc.response.status_code}): {exc}")
-            else:
-                print(f"Could not reach the r2lab API: {exc}")
-            return False
+        self.proxy.delete_lease(lease_id)
+        self.verbose("successful")
+        return True
