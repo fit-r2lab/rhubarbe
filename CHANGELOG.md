@@ -1,5 +1,17 @@
 # Changelog
 
+## 9.0.4 - 2026 Apr 16
+
+- pdu off: another pass, for when the ssh attempt itself hangs
+  new config item pdus.ssh_timeout has default 20 seconds
+- big cleanup/simplify in rhubarbe leases
+  - by default lists only today's leases
+  - has a new --upcoming option to see all future leases
+  - has a --no-admin option to hide admin leases
+  - no longer has an interactive mode
+  - has new --after --before options that can be used to further filter the leases
+  - these 2 also understand relative dates like 'today' or 'tomorrow'
+
 ## 9.0.3 - 2026 Mar 19
 
 - pdu off: go on with a hard reset if soft reset fails
