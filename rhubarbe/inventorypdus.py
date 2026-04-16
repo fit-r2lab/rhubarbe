@@ -184,7 +184,10 @@ class PduDevice:
 
 
     async def attempt_soft_reset(self):
-        soft_turned_off = await self.turn_off_through_ssh_if_pingable()
+        config = Config()
+        timeout = float(config.value('pdus', 'ssh_timeout'))
+        soft_turned_off = await asyncio.wait_for(
+            self.turn_off_through_ssh_if_pingable(), timeout=timeout)
         # give it some time to complete the soft OFF
         # xxx could be configurable
         if soft_turned_off:
