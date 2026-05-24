@@ -1,5 +1,11 @@
 # Changelog
 
+## 9.1.0 - 2026 May 24
+
+- each monitor (nodes, phones and pdus) now also runs a prometheus exporter
+- default ports are 9101 for nodes, 9102 for phones and 9103 for pdus
+- configurable in the [monitor] section of rhubarbe.conf
+
 ## 9.0.4 - 2026 Apr 16
 
 - pdu off: another pass, for when the ssh attempt itself hangs
