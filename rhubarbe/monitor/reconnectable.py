@@ -48,6 +48,8 @@ class ReconnectableSidecar:
 
     async def emit_infos(self, infos):
         # logger.debug(f"{self}: emit_infos is sending {infos}")
+        from rhubarbe.monitor.prometheus import PrometheusExporter  # avoid circular import
+        PrometheusExporter().update(self.category, infos)
         if not self.connection:
             logger.warning(f"[no conn.] backlog ->  {infos}"
                            f" (with {len(self.backlog)} others)")

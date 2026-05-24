@@ -45,6 +45,7 @@ from .monitor.loop import MonitorLoop
 from .monitor.nodes import MonitorNodes
 from .monitor.phones import MonitorPhones
 from .monitor.pdus import MonitorPdus
+from .monitor.prometheus import PrometheusExporter
 from .monitor.accountsmanager import AccountsManager
 from .ssh import SshProxy
 from .leases import Leases
@@ -715,11 +716,17 @@ def monitornodes(*argv):                                # pylint: disable=r0914
         "-v", "--verbose", action='store_true')
     parser.add_argument(
         "-d", "--debug", action='store_true')
+    parser.add_argument(
+        "--prometheus-port", dest="prometheus_port",
+        default=config.value('monitor', 'prometheus_port_nodes'),
+        type=int,
+        help="port for Prometheus /metrics endpoint (0 to disable)")
     add_selector_arguments(parser)
     args = parser.parse_args(argv)
 
     (debug, verbose) = (args.debug, args.verbose)
     set_loggers_level(verbose, debug)
+    PrometheusExporter().start(args.prometheus_port)
 
     selector = selected_selector(args)
     message_bus = asyncio.Queue()
@@ -769,11 +776,18 @@ def monitorphones(*argv):
         "-v", "--verbose", action='store_true')
     parser.add_argument(
         "-d", "--debug", action='store_true')
+    parser.add_argument(
+        "--prometheus-port", dest="prometheus_port",
+        default=config.value('monitor', 'prometheus_port_phones'),
+        type=int,
+        help="port for Prometheus /metrics endpoint (0 to disable)")
     args = parser.parse_args(argv)
 
     (debug, verbose) = (args.debug, args.verbose)
     del args.debug
     set_loggers_level(verbose, debug)
+    PrometheusExporter().start(args.prometheus_port)
+    del args.prometheus_port
 
     monitor_logger.info("Using all phones")
     monitorphones = MonitorPhones(**vars(args))
@@ -807,14 +821,20 @@ def monitorpdus(*argv):
         "-v", "--verbose", action='store_true')
     parser.add_argument(
         "-d", "--debug", action='store_true')
+    parser.add_argument(
+        "--prometheus-port", dest="prometheus_port",
+        default=config.value('monitor', 'prometheus_port_pdus'),
+        type=int,
+        help="port for Prometheus /metrics endpoint (0 to disable)")
     parser.add_argument("names", nargs='*', help="optionally provide device names")
     args = parser.parse_args(argv)
 
     (debug, verbose) = (args.debug, args.verbose)
     set_loggers_level(verbose, debug)
+    PrometheusExporter().start(args.prometheus_port)
     # not supported by MonitorPdus
     del args.debug
-
+    del args.prometheus_port
 
     monitor_logger.info(f"Monitoring pdus: {args.names or 'all'}")
     monitorpdus = MonitorPdus(**vars(args))
