@@ -330,19 +330,19 @@ def bye(timeout, all_nodes, ranges):
               help="Set bandwidth in Mibps for frisbee uploading")
 @click.option('-c', '--curses', is_flag=True, default=False,
               help="Use curses to provide term-based animation")
-@click.option('-n', '--no-reset', 'reset',
-              flag_value=False, default=True,
+@click.option('-n', '--no-reset', 'no_reset', is_flag=True, default=False,
               help="use this with nodes that are already running a frisbee "
                    "image; they won't get reset, neither before or after "
                    "the frisbee session")
 @selector_options
-def load(image, timeout, bandwidth, curses, reset, all_nodes, ranges):
+def load(image, timeout, bandwidth, curses, no_reset, all_nodes, ranges):
     """Load an image on selected nodes in parallel.
 
     \b
     This function requires a valid reservation
     - or to be root or a privileged user.
     """
+    reset = not no_reset
     Config().check_binaries()
     imagesrepo = ImagesRepo()
 
@@ -380,18 +380,18 @@ def load(image, timeout, bandwidth, curses, reset, all_nodes, ranges):
 @_timeout_option('save_default_timeout')
 @click.option('-c', '--comment', default=None,
               help="one-liner comment to insert in /etc/rhubarbe-image")
-@click.option('-n', '--no-reset', 'reset',
-              flag_value=False, default=True,
+@click.option('-n', '--no-reset', 'no_reset', is_flag=True, default=False,
               help="use this with a node that is already running a frisbee "
                    "image; it won't get reset, neither before or after "
                    "the frisbee session")
 @click.argument('node')
-def save(radical, timeout, comment, reset, node):
+def save(radical, timeout, comment, no_reset, node):
     """Save an image from a node.
 
     The mandatory radical (-o) — together with nodename and date —
     is stored on the resulting image in /etc/rhubarbe-image.
     """
+    reset = not no_reset
     Config().check_binaries()
 
     message_bus = asyncio.Queue()
