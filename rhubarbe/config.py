@@ -110,6 +110,15 @@ class Config(metaclass=Singleton):
             the_inventory.one_control_interface())
         return ipaddr
 
+    # any config key whose name contains one of these (case-insensitive)
+    # has its value redacted by display()
+    SENSITIVE_KEY_FRAGMENTS = ('token', 'password', 'passwd', 'secret')
+
+    @classmethod
+    def is_sensitive_key(cls, key):
+        lowered = key.lower()
+        return any(frag in lowered for frag in cls.SENSITIVE_KEY_FRAGMENTS)
+
     def display(self, sections):
         for i, file in enumerate(self.files):
             print(f"{i+1}-th config file = {file}")
@@ -120,6 +129,8 @@ class Config(metaclass=Singleton):
             if match(sname, sections) and section:
                 print(10*'=', f" section {sname}")
                 for fname, value in sorted(section.items()):
+                    if value and self.is_sensitive_key(fname):
+                        value = '***REDACTED***'
                     print(f"{fname} = {value}")
 
     @staticmethod
