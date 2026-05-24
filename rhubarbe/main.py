@@ -1,43 +1,34 @@
 #!/usr/bin/env python3
 
 """
-Command-line entry point
+Command-line entry point — all subcommands are click commands registered
+on the top-level `cli` group.
 """
 
-# c0111 no docstrings yet
-# w1202 logger & format
-# w0703 catch Exception
-# r1705 else after return
-# pylint: disable=c0111,w1202,r1705
-# pylint: disable=logging-fstring-interpolation, fixme, import-outside-toplevel
-
+# pylint: disable=missing-function-docstring, logging-fstring-interpolation
+# pylint: disable=redefined-outer-name, import-outside-toplevel, fixme
 
 # DON'T import logger globally here
 # we need to be able to mess inside the logger module
 # before it gets loaded from another way
 
-import time
 import os
-from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
+import sys
+import time
 import logging
 import asyncio
+import traceback
+from importlib import resources
 
 import click
 import requests
 
-# pkg_resources is deprecated in favor of importlib.resources
-from importlib import resources
-
 from asynciojobs import Scheduler, Job
-
 from asyncssh.logging import set_log_level as asyncssh_set_log_level
 
-# apparently using relative imports is - at least that's what pylint says
-# defining global variables like 'config'
-# pylint: disable = redefined-outer-name
 from .config import Config
 from .imagesrepo import ImagesRepo
-from .selector import Selector, add_selector_arguments, selected_selector
+from .selector import Selector, MisformedRange
 from .action import Action
 from .display import Display
 from .display_curses import DisplayCurses
@@ -60,6 +51,7 @@ from .inventoryrelays import InventoryRelays
 
 from .logger import monitor_logger
 
+
 # ssh.py logs its debug messages in monitor_logger
 # we want that off in interactive commands
 def turn_off_ssh_debug_messages():
@@ -68,24 +60,15 @@ def turn_off_ssh_debug_messages():
             return record.levelno != logging.DEBUG
     monitor_logger.addFilter(NoDebugFilter())
 
-# a supported command comes with a driver function
-# in this module, that takes a list of args
-# and returns 0 for success and s/t else otherwise
-# specifically, command
-# rhubarbe load -i fedora 12
-# would result in a call
-# load ( "-i", "fedora", "12" )
 
-
-####################
-RESERVATION_REQUIRED = "This function requires a valid reservation - "\
-                       "or to be root or a privileged user"
+RESERVATION_REQUIRED = ("This function requires a valid reservation - "
+                        "or to be root or a privileged user")
 
 
 ####################
 # exposed to the outside world (typically r2lab's nightly)
 
-def check_reservation(leases, *,                        # pylint: disable=w0621
+def check_reservation(leases, *,
                       root_allowed=True, verbose=False, login=None):
     """
     return a bool indicating if a login currently has a lease
@@ -101,9 +84,6 @@ def check_reservation(leases, *,                        # pylint: disable=w0621
     """
 
     async def check_leases():
-        # login = None means use my login
-        # we don't use booked_now_by_me because of the verbose message
-        # we use another variable to avoid using nonlocal
         actual_login = login or leases.login
         if verbose:
             print(f"Checking current reservation for {actual_login} : ", end="")
@@ -123,7 +103,7 @@ def check_reservation(leases, *,                        # pylint: disable=w0621
     return asyncio.new_event_loop().run_until_complete(check_leases())
 
 
-def no_reservation(leases):                             # pylint: disable=w0621
+def no_reservation(leases):
     """
     returns True if nobody currently has a lease
     """
@@ -133,523 +113,424 @@ def no_reservation(leases):                             # pylint: disable=w0621
 
 
 ####################
-# NOTE: when adding a new command, please update setup.py as well
-supported_subcommands = []                              # pylint: disable=c0103
+# shared selector handling (replaces add_selector_arguments / selected_selector)
+
+_SELECTOR_RANGES_HELP = """\
+nodes can be specified one by one, like: 1 004 fit01 reboot01;
+or by range (inclusive) like: 2-12, fit4-reboot12;
+or by range+step like 4-16-2 (all even numbers from 4 to 16);
+ranges can also be excluded with '~', so ~1-4 means remove 1,2,3,4.
+
+ex: 1-4 7-25-2 ~11-19-4  yields  1 2 3 4 7 9 13 17 21 23 25
+"""
+
+_ALL_NODES_HELP = (
+    "add the contents of the testbed.all_scope config variable in the mix; "
+    "can be combined with ranges, e.g. -a ~4-16-2")
 
 
-def subcommand(driver):
-    supported_subcommands.append(driver.__name__)
-    return driver
+def selector_options(f):
+    """Decorator that adds -a/--all-nodes and a variadic RANGES argument."""
+    f = click.argument('ranges', nargs=-1)(f)
+    f = click.option('-a', '--all-nodes', is_flag=True, default=False,
+                     help=_ALL_NODES_HELP)(f)
+    return f
 
 
-def run_click(click_command, argv):
-    """
-    Bridge between the rhubarbe __main__ dispatcher and click commands.
-    Handles --help (SystemExit), parse errors (ClickException),
-    and normal return values.
-    """
-    try:
-        return click_command(list(argv), standalone_mode=False) or 0
-    except SystemExit as exc:
-        return exc.code or 0
-    except click.ClickException as exc:
-        exc.show()
-        return exc.exit_code
+def build_selector(ranges, all_nodes, *, defaults_to_all=False):
+    selector = Selector()
+    if all_nodes:
+        selector.use_all_scope()
+    if not ranges and not all_nodes:
+        if defaults_to_all:
+            selector.use_all_scope()
+        elif os.getenv('NODES'):
+            for node in os.environ['NODES'].split():
+                selector.add_range(node)
+        else:
+            raise click.UsageError(
+                "no argument specified: "
+                "this requires you to set env. variable 'NODES'")
+    else:
+        for one_range in ranges:
+            selector.add_range(one_range)
+    return selector
+
+
+####################
+# top-level group
+
+CONTEXT_SETTINGS = {
+    'help_option_names': ['-h', '--help'],
+    'max_content_width': 100,
+}
+
+
+@click.group(context_settings=CONTEXT_SETTINGS)
+def cli():
+    """rhubarbe — manage the R2Lab testbed."""
+
 
 ####################
 
 
-@subcommand
-def nodes(*argv):
-    usage = """
-    Just display the hostnames of selected nodes
-    """
-    parser = ArgumentParser(usage=usage,
-                            formatter_class=ArgumentDefaultsHelpFormatter)
-    add_selector_arguments(parser)
-    args = parser.parse_args(argv)
-    selector = selected_selector(args)
+@cli.command()
+@selector_options
+def nodes(all_nodes, ranges):
+    """Just display the hostnames of selected nodes."""
+    selector = build_selector(ranges, all_nodes)
     print(" ".join(selector.node_names()))
 
+
 ####################
+# CMC verbs
 
-
-def cmc_verb(verb, resa_policy, *argv):
+def cmc_verb(verb, resa_policy, *, timeout, selector):
     """
     resa_policy can be either
     (*) 'enforce': refuse to send the message if the lease is not there
     (*) 'warn': issue a warning when the lease is not there
     (*) 'none' - or anything else really: does not check the leases
     """
-    usage = f"""
-    Send verb '{verb}' to the CMC interface of selected nodes"""
-    if resa_policy == 'enforce':
-        usage += f"\n    {RESERVATION_REQUIRED}"
-    config = Config()
-    default_timeout = config.value('nodes', 'cmc_default_timeout')
-
-    parser = ArgumentParser(usage=usage,
-                            formatter_class=ArgumentDefaultsHelpFormatter)
-    parser.add_argument("-t", "--timeout", action='store',
-                        default=default_timeout, type=float,
-                        help="Specify global timeout for the whole process")
-    add_selector_arguments(parser)
-    args = parser.parse_args(argv)
-
     message_bus = asyncio.Queue()
-    leases = Leases(message_bus)                        # pylint: disable=w0621
+    leases = Leases(message_bus)
 
     if resa_policy in ('warn', 'enforce'):
         reserved = check_reservation(leases, verbose=False)
-        if not reserved:
-            if resa_policy == 'enforce':
-                return 1
+        if not reserved and resa_policy == 'enforce':
+            return 1
 
-    selector = selected_selector(args)
     action = Action(verb, selector)
-
-    return 0 if action.run(message_bus, args.timeout) else 1
-
-#####
+    return 0 if action.run(message_bus, timeout) else 1
 
 
-@subcommand
-def status(*argv):
-    return cmc_verb('status', 'warn', *argv)
+def _timeout_option(config_key='cmc_default_timeout'):
+    return click.option(
+        '-t', '--timeout', type=float, show_default=True,
+        default=lambda: Config().value('nodes', config_key),
+        help="Specify global timeout for the whole process")
 
 
-@subcommand
-def on(*argv):                                          # pylint: disable=c0103
-    return cmc_verb('on', 'enforce', *argv)
+def _cmc_command(verb, resa_policy, help_text):
+    """Build a click command for a CMC verb."""
+    def callback(timeout, all_nodes, ranges):
+        selector = build_selector(ranges, all_nodes)
+        sys.exit(cmc_verb(verb, resa_policy, timeout=timeout, selector=selector))
+    callback.__name__ = verb
+    callback.__doc__ = help_text
+    callback = selector_options(callback)
+    callback = _timeout_option()(callback)
+    return cli.command(name=verb)(callback)
 
 
-@subcommand
-def off(*argv):
-    return cmc_verb('off', 'enforce', *argv)
+_cmc_command('status', 'warn',
+             "Send 'status' to the CMC interface of selected nodes.")
+_cmc_command('on', 'enforce',
+             "Send 'on' to the CMC interface of selected nodes. "
+             + RESERVATION_REQUIRED)
+_cmc_command('off', 'enforce',
+             "Send 'off' to the CMC interface of selected nodes. "
+             + RESERVATION_REQUIRED)
+_cmc_command('reset', 'enforce',
+             "Send 'reset' to the CMC interface of selected nodes. "
+             + RESERVATION_REQUIRED)
+_cmc_command('info', 'warn',
+             "Send 'info' to the CMC interface of selected nodes.")
+_cmc_command('usrpstatus', 'warn',
+             "Send 'usrpstatus' to the CMC interface of selected nodes.")
+_cmc_command('usrpon', 'enforce',
+             "Send 'usrpon' to the CMC interface of selected nodes. "
+             + RESERVATION_REQUIRED)
+_cmc_command('usrpoff', 'enforce',
+             "Send 'usrpoff' to the CMC interface of selected nodes. "
+             + RESERVATION_REQUIRED)
+_cmc_command('bothoff', 'enforce',
+             "Send 'bothoff' to the CMC interface of selected nodes. "
+             + RESERVATION_REQUIRED)
 
 
-@subcommand
-def reset(*argv):
-    return cmc_verb('reset', 'enforce', *argv)
+####################
 
 
-@subcommand
-def info(*argv):
-    return cmc_verb('info', 'warn', *argv)
-
-
-@subcommand
-def usrpstatus(*argv):
-    return cmc_verb('usrpstatus', 'warn', *argv)
-
-
-@subcommand
-def usrpon(*argv):
-    return cmc_verb('usrpon', 'enforce', *argv)
-
-
-@subcommand
-def usrpoff(*argv):
-    return cmc_verb('usrpoff', 'enforce', *argv)
-
-
-@subcommand
-def bothoff(*argv):
-    return cmc_verb('bothoff', 'enforce', *argv)
-
-
-#####
-# xxx should be asynchronous
-@subcommand
-def bye(*argv):
-    """
-    An alternative implementation of the previous 'all-off' utility
-    Switch the lights off when you leave
-    """
-
-    usage = """
-    Turn off whole testbed
-    """
-    config = Config()
-    # use a dedicated - longer - timeout
-    # so be on the safe side
-    default_timeout = config.value('nodes', 'cmc_safe_timeout')
-    parser = ArgumentParser(usage=usage,
-                            formatter_class=ArgumentDefaultsHelpFormatter)
-    parser.add_argument("-t", "--timeout", action='store',
-                        default=default_timeout, type=float,
-                        help="Specify timeout for each phase")
-    add_selector_arguments(parser)
-    args = parser.parse_args(argv)
-
+@cli.command()
+@_timeout_option('cmc_safe_timeout')
+@selector_options
+def bye(timeout, all_nodes, ranges):
+    """Turn off whole testbed (nodes, phones, auto-off PDUs)."""
     try:
-        selector = selected_selector(args, defaults_to_all=True)
+        selector = build_selector(ranges, all_nodes, defaults_to_all=True)
         if selector.is_empty():
             selector.use_all_scope()
 
         message_bus = asyncio.Queue()
-        print(f"{20*'='} bothoff {20*'='} (timeout={args.timeout})")
-        Action('bothoff', selector).run(message_bus, args.timeout)
+        print(f"{20*'='} bothoff {20*'='} (timeout={timeout})")
+        Action('bothoff', selector).run(message_bus, timeout)
 
         # keep it simple for now
         time.sleep(1)
 
-        # even simpler
         print(f"{20*'='} phones {20*'='}")
         inventory_phones = InventoryPhones()
         for phone in inventory_phones.all_phones():
             command = (f"ssh -i {phone['gw_key']} -o StrictHostKeyChecking=no "
-                    f"{phone['gw_user']}@{phone['gw_host']} phone-off")
+                       f"{phone['gw_user']}@{phone['gw_host']} phone-off")
             print(command)
             os.system(command)
 
         print(f"{20*'='} pdus {20*'='}")
         inventory_pdus = InventoryPdus.load()
-        # this is a working async version
-        # but for safety we will do it sequentially
-        # because the ssh service in the PDU unit looks fragile
-        # async def turn_off_auto_devices():
-        #     await asyncio.gather(
-        #         *(device.off()
-        #                 for device in inventory_pdus.devices
-        #                 if device.auto_turn_off))
-        # asyncio.run(turn_off_auto_devices())
+        # sequential on purpose: the ssh service in the PDU unit looks fragile
         for device in inventory_pdus.devices:
             if device.auto_turn_off:
                 asyncio.run(device.off())
     except KeyboardInterrupt:
         print("bye: keyboard interrupt - exiting")
-        return 1
+        sys.exit(1)
+
 
 ####################
 
 
-@subcommand
-def load(*argv):
-    usage = f"""
-    Load an image on selected nodes in parallel
-    {RESERVATION_REQUIRED}
+@cli.command()
+@click.option('-i', '--image', default=lambda: ImagesRepo().default(),
+              show_default=True, help="Specify image to load")
+@_timeout_option('load_default_timeout')
+@click.option('-b', '--bandwidth', type=int, show_default=True,
+              default=lambda: Config().value('networking', 'bandwidth'),
+              help="Set bandwidth in Mibps for frisbee uploading")
+@click.option('-c', '--curses', is_flag=True, default=False,
+              help="Use curses to provide term-based animation")
+@click.option('-n', '--no-reset', 'reset',
+              flag_value=False, default=True,
+              help="use this with nodes that are already running a frisbee "
+                   "image; they won't get reset, neither before or after "
+                   "the frisbee session")
+@selector_options
+def load(image, timeout, bandwidth, curses, reset, all_nodes, ranges):
+    """Load an image on selected nodes in parallel.
+
+    \b
+    This function requires a valid reservation
+    - or to be root or a privileged user.
     """
-    config = Config()
-    config.check_binaries()
+    Config().check_binaries()
     imagesrepo = ImagesRepo()
 
-    parser = ArgumentParser(usage=usage,
-                            formatter_class=ArgumentDefaultsHelpFormatter)
-    parser.add_argument("-i", "--image", action='store',
-                        default=imagesrepo.default(),
-                        help="Specify image to load")
-    parser.add_argument("-t", "--timeout", action='store',
-                        default=config.value('nodes',
-                                                 'load_default_timeout'),
-                        type=float,
-                        help="Specify global timeout for the whole process")
-    parser.add_argument("-b", "--bandwidth", action='store',
-                        default=config.value('networking', 'bandwidth'),
-                        type=int,
-                        help="Set bandwidth in Mibps for frisbee uploading")
-    parser.add_argument("-c", "--curses", action='store_true', default=False,
-                        help="Use curses to provide term-based animation")
-    # this is more for debugging
-    parser.add_argument("-n", "--no-reset", dest='reset',
-                        action='store_false', default=True,
-                        help="""use this with nodes that are already
-                        running a frisbee image. They won't get reset,
-                        neither before or after the frisbee session""")
-    add_selector_arguments(parser)
-    args = parser.parse_args(argv)
-
     message_bus = asyncio.Queue()
-
-    selector = selected_selector(args)
+    selector = build_selector(ranges, all_nodes)
     if selector.is_empty():
-        parser.print_help()
-        return 1
-    nodes = [Node(cmc_name, message_bus)                # pylint: disable=w0621
-             for cmc_name in selector.cmc_names()]
+        raise click.UsageError("no nodes selected")
+    node_list = [Node(cmc_name, message_bus)
+                 for cmc_name in selector.cmc_names()]
 
-    # send feedback
     message_bus.put_nowait({'selected_nodes': selector})
     from rhubarbe.logger import logger
-    logger.info(f"timeout is {args.timeout}s")
-    logger.info(f"bandwidth is {args.bandwidth} Mibps")
+    logger.info(f"timeout is {timeout}s")
+    logger.info(f"bandwidth is {bandwidth} Mibps")
 
-    actual_image = imagesrepo.locate_image(args.image, look_in_global=True)
+    actual_image = imagesrepo.locate_image(image, look_in_global=True)
     if not actual_image:
-        print(f"Image file {args.image} not found - emergency exit")
-        exit(1)
+        print(f"Image file {image} not found - emergency exit")
+        sys.exit(1)
 
-    # send feedback
     message_bus.put_nowait({'loading_image': actual_image})
-    display_class = Display if not args.curses else DisplayCurses
-    display = display_class(nodes, message_bus)
-    loader = ImageLoader(nodes, image=actual_image, bandwidth=args.bandwidth,
+    display_class = DisplayCurses if curses else Display
+    display = display_class(node_list, message_bus)
+    loader = ImageLoader(node_list, image=actual_image, bandwidth=bandwidth,
                          message_bus=message_bus, display=display)
-    return loader.main(reset=args.reset, timeout=args.timeout)
+    sys.exit(loader.main(reset=reset, timeout=timeout))
+
 
 ####################
 
 
-@subcommand
-def save(*argv):
-    usage = f"""
-    Save an image from a node
-    Mandatory radical needs to be provided with --output
-      This info, together with nodename and date, is stored
-      on resulting image in /etc/rhubarbe-image
-    {RESERVATION_REQUIRED}
+@cli.command()
+@click.option('-o', '--output', 'radical', required=True,
+              help="Mandatory radical to name resulting image")
+@_timeout_option('save_default_timeout')
+@click.option('-c', '--comment', default=None,
+              help="one-liner comment to insert in /etc/rhubarbe-image")
+@click.option('-n', '--no-reset', 'reset',
+              flag_value=False, default=True,
+              help="use this with a node that is already running a frisbee "
+                   "image; it won't get reset, neither before or after "
+                   "the frisbee session")
+@click.argument('node')
+def save(radical, timeout, comment, reset, node):
+    """Save an image from a node.
+
+    The mandatory radical (-o) — together with nodename and date —
+    is stored on the resulting image in /etc/rhubarbe-image.
     """
-
-    config = Config()
-    config.check_binaries()
-
-    parser = ArgumentParser(usage=usage,
-                            formatter_class=ArgumentDefaultsHelpFormatter)
-    parser.add_argument("-o", "--output", action='store', dest='radical',
-                        default=None, required=True,
-                        help="Mandatory radical to name resulting image")
-    parser.add_argument("-t", "--timeout", action='store',
-                        default=config.value('nodes',
-                                                 'save_default_timeout'),
-                        type=float,
-                        help="Specify global timeout for the whole process")
-    parser.add_argument("-c", "--comment", dest='comment', default=None,
-                        help="one-liner comment to insert in "
-                        "/etc/rhubarbe-image")
-    parser.add_argument("-n", "--no-reset", dest='reset',
-                        action='store_false', default=True,
-                        help="""use this with a node that is already
-                        running a frisbee image. It won't get reset,
-                        neither before or after the frisbee session""")
-    parser.add_argument("node")
-    args = parser.parse_args(argv)
+    Config().check_binaries()
 
     message_bus = asyncio.Queue()
-
     selector = Selector()
-    selector.add_range(args.node)
-    # in case there was one argument but it was not found in inventory
+    selector.add_range(node)
     if len(selector) != 1:
-        parser.print_help()
+        raise click.UsageError(f"could not resolve node '{node}'")
     cmc_name = next(selector.cmc_names())
-    node = Node(cmc_name, message_bus)
-    nodename = node.control_hostname()
+    node_obj = Node(cmc_name, message_bus)
+    nodename = node_obj.control_hostname()
 
     imagesrepo = ImagesRepo()
-    actual_image = imagesrepo.where_to_save(nodename, args.radical)
+    actual_image = imagesrepo.where_to_save(nodename, radical)
     message_bus.put_nowait({'info': f"Saving image {actual_image}"})
-    # curses has no interest here since we focus on one node
-    display_class = Display
-    display = display_class([node], message_bus)
-    saver = ImageSaver(node, image=actual_image, radical=args.radical,
+    display = Display([node_obj], message_bus)
+    saver = ImageSaver(node_obj, image=actual_image, radical=radical,
                        message_bus=message_bus, display=display,
-                       comment=args.comment)
-    return saver.main(reset=args.reset, timeout=args.timeout)
+                       comment=comment)
+    sys.exit(saver.main(reset=reset, timeout=timeout))
+
 
 ####################
 
 
-@subcommand
-def wait(*argv):                                        # pylint: disable=r0914
-    usage = """
-    Wait for selected nodes to be reachable by ssh
-    Returns 0 if all nodes indeed are reachable
+@cli.command()
+@click.option('-c', '--curses', is_flag=True, default=False,
+              help="Use curses to provide term-based animation")
+@_timeout_option('wait_default_timeout')
+@click.option('-b', '--backoff', type=float, show_default=True,
+              default=lambda: Config().value('networking', 'ssh_backoff'),
+              help="Specify backoff average between attempts to ssh connect")
+@click.option('-u', '--user', default="root", show_default=True,
+              help="select other username")
+@click.option('-s', '--silent', is_flag=True, default=False,
+              help="really don't write anything")
+@click.option('-v', '--verbose', is_flag=True, default=False)
+@selector_options
+def wait(curses, timeout, backoff, user, silent, verbose, all_nodes, ranges):
+    """Wait for selected nodes to be reachable by ssh.
+
+    Returns 0 if all nodes indeed are reachable.
     """
-    # suppress info log messages from asyncssh
     asyncssh_set_log_level(logging.WARNING)
     turn_off_ssh_debug_messages()
 
-    config = Config()
-    parser = ArgumentParser(usage=usage,
-                            formatter_class=ArgumentDefaultsHelpFormatter)
-    parser.add_argument("-c", "--curses", action='store_true', default=False,
-                        help="Use curses to provide term-based animation")
-    parser.add_argument("-t", "--timeout", action='store',
-                        default=config.value('nodes', 'wait_default_timeout'),
-                        type=float,
-                        help="Specify global timeout for the whole process")
-    parser.add_argument("-b", "--backoff", action='store',
-                        default=config.value('networking', 'ssh_backoff'),
-                        type=float,
-                        help="Specify backoff average between "
-                        "attempts to ssh connect")
-    parser.add_argument("-u", "--user", default="root",
-                        help="select other username")
-    # really dont' write anything
-    parser.add_argument("-s", "--silent", action='store_true', default=False)
-    parser.add_argument("-v", "--verbose", action='store_true', default=False)
+    if curses:
+        verbose = True
 
-    add_selector_arguments(parser)
-    args = parser.parse_args(argv)
-
-    # --curses implies --verbose otherwise nothing shows up
-    if args.curses:
-        args.verbose = True
-
-    selector = selected_selector(args)
+    selector = build_selector(ranges, all_nodes)
     message_bus = asyncio.Queue()
 
-    if args.verbose:
+    if verbose:
         message_bus.put_nowait({'selected_nodes': selector})
     from rhubarbe.logger import logger
-    logger.info(f"wait: backoff is {args.backoff} "
-                f"and global timeout is {args.timeout}")
+    logger.info(f"wait: backoff is {backoff} and global timeout is {timeout}")
 
-    nodes = [Node(cmc_name, message_bus)                # pylint: disable=w0621
-             for cmc_name in selector.cmc_names()]
-    sshs = [SshProxy(node, username=args.user, verbose=args.verbose)
-            for node in nodes]
-    jobs = [Job(ssh.wait_for(args.backoff), critical=True) for ssh in sshs]
+    node_list = [Node(cmc_name, message_bus)
+                 for cmc_name in selector.cmc_names()]
+    sshs = [SshProxy(node, username=user, verbose=verbose)
+            for node in node_list]
+    jobs = [Job(ssh.wait_for(backoff), critical=True) for ssh in sshs]
 
-    display_class = Display if not args.curses else DisplayCurses
-    display = display_class(nodes, message_bus)
+    display_class = DisplayCurses if curses else Display
+    display = display_class(node_list, message_bus)
 
-    # have the display class run forever until the other ones are done
     scheduler = Scheduler(Job(display.run(), forever=True, critical=True),
-                          *jobs,
-                          timeout=args.timeout,
-                          critical=False)
+                          *jobs, timeout=timeout, critical=False)
+    rc = 0
     try:
         orchestration = scheduler.run()
-        if orchestration:
-            return 0
-        else:
-            if args.verbose:
+        if not orchestration:
+            if verbose:
                 scheduler.debrief(silence_done_jobs=True)
-            return 1
+            rc = 1
     except KeyboardInterrupt:
         print("rhubarbe-wait : keyboard interrupt - exiting")
-        # xxx
-        return 1
+        rc = 1
     finally:
         display.epilogue()
-        if not args.silent:
+        if not silent:
             for ssh in sshs:
                 print(f"{ssh.node}:ssh {'OK' if ssh.status else 'KO'}")
+    sys.exit(rc)
+
 
 ####################
 
 
-@subcommand
-def images(*argv):
-    usage = """
-    Display available images
-    """
-    parser = ArgumentParser(usage=usage,
-                            formatter_class=ArgumentDefaultsHelpFormatter)
-    parser.add_argument("-l", "--labeled-only", dest="labeled",
-                        action='store_true', default=False,
-                        help="""if specified, only images that have at least
-                        one symlink to them are shown""")
-    parser.add_argument("-p", "--public-only",
-                        action="store_true", default=False,
-                        help="displays only publicly visible images")
-    parser.add_argument("-s", "--size", dest='sort_size',
-                        action='store_true', default=None,
-                        help="sort by size (default is by name)")
-    parser.add_argument("-d", "--date", dest='sort_date',
-                        action='store_true', default=None,
-                        help="sort by date")
-    parser.add_argument("-r", "--reverse",
-                        action='store_true', default=False,
-                        help="reverse sort")
-    parser.add_argument("-n", "--narrow",
-                        action='store_true', default=False,
-                        help="""default is to show full paths, with this option
-                        only radicals are displayed""")
-    parser.add_argument("focus", nargs="*", type=str,
-                        help="if provided, only images that contain "
-                        "one of these strings are displayed")
-    parser.add_argument("-a", "--and", help="use AND logic instead of OR",
-                        dest='and_or', action='store_const',
-                        const='and', default='or')
-    args = parser.parse_args(argv)
+@cli.command()
+@click.option('-l', '--labeled-only', 'labeled', is_flag=True, default=False,
+              help="only images that have at least one symlink to them")
+@click.option('-p', '--public-only', is_flag=True, default=False,
+              help="display only publicly visible images")
+@click.option('-s', '--size', 'sort_size', is_flag=True, default=False,
+              help="sort by size (default is by name)")
+@click.option('-d', '--date', 'sort_date', is_flag=True, default=False,
+              help="sort by date")
+@click.option('-r', '--reverse', is_flag=True, default=False,
+              help="reverse sort")
+@click.option('-n', '--narrow', is_flag=True, default=False,
+              help="show only radicals instead of full paths")
+@click.option('-a', '--and', 'and_or', flag_value='and', default='or',
+              help="use AND logic instead of OR")
+@click.argument('focus', nargs=-1)
+def images(labeled, public_only, sort_size, sort_date, reverse,
+           narrow, and_or, focus):
+    """Display available images."""
     imagesrepo = ImagesRepo()
-    if args.sort_size is not None:
-        args.sort_by = 'size'
-    elif args.sort_date is not None:
-        args.sort_by = 'date'
+    if sort_size:
+        sort_by = 'size'
+    elif sort_date:
+        sort_by = 'date'
     else:
-        args.sort_by = 'name'
-    and_or = args.and_or
+        sort_by = 'name'
+    sys.exit(imagesrepo.images(
+        list(focus), sort_by, reverse, labeled, public_only, narrow, and_or))
 
-    # if focus is an empty list, then everything is shown
-    return imagesrepo.images(
-        args.focus, args.sort_by, args.reverse,
-        args.labeled, args.public_only, args.narrow, and_or)
 
 ####################
 
 
-@subcommand
-def resolve(*argv):
-    usage = """for each input, find out and display
-    what file exactly would be used if used with load
-    and possible siblings if verbose mode is selected
-    """
-
-    parser = ArgumentParser(usage=usage,
-                            formatter_class=ArgumentDefaultsHelpFormatter)
-#    parser.add_argument("-r", "--reverse", action='store_true', default=False,
-#                        help="reverse sort")
-    parser.add_argument("-v", "--verbose", action='store_true', default=False,
-                        help="show all files (i.e. with all symlinks)")
-    parser.add_argument("focus", type=str,
-                        help="the image radical name to resolve")
-    args = parser.parse_args(argv)
+@cli.command()
+@click.option('-v', '--verbose', is_flag=True, default=False,
+              help="show all files (i.e. with all symlinks)")
+@click.argument('focus')
+def resolve(verbose, focus):
+    """For the input image, show what file would be used by `load`."""
     imagesrepo = ImagesRepo()
-    # if focus is an empty list, then everything is shown
-    return imagesrepo.resolve(args.focus, args.verbose)
+    sys.exit(imagesrepo.resolve(focus, verbose))
+
 
 ####################
 
 
-@subcommand
-def share(*argv):
-    usage = """
-    Install privately-stored images into the global images repo
+@cli.command()
+@click.option('-a', '--alias-name', 'alias', default=None,
+              help="also create a symlink of that name")
+@click.option('-n', '--dry-run', default=None, is_flag=True,
+              help="only show what would be done "
+                   "(default unless running under sudo)")
+@click.option('-f', '--force', is_flag=True, default=False,
+              help="move files even if destination exists")
+@click.option('-c', '--clean', is_flag=True, default=False,
+              help="remove other matches than the one being promoted; "
+                   "useful when one name has several matches and only "
+                   "the last one is desired (typically after a successful rsave)")
+@click.argument('image')
+def share(alias, dry_run, force, clean, image):
+    """Install privately-stored images into the global images repo.
+
     Destination name is derived from the radical provided at save-time
-      i.e. trailing part after saving__<date>__
+    (the trailing part after `saving__<date>__`).
 
-    With the -a option, it is possible to make the new image
-    **also** visible under that alias name.
-
-    If your account is enabled in /etc/sudoers.d/rhubarbe-share,
-    the command will actually perform the mv operation
-    Requires to be run through 'sudo rhubarbe-share'
+    With -a it is possible to make the new image also visible under that
+    alias name. If your account is enabled in /etc/sudoers.d/rhubarbe-share,
+    the command will actually perform the mv operation — requires running
+    via `sudo rhubarbe-share`.
     """
-    parser = ArgumentParser(usage=usage,
-                            formatter_class=ArgumentDefaultsHelpFormatter)
-    parser.add_argument("-a", "--alias-name", dest='alias',
-                        action='store', default=None,
-                        help="also create a symlink of that name")
-    # default=None so that imagesrepo.share can compute a default
-    parser.add_argument("-n", "--dry-run",
-                        default=None, action='store_true',
-                        help="Only show what would be done "
-                        "(default unless running under sudo")
-    parser.add_argument("-f", "--force",
-                        default=False, action='store_true',
-                        help="Will move files even if destination exists")
-    parser.add_argument("-c", "--clean",
-                        default=False, action='store_true',
-                        help="""Will remove other matches than the one that
-                        gets promoted. In other words, useful when one name
-                        has several matches and only the last one is desired.
-                        Typically after a successful rsave""")
-    parser.add_argument("image", type=str)
-    args = parser.parse_args(argv)
-
     imagesrepo = ImagesRepo()
-    return imagesrepo.share(
-        args.image, args.alias, args.dry_run, args.force, args.clean)
+    sys.exit(imagesrepo.share(image, alias, dry_run, force, clean))
+
 
 ####################
 
 
 TIME_HELP = "ISO timestamp, or keyword: now, today, tomorrow"
 
-@click.command('rhubarbe leases')
+
+@cli.command()
 @click.option('-c', '--check', is_flag=True,
               help="Check if you currently have a lease.")
 @click.option('-a', '--after', default='now', show_default=True,
@@ -660,13 +541,13 @@ TIME_HELP = "ISO timestamp, or keyword: now, today, tomorrow"
               help="Show all upcoming leases (ignore --before).")
 @click.option('-n', '--no-admin', is_flag=True,
               help="Hide admin slices (r2lab-*).")
-def leases_cli(check, after, before, upcoming, no_admin):
+def leases(check, after, before, upcoming, no_admin):
     """Display leases; by default shows from now until midnight."""
     message_bus = asyncio.Queue()
     the_leases = Leases(message_bus)
     if check:
         access = check_reservation(the_leases, verbose=True)
-        return 0 if access else 1
+        sys.exit(0 if access else 1)
     the_leases.after_filter = Leases.resolve_time_keyword(after)
     if upcoming:
         the_leases.before_filter = None
@@ -676,16 +557,12 @@ def leases_cli(check, after, before, upcoming, no_admin):
     loop = asyncio.new_event_loop()
     loop.run_until_complete(the_leases.main())
     loop.close()
-    return 0
 
-@subcommand
-def leases(*argv):
-    return run_click(leases_cli, argv)
 
 ####################
 
 
-@click.command('rhubarbe book')
+@cli.command()
 @click.argument('start')
 @click.argument('end')
 @click.option('-q', '--query', is_flag=True,
@@ -697,8 +574,7 @@ def leases(*argv):
 @click.option('-e', '--email', help="Email for authentication.")
 @click.option('-p', '--password', help="Password for authentication.")
 @click.option('-v', '--verbose', is_flag=True, help="Be verbose.")
-def book_cli(start, end, query, delete, slice_name,
-             email, password, verbose):
+def book(start, end, query, delete, slice_name, email, password, verbose):
     """Book, query, or delete a lease on the testbed.
 
     START and END are time specs: 2020-01-01T00:00, "2020-01-01 00:00",
@@ -723,15 +599,14 @@ def book_cli(start, end, query, delete, slice_name,
         else:
             print(f"Could not reach the r2lab API: {exc}")
         ok = False
-    return 0 if ok else 1
+    sys.exit(0 if ok else 1)
 
-@subcommand
-def book(*argv):
-    return run_click(book_cli, argv)
 
 ####################
-from rhubarbe.logger import monitor_logger
-from rhubarbe.logger import r2lab_sidecar_logger
+# monitors
+
+from rhubarbe.logger import r2lab_sidecar_logger  # noqa: E402
+
 
 def set_loggers_level(verbose, debug):
     print("setting logger level on r2lab-sidecar and monitor")
@@ -746,408 +621,355 @@ def set_loggers_level(verbose, debug):
         r2lab_sidecar_logger.setLevel('WARNING')
 
 
+def _monitor_common_options(cycle_key, prometheus_key):
+    """Decorator stack shared by monitor commands."""
+    def decorator(f):
+        f = click.option(
+            '--prometheus-port', type=int, show_default=True,
+            default=lambda: Config().value('monitor', prometheus_key),
+            help="port for Prometheus /metrics endpoint (0 to disable)")(f)
+        f = click.option('-d', '--debug', is_flag=True, default=False)(f)
+        f = click.option('-v', '--verbose', is_flag=True, default=False)(f)
+        f = click.option(
+            '-u', '--sidecar-url', show_default=True,
+            default=lambda: Config().value('sidecar', 'url'),
+            help="url for the sidecar server")(f)
+        f = click.option(
+            '-c', '--cycle', type=float, show_default=True,
+            default=lambda: Config().value('monitor', cycle_key),
+            help="Delay to wait between 2 probes")(f)
+        return f
+    return decorator
 
-@subcommand
-def monitornodes(*argv):                                # pylint: disable=r0914
 
-    usage = """
-    Cyclic probe all selected nodes, and reports
-    real-time status at a sidecar service over websockets
-    """
-    config = Config()
-    parser = ArgumentParser(usage=usage,
-                            formatter_class=ArgumentDefaultsHelpFormatter)
-    parser.add_argument(
-        '-c', "--cycle",
-        default=config.value('monitor', 'cycle_nodes'),
-        type=float,
-        help="Delay to wait between 2 probes of each node")
-    parser.add_argument(
-        "-u", "--sidecar-url", dest="sidecar_url",
-        default=Config().value('sidecar', 'url'),
-        help="url for the sidecar server")
-    parser.add_argument(
-        "-v", "--verbose", action='store_true')
-    parser.add_argument(
-        "-d", "--debug", action='store_true')
-    parser.add_argument(
-        "--prometheus-port", dest="prometheus_port",
-        default=config.value('monitor', 'prometheus_port_nodes'),
-        type=int,
-        help="port for Prometheus /metrics endpoint (0 to disable)")
-    add_selector_arguments(parser)
-    args = parser.parse_args(argv)
-
-    (debug, verbose) = (args.debug, args.verbose)
+@cli.command()
+@_monitor_common_options('cycle_nodes', 'prometheus_port_nodes')
+@selector_options
+def monitornodes(cycle, sidecar_url, verbose, debug, prometheus_port,
+                 all_nodes, ranges):
+    """Cyclically probe all selected nodes; report status to the sidecar."""
     set_loggers_level(verbose, debug)
-    PrometheusExporter().start(args.prometheus_port)
+    PrometheusExporter().start(prometheus_port)
 
-    selector = selected_selector(args)
+    selector = build_selector(ranges, all_nodes)
     message_bus = asyncio.Queue()
-
-    # xxx having to feed a Display instance with nodes
-    # at creation time is a nuisance
     display = Display([], message_bus)
 
     monitor_logger.info({'selected_nodes': selector})
-    monitornodes = MonitorNodes(selector.cmc_names(),
-                                message_bus=message_bus,
-                                cycle=args.cycle,
-                                sidecar_url=args.sidecar_url,
-                                verbose=args.verbose)
+    mon = MonitorNodes(selector.cmc_names(),
+                       message_bus=message_bus,
+                       cycle=cycle,
+                       sidecar_url=sidecar_url,
+                       verbose=verbose)
 
     async def async_main():
-        # run both the core and the log loop in parallel
-        await asyncio.gather(monitornodes.run_forever(),
-                             display.run())
+        await asyncio.gather(mon.run_forever(), display.run())
 
     MonitorLoop("monitornodes").run(async_main())
-    return 0
-
-####################
 
 
-@subcommand
-def monitorphones(*argv):
-
-    usage = """
-    Cyclic probe all known phones, and reports real-time status
-    at a sidecar service over websockets
-    """
-    config = Config()
-    parser = ArgumentParser(usage=usage,
-                            formatter_class=ArgumentDefaultsHelpFormatter)
-    parser.add_argument(
-        "-c", "--cycle",
-        default=config.value('monitor', 'cycle_phones'),
-        type=float,
-        help="Delay to wait between 2 probes of each phone")
-    parser.add_argument(
-        "-u", "--sidecar-url", dest="sidecar_url",
-        default=Config().value('sidecar', 'url'),
-        help="url for the sidecar server")
-    parser.add_argument(
-        "-v", "--verbose", action='store_true')
-    parser.add_argument(
-        "-d", "--debug", action='store_true')
-    parser.add_argument(
-        "--prometheus-port", dest="prometheus_port",
-        default=config.value('monitor', 'prometheus_port_phones'),
-        type=int,
-        help="port for Prometheus /metrics endpoint (0 to disable)")
-    args = parser.parse_args(argv)
-
-    (debug, verbose) = (args.debug, args.verbose)
-    del args.debug
+@cli.command()
+@_monitor_common_options('cycle_phones', 'prometheus_port_phones')
+def monitorphones(cycle, sidecar_url, verbose, debug, prometheus_port):
+    """Cyclically probe all known phones; report status to the sidecar."""
     set_loggers_level(verbose, debug)
-    PrometheusExporter().start(args.prometheus_port)
-    del args.prometheus_port
+    PrometheusExporter().start(prometheus_port)
 
     monitor_logger.info("Using all phones")
-    monitorphones = MonitorPhones(**vars(args))
-
-    MonitorLoop("monitorphones").run(monitorphones.run_forever())
-    return 0
-
-####################
+    mon = MonitorPhones(cycle=cycle, sidecar_url=sidecar_url, verbose=verbose)
+    MonitorLoop("monitorphones").run(mon.run_forever())
 
 
-@subcommand
-def monitorpdus(*argv):
-
-    usage = """
-    Cyclic probe all known pdus, and reports real-time status
-    at a sidecar service over websockets
-    """
-    config = Config()
-    parser = ArgumentParser(usage=usage,
-                            formatter_class=ArgumentDefaultsHelpFormatter)
-    parser.add_argument(
-        "-c", "--cycle",
-        default=config.value('monitor', 'cycle_pdus'),
-        type=float,
-        help="Delay to wait between 2 probes of each pdu")
-    parser.add_argument(
-        "-u", "--sidecar-url", dest="sidecar_url",
-        default=Config().value('sidecar', 'url'),
-        help="url for the sidecar server")
-    parser.add_argument(
-        "-v", "--verbose", action='store_true')
-    parser.add_argument(
-        "-d", "--debug", action='store_true')
-    parser.add_argument(
-        "--prometheus-port", dest="prometheus_port",
-        default=config.value('monitor', 'prometheus_port_pdus'),
-        type=int,
-        help="port for Prometheus /metrics endpoint (0 to disable)")
-    parser.add_argument("names", nargs='*', help="optionally provide device names")
-    args = parser.parse_args(argv)
-
-    (debug, verbose) = (args.debug, args.verbose)
+@cli.command()
+@_monitor_common_options('cycle_pdus', 'prometheus_port_pdus')
+@click.argument('names', nargs=-1)
+def monitorpdus(cycle, sidecar_url, verbose, debug, prometheus_port, names):
+    """Cyclically probe all known PDUs; report status to the sidecar."""
     set_loggers_level(verbose, debug)
-    PrometheusExporter().start(args.prometheus_port)
-    # not supported by MonitorPdus
-    del args.debug
-    del args.prometheus_port
+    PrometheusExporter().start(prometheus_port)
 
-    monitor_logger.info(f"Monitoring pdus: {args.names or 'all'}")
-    monitorpdus = MonitorPdus(**vars(args))
+    monitor_logger.info(f"Monitoring pdus: {list(names) or 'all'}")
+    mon = MonitorPdus(cycle=cycle, sidecar_url=sidecar_url,
+                      verbose=verbose, names=list(names))
+    MonitorLoop("monitorpdus").run(mon.run_forever())
 
-    MonitorLoop("monitorpdus").run(monitorpdus.run_forever())
-
-    return 0
 
 ####################
 
 
-@subcommand
-def accountsmanager(*argv):
+@cli.command()
+@click.option('-c', '--cycle', default=None,
+              help="Set cycle in seconds; 0 means run only once; "
+                   "default from config file.")
+@click.option('-d', '--debug', is_flag=True, default=False)
+def accountsmanager(cycle, debug):
+    """The core of the accounts manager; reserved to root."""
+    sys.exit(AccountsManager().main(cycle, debug))
 
-    usage = "The core of the accounts manager; reserved to root"
-
-    parser = ArgumentParser(usage=usage,
-                            formatter_class=ArgumentDefaultsHelpFormatter)
-    parser.add_argument("-c", "--cycle",
-                        help="Set cycle in seconds; 0 means run only once;"
-                             " default from config file.",
-                        default=None)
-    parser.add_argument("-d", "--debug", action='store_true')
-    args = parser.parse_args(argv)
-
-    accounts_manager = AccountsManager()
-    return accounts_manager.main(args.cycle, args.debug)
 
 ####################
 
 
-@subcommand
-def inventory(*argv):
-    usage = """
-    Display inventory
-    """
-    parser = ArgumentParser(usage=usage,
-                            formatter_class=ArgumentDefaultsHelpFormatter)
-    parser.parse_args(argv)
-    inventory = InventoryNodes()
-    inventory.display(verbose=True)
-    return 0
+@cli.command()
+def inventory():
+    """Display inventory."""
+    InventoryNodes().display(verbose=True)
+
 
 ####################
 
 
-@subcommand
-def config(*argv):
-    usage = """
-    Display global configuration
-    """
-    parser = ArgumentParser(usage=usage,
-                            formatter_class=ArgumentDefaultsHelpFormatter)
-    parser.add_argument("sections", nargs='*',
-                        type=str,
-                        help="config section(s) to display")
-    args = parser.parse_args(argv)
-    config = Config()
-    config.display(args.sections)
-    return 0
+@cli.command()
+@click.argument('sections', nargs=-1)
+def config(sections):
+    """Display global configuration."""
+    Config().display(list(sections))
+
 
 ####################
 
 
-@subcommand
-def template(*argv):
-    usage = """
-    Show the template file to create the nodes and phones inventory
-    under /etc/rhubarbe
-    """
-    parser = ArgumentParser(usage=usage,
-                            formatter_class=ArgumentDefaultsHelpFormatter)
-    parser.add_argument(
-        "-n", "--nodes", dest='nodes',
-        action='store_true', default=False,
-        help="Show template for /etc/rhubarbe/inventory-nodes.json")
-    parser.add_argument(
-        "-p", "--phones", dest='phones',
-        action='store_true', default=False,
-        help="Show template for /etc/rhubarbe/inventory-phones.json")
-    parser.add_argument(
-        "-u", "--pdus", dest='pdus',
-        action='store_true', default=False,
-        help="Show template for /etc/rhubarbe/inventory-pdus.json")
-
-    args = parser.parse_args(argv)
-
-    def show_template(hardware_kind, format):
-        template = (
+@cli.command()
+@click.option('-n', '--nodes', 'show_nodes', is_flag=True, default=False,
+              help="Show template for /etc/rhubarbe/inventory-nodes.json")
+@click.option('-p', '--phones', 'show_phones', is_flag=True, default=False,
+              help="Show template for /etc/rhubarbe/inventory-phones.json")
+@click.option('-u', '--pdus', 'show_pdus', is_flag=True, default=False,
+              help="Show template for /etc/rhubarbe/inventory-pdus.yaml")
+def template(show_nodes, show_phones, show_pdus):
+    """Show the inventory template files under /etc/rhubarbe."""
+    def show(hardware_kind, ext):
+        data = (
             resources.files("rhubarbe")
-            / f"config/inventory-{hardware_kind}.{format}.template"
+            / f"config/inventory-{hardware_kind}.{ext}.template"
         ).read_bytes()
         print("# =========="
               f" template for /etc/rhubarbe/inventory-{hardware_kind}.json")
-        print(template.decode(encoding='utf-8'))
+        print(data.decode(encoding='utf-8'))
 
-    # pick -n by default
-    if not args.nodes and not args.phones and not args.pdus:
-        args.nodes = True
+    # default: -n
+    if not show_nodes and not show_phones and not show_pdus:
+        show_nodes = True
 
-    for hardware_kind, format in zip(
-        ('nodes', 'phones', 'pdus'), ('json', 'json', 'yaml')):
-        selected = getattr(args, hardware_kind)
+    for kind, ext, selected in (
+        ('nodes', 'json', show_nodes),
+        ('phones', 'json', show_phones),
+        ('pdus', 'yaml', show_pdus),
+    ):
         if selected:
-            show_template(hardware_kind, format)
-    return 0
+            show(kind, ext)
+
 
 ####################
+# pdu — click subgroup
 
 
-@subcommand
-def pdu(*argv):
-    usage = """
-    manage PDUs; examples:
+@cli.group()
+@click.option('-v', '--verbose', is_flag=True, default=False)
+@click.pass_context
+def pdu(ctx, verbose):
+    """Manage PDUs (power distribution units).
 
-        rhubarbe-pdu list               # lists the known PDUs and devices by name
-                                        # all forms of list show STATIC INFO only
-                                        # (no remote device involved)
-        rhubarbe-pdu list r2lab         # here r2lab is the name of a pdu_host
-                                        # here again it's a static info
-        rhubarbe-pdu list jaguar        # works with devices too
+    \b
+    Examples:
+      rhubarbe pdu list               # static listing of known PDUs/devices
+      rhubarbe pdu list r2lab         # list one pdu_host (static info)
+      rhubarbe pdu list jaguar        # works with device names too
+      rhubarbe pdu status r2lab       # probe pdu_host live
+      rhubarbe pdu status jaguar      # probe device live
+      rhubarbe pdu on jaguar
+      rhubarbe pdu off panther
+      rhubarbe pdu reset n300
 
-
-        rhubarbe-pdu status r2lab       # this time the PDU is probed
-                                        # for its current status
-        rhubarbe-pdu status jaguar      # works with devices too
-
-
-        rhubarbe-pdu on jaguar
-        rhubarbe-pdu off panther
-        rhubarbe-pdu reset n300
-
-    Note that for the OFF and RESET variants, there is an attempt to perform
-    a soft shutdown first (i.e. to contact the device by ssh and to run
-    `shutdown -h now` in that context)
-    for that the device needs to be properly configured
+    For off/reset, a soft shutdown (`shutdown -h now` over ssh) is
+    attempted first when the device is configured for it.
     """
-    parser = ArgumentParser(usage=usage,
-                            formatter_class=ArgumentDefaultsHelpFormatter)
-    # not yet used
-    parser.add_argument("-v", "--verbose", default=False, action='store_true')
-    parser.add_argument("command", help="one of the supported contrib commands")
-    parser.add_argument("extras", nargs="*", help="additional args are passed as is")
-    args = parser.parse_args(argv)
-
-    if args.verbose:
+    if verbose:
         import rhubarbe.inventorypdus
         rhubarbe.inventorypdus.VERBOSE = True
+    ctx.obj = InventoryPdus.load()
 
-    command, extras = args.command, args.extras
 
-    def die():
-        parser.print_help()
-        exit(255)
+@pdu.command('list')
+@click.argument('names', nargs=-1)
+@click.pass_obj
+def pdu_list(inv, names):
+    """List known PDUs and devices (static info, no probe)."""
+    inv.display_list(list(names))
 
-    # export env variables picked in config
-    # and uppercased as is the tradition for global env. variables
 
+@pdu.command('status')
+@click.argument('names', nargs=-1)
+@click.pass_obj
+def pdu_status(inv, names):
+    """Probe PDUs and/or devices for their current status."""
+    if not names:
+        inv.status()
+        return
+    for name in names:
+        try:
+            pdu_host = inv.get_pdu_host(name)
+            asyncio.run(pdu_host.probe())
+            continue
+        except ValueError:
+            pass
+        try:
+            device = inv.get_device(name)
+            asyncio.run(device.run_action('status'))
+        except ValueError:
+            print(f"unknown device {name}")
+
+
+def _pdu_device_action(inv, command, name):
     try:
-        inventory_pdus = InventoryPdus.load()   # pylint: disable=no-member
-
-        match command:
-            case 'list':
-                inventory_pdus.display_list(extras)
-
-            case 'status':
-                if not extras:
-                    inventory_pdus.status()
-                else:
-                    for name in extras:
-                        try:
-                            pdu_host = inventory_pdus.get_pdu_host(name)
-                            retcod = asyncio.run(pdu_host.probe())
-                            continue
-                        except ValueError:
-                            pass
-                        try:
-                            device = inventory_pdus.get_device(name)
-                            retcod = asyncio.run(device.run_action('status'))
-                            continue
-                        except ValueError:
-                            print(f"unknown device {name}")
-                exit(0)
-            case 'on' | 'off' | 'reset':
-                match extras:
-                    case (name, ):
-                        # status accepts a pdu_host name
-                        if command == 'status':
-                            try:
-                                pdu_host = inventory_pdus.get_pdu_host(name)
-                                retcod = asyncio.run(pdu_host.probe())
-                                exit(retcod)
-                            except ValueError:
-                                pass
-                        # otherwise a device name is expected
-                        try:
-                            device = inventory_pdus.get_device(name)
-                            retcod = asyncio.run(device.run_action(command))
-                            exit(retcod)
-                        except ValueError as exc:
-                            print(exc)
-                            exit(255)
-                    case _:
-                        print(f"missing device name for {command}")
-                        die()
-            case _:
-                print(f"unknown command {command}")
-                die()
+        device = inv.get_device(name)
+        sys.exit(asyncio.run(device.run_action(command)))
     except ValueError as exc:
         print(exc)
-        exit(255)
+        sys.exit(255)
+
+
+@pdu.command('on')
+@click.argument('name')
+@click.pass_obj
+def pdu_on(inv, name):
+    """Turn on a device."""
+    _pdu_device_action(inv, 'on', name)
+
+
+@pdu.command('off')
+@click.argument('name')
+@click.pass_obj
+def pdu_off(inv, name):
+    """Turn off a device (soft shutdown first if configured)."""
+    _pdu_device_action(inv, 'off', name)
+
+
+@pdu.command('reset')
+@click.argument('name')
+@click.pass_obj
+def pdu_reset(inv, name):
+    """Reset a device (soft shutdown first if configured)."""
+    _pdu_device_action(inv, 'reset', name)
+
+
+####################
+# relay — click subgroup
+
+
+@cli.group()
+def relay():
+    """Perform temperature acquisition on the known relays."""
+
+
+def _relay_print():
+    InventoryRelays.load().get_temperatures(mode='print')
+
+
+def _relay_store():
+    InventoryRelays.load().get_temperatures(mode='store')
+
+
+@relay.command('print')
+def relay_print_cmd():
+    """Print current temperatures on stdout."""
+    _relay_print()
+
+
+@relay.command('print-temperatures')
+def relay_print_alias():
+    """Alias for `print`."""
+    _relay_print()
+
+
+@relay.command('store')
+def relay_store_cmd():
+    """Store current temperatures in the database."""
+    _relay_store()
+
+
+@relay.command('store-temperatures')
+def relay_store_alias():
+    """Alias for `store`."""
+    _relay_store()
+
 
 ####################
 
-@subcommand
-def relay(*argv):
-    usage = """
-    perform temperature acquisition on the known relays
 
-    one mandatory argument: mode must be either 'print' or 'store'; the former
-    means printing current temperatures on stdout, the latter means create an entry
-    in the temperatures database.
-    """
-    parser = ArgumentParser(
-        usage=usage,
-        formatter_class=ArgumentDefaultsHelpFormatter)
-    parser.add_argument(
-        'mode',
-        choices=['store-temperatures', 'store', 'print-temperatures', 'print'],
-        default='print',
-    )
-    args = parser.parse_args(argv)
-
-    inventory_relays = InventoryRelays.load()
-    match args.mode:
-        case 'print' | 'print-temperatures':
-            inventory_relays.get_temperatures(mode='print')
-        case 'store' | 'store-temperatures':
-            inventory_relays.get_temperatures(mode='store')
-
-####################
-
-@subcommand
-def relaysapi(*argv):
-    usage = """
-    run the relay API service
-    """
-    parser = ArgumentParser(
-        usage=usage,
-        formatter_class=ArgumentDefaultsHelpFormatter)
-    args = parser.parse_args(argv)
+@cli.command()
+def relaysapi():
+    """Run the relay API service."""
     from rhubarbe.api.relays import run_relays_api_service
     run_relays_api_service()
-    return 0
+
 
 ####################
 
-@subcommand
-def version(*_):
+
+@cli.command()
+def version():
+    """Print the rhubarbe version."""
     from rhubarbe.version import __version__
     print(f"rhubarbe version {__version__}")
-    return 0
+
+
+####################
+
+
+@cli.command()
+@click.argument('subcommand', nargs=-1)
+@click.pass_context
+def help(ctx, subcommand):  # pylint: disable=redefined-builtin
+    """Show help for rhubarbe or a specific subcommand."""
+    root = ctx.parent  # context of the `cli` group
+    if not subcommand:
+        click.echo(cli.get_help(root))
+        return
+    cmd = cli
+    sub_ctx = root
+    for name in subcommand:
+        if not isinstance(cmd, click.Group):
+            raise click.UsageError(f"'{name}' is not a subcommand group")
+        next_cmd = cmd.get_command(sub_ctx, name)
+        if next_cmd is None:
+            raise click.UsageError(f"no such command: {' '.join(subcommand)}")
+        sub_ctx = click.Context(next_cmd, info_name=name, parent=sub_ctx)
+        cmd = next_cmd
+    click.echo(cmd.get_help(sub_ctx))
+
+
+####################
+# entry point
+
+
+def _translate_dashed_invocation():
+    """Translate `rhubarbe-<sub> ...` into `rhubarbe <sub> ...`.
+
+    Looked up against the click registry so it works for both leaf commands
+    and subgroups (e.g. `rhubarbe-pdu list jaguar`).
+    """
+    basename = os.path.basename(sys.argv[0])
+    if not basename.startswith('rhubarbe-'):
+        return
+    sub = basename[len('rhubarbe-'):]
+    if sub in cli.commands:
+        sys.argv = [sys.argv[0], sub] + sys.argv[1:]
+
+
+def main():
+    """Single entry point for all `rhubarbe*` console scripts."""
+    sys.stdout = os.fdopen(sys.stdout.fileno(), 'w', 1)
+    sys.stderr = os.fdopen(sys.stderr.fileno(), 'w', 1)
+    _translate_dashed_invocation()
+    try:
+        cli(prog_name='rhubarbe')
+    except MisformedRange as exc:
+        print("ERROR:", exc)
+        sys.exit(1)
+    except SystemExit:
+        raise
+    except Exception as exc:  # pylint: disable=broad-except
+        traceback.print_exc()
+        print(f"rhubarbe: Something went badly wrong: {exc}")
+        sys.exit(1)
