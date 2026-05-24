@@ -166,7 +166,37 @@ CONTEXT_SETTINGS = {
 }
 
 
-@click.group(context_settings=CONTEXT_SETTINGS)
+class AliasedGroup(click.Group):
+    """A click.Group that accepts unambiguous prefixes of subcommand names,
+    plus an optional dict of exact-name aliases.
+
+    Exact (canonical or alias) matches always win; an ambiguous prefix errors
+    with the candidates. Aliases are not surfaced in --help and don't take
+    part in prefix matching.
+    """
+
+    def __init__(self, *args, aliases=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.aliases = aliases or {}
+
+    def get_command(self, ctx, cmd_name):
+        exact = super().get_command(ctx, cmd_name)
+        if exact is not None:
+            return exact
+        if cmd_name in self.aliases:
+            return super().get_command(ctx, self.aliases[cmd_name])
+        matches = [name for name in self.list_commands(ctx)
+                   if name.startswith(cmd_name)]
+        if not matches:
+            return None
+        if len(matches) == 1:
+            return super().get_command(ctx, matches[0])
+        ctx.fail(f"Ambiguous command '{cmd_name}': "
+                 f"matches {', '.join(sorted(matches))}")
+        return None
+
+
+@click.group(cls=AliasedGroup, context_settings=CONTEXT_SETTINGS)
 def cli():
     """rhubarbe — manage the R2Lab testbed."""
 
@@ -764,7 +794,7 @@ def template(show_nodes, show_phones, show_pdus):
 # pdu — click subgroup
 
 
-@cli.group()
+@cli.group(cls=AliasedGroup)
 @click.option('-v', '--verbose', is_flag=True, default=False)
 @click.pass_context
 def pdu(ctx, verbose):
@@ -857,41 +887,27 @@ def pdu_reset(inv, name):
 # relay — click subgroup
 
 
-@cli.group()
+@cli.group(cls=AliasedGroup,
+           aliases={'print-temperatures': 'print',
+                    'store-temperatures': 'store'})
 def relay():
-    """Perform temperature acquisition on the known relays."""
+    """Perform temperature acquisition on the known relays.
 
-
-def _relay_print():
-    InventoryRelays.load().get_temperatures(mode='print')
-
-
-def _relay_store():
-    InventoryRelays.load().get_temperatures(mode='store')
+    `print-temperatures` and `store-temperatures` are accepted as aliases
+    for `print` and `store` respectively.
+    """
 
 
 @relay.command('print')
 def relay_print_cmd():
     """Print current temperatures on stdout."""
-    _relay_print()
-
-
-@relay.command('print-temperatures')
-def relay_print_alias():
-    """Alias for `print`."""
-    _relay_print()
+    InventoryRelays.load().get_temperatures(mode='print')
 
 
 @relay.command('store')
 def relay_store_cmd():
     """Store current temperatures in the database."""
-    _relay_store()
-
-
-@relay.command('store-temperatures')
-def relay_store_alias():
-    """Alias for `store`."""
-    _relay_store()
+    InventoryRelays.load().get_temperatures(mode='store')
 
 
 ####################
