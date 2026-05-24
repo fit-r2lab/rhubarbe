@@ -1,5 +1,14 @@
 # Changelog
 
+## 9.1.1 - 2026 May 25
+
+- the cli is made with click
+- as a consequence subcommands can be abbreviated;
+  e.g. `rhubarbe h` for `rhubarbe help`
+  or   `rhubarbe im` for `rhubarbe images`
+  or   `rhubarbe pd l` for `rhubarbe pdu list`
+- no longer expose sensitive information in rhubarbe config
+
 ## 9.1.0 - 2026 May 24
 
 - each monitor (nodes, phones and pdus) now also runs a prometheus exporter
