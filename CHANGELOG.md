@@ -1,5 +1,9 @@
 # Changelog
 
+## 9.2.0 - 2026 Jul 10
+
+- rhubarbe pdu on|off|reset require a valid lease
+
 ## 9.1.1 - 2026 May 25
 
 - the cli is made with click
