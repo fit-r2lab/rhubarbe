@@ -851,6 +851,10 @@ def pdu_status(inv, names):
 
 
 def _pdu_device_action(inv, command, name):
+    # like the CMC on/off/reset verbs, this requires a valid lease
+    leases = Leases(asyncio.Queue())
+    if not check_reservation(leases, verbose=False):
+        sys.exit(1)
     try:
         device = inv.get_device(name)
         sys.exit(asyncio.run(device.run_action(command)))
