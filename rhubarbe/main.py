@@ -323,6 +323,7 @@ def bye(do_nodes, do_phones, do_pdus, timeout, all_nodes, ranges):
 
         if do_phones:
             print(f"{20*'='} phones {20*'='}")
+            phones_ssh_timeout = Config().value('phones', 'ssh_timeout')
             inventory_phones = InventoryPhones()
             for phone in inventory_phones.all_phones():
                 command = [
@@ -330,7 +331,12 @@ def bye(do_nodes, do_phones, do_pdus, timeout, all_nodes, ranges):
                     "-o", "StrictHostKeyChecking=no",
                     f"{phone['gw_user']}@{phone['gw_host']}", "phone-off"]
                 print(" ".join(command))
-                subprocess.run(command, check=False)
+                try:
+                    subprocess.run(command, check=False,
+                                   timeout=phones_ssh_timeout)
+                except subprocess.TimeoutExpired:
+                    print(f"phone-off timed out after "
+                          f"{phones_ssh_timeout}s, moving on")
 
         if do_pdus:
             print(f"{20*'='} pdus {20*'='}")
