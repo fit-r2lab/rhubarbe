@@ -14,6 +14,7 @@ on the top-level `cli` group.
 
 import os
 import sys
+import subprocess
 import time
 import logging
 import asyncio
@@ -324,11 +325,12 @@ def bye(do_nodes, do_phones, do_pdus, timeout, all_nodes, ranges):
             print(f"{20*'='} phones {20*'='}")
             inventory_phones = InventoryPhones()
             for phone in inventory_phones.all_phones():
-                command = (
-                    f"ssh -i {phone['gw_key']} -o StrictHostKeyChecking=no "
-                    f"{phone['gw_user']}@{phone['gw_host']} phone-off")
-                print(command)
-                os.system(command)
+                command = [
+                    "ssh", "-i", phone['gw_key'],
+                    "-o", "StrictHostKeyChecking=no",
+                    f"{phone['gw_user']}@{phone['gw_host']}", "phone-off"]
+                print(" ".join(command))
+                subprocess.run(command, check=False)
 
         if do_pdus:
             print(f"{20*'='} pdus {20*'='}")

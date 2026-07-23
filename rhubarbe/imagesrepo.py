@@ -11,6 +11,7 @@ The contents of one directory that holds images
 
 import sys
 import os
+import subprocess
 import time
 import re
 import glob
@@ -467,8 +468,8 @@ class ImagesRepo(metaclass=Singleton):
                 # and in that case using rename does not work 
                 # because it is across filesystems
                 # origin.rename(destination)
-                command = f"mv {str(origin)} {str(destination)}"
-                os.system(command)
+                subprocess.run(["mv", str(origin), str(destination)],
+                               check=False)
 
         for plainfile, symlink in symlinks:
             if dry_run:
