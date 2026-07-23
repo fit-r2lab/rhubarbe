@@ -283,36 +283,60 @@ _cmc_command('bothoff', 'enforce',
 
 
 @cli.command()
+@click.option('-n', '--nodes', 'do_nodes', is_flag=True, default=False,
+              help="Turn off nodes; implied by RANGES or -a. "
+                   "With none of -n/-p/-u/-a/RANGES given, all three "
+                   "subsystems are turned off (the historical behavior).")
+@click.option('-p', '--phones', 'do_phones', is_flag=True, default=False,
+              help="Turn off all phones.")
+@click.option('-u', '--pdus', 'do_pdus', is_flag=True, default=False,
+              help="Turn off all auto-off PDU devices.")
 @_timeout_option('cmc_safe_timeout')
 @selector_options
-def bye(timeout, all_nodes, ranges):
-    """Turn off whole testbed (nodes, phones, auto-off PDUs)."""
+def bye(do_nodes, do_phones, do_pdus, timeout, all_nodes, ranges):
+    """Turn off some or all of the testbed (nodes, phones, auto-off PDUs).
+
+    With no scoping at all (no -n/-p/-u/-a and no RANGES), turns off
+    everything: all nodes, all phones, all auto-off PDUs. As soon as any
+    scoping is given, only the implied subsystems are turned off and the
+    others are left alone; RANGES/-a only ever apply to nodes and imply -n.
+    """
     try:
-        selector = build_selector(ranges, all_nodes, defaults_to_all=True)
-        if selector.is_empty():
-            selector.use_all_scope()
+        explicit = do_nodes or do_phones or do_pdus or all_nodes or bool(ranges)
+        if explicit:
+            do_nodes = do_nodes or all_nodes or bool(ranges)
+        else:
+            do_nodes = do_phones = do_pdus = True
 
-        message_bus = asyncio.Queue()
-        print(f"{20*'='} bothoff {20*'='} (timeout={timeout})")
-        Action('bothoff', selector).run(message_bus, timeout)
+        if do_nodes:
+            selector = build_selector(ranges, all_nodes, defaults_to_all=True)
+            if selector.is_empty():
+                selector.use_all_scope()
 
-        # keep it simple for now
-        time.sleep(1)
+            message_bus = asyncio.Queue()
+            print(f"{20*'='} bothoff {20*'='} (timeout={timeout})")
+            Action('bothoff', selector).run(message_bus, timeout)
 
-        print(f"{20*'='} phones {20*'='}")
-        inventory_phones = InventoryPhones()
-        for phone in inventory_phones.all_phones():
-            command = (f"ssh -i {phone['gw_key']} -o StrictHostKeyChecking=no "
-                       f"{phone['gw_user']}@{phone['gw_host']} phone-off")
-            print(command)
-            os.system(command)
+            # keep it simple for now
+            time.sleep(1)
 
-        print(f"{20*'='} pdus {20*'='}")
-        inventory_pdus = InventoryPdus.load()
-        # sequential on purpose: the ssh service in the PDU unit looks fragile
-        for device in inventory_pdus.devices:
-            if device.auto_turn_off:
-                asyncio.run(device.off())
+        if do_phones:
+            print(f"{20*'='} phones {20*'='}")
+            inventory_phones = InventoryPhones()
+            for phone in inventory_phones.all_phones():
+                command = (
+                    f"ssh -i {phone['gw_key']} -o StrictHostKeyChecking=no "
+                    f"{phone['gw_user']}@{phone['gw_host']} phone-off")
+                print(command)
+                os.system(command)
+
+        if do_pdus:
+            print(f"{20*'='} pdus {20*'='}")
+            inventory_pdus = InventoryPdus.load()
+            # sequential on purpose: ssh on the PDU unit looks fragile
+            for device in inventory_pdus.devices:
+                if device.auto_turn_off:
+                    asyncio.run(device.off())
     except KeyboardInterrupt:
         print("bye: keyboard interrupt - exiting")
         sys.exit(1)
