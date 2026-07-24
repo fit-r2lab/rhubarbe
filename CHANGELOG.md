@@ -1,5 +1,9 @@
 # Changelog
 
+## 9.2.3 - 2026 Jul 24
+
+- bugfix: phones_ssh_timeout needs casting as number
+
 ## 9.2.2 - 2026 Jul 24
 
 - fix wait default timeout; it's important it to be 60 and not 5
