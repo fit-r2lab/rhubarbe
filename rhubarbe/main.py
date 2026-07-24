@@ -238,7 +238,7 @@ def cmc_verb(verb, resa_policy, *, timeout, selector):
 def _timeout_option(config_key='cmc_default_timeout'):
     return click.option(
         '-t', '--timeout', type=float, show_default=True,
-        default=lambda: Config().value('nodes', config_key),
+        default=Config().value('nodes', config_key),
         help="Specify global timeout for the whole process")
 
 
@@ -354,11 +354,11 @@ def bye(do_nodes, do_phones, do_pdus, timeout, all_nodes, ranges):
 
 
 @cli.command()
-@click.option('-i', '--image', default=lambda: ImagesRepo().default(),
+@click.option('-i', '--image', default=ImagesRepo().default(),
               show_default=True, help="Specify image to load")
 @_timeout_option('load_default_timeout')
 @click.option('-b', '--bandwidth', type=int, show_default=True,
-              default=lambda: Config().value('networking', 'bandwidth'),
+              default=Config().value('networking', 'bandwidth'),
               help="Set bandwidth in Mibps for frisbee uploading")
 @click.option('-c', '--curses', is_flag=True, default=False,
               help="Use curses to provide term-based animation")
@@ -453,7 +453,7 @@ def save(radical, timeout, comment, no_reset, node):
               help="Use curses to provide term-based animation")
 @_timeout_option('wait_default_timeout')
 @click.option('-b', '--backoff', type=float, show_default=True,
-              default=lambda: Config().value('networking', 'ssh_backoff'),
+              default=Config().value('networking', 'ssh_backoff'),
               help="Specify backoff average between attempts to ssh connect")
 @click.option('-u', '--user', default="root", show_default=True,
               help="select other username")
@@ -688,17 +688,17 @@ def _monitor_common_options(cycle_key, prometheus_key):
     def decorator(f):
         f = click.option(
             '--prometheus-port', type=int, show_default=True,
-            default=lambda: Config().value('monitor', prometheus_key),
+            default=Config().value('monitor', prometheus_key),
             help="port for Prometheus /metrics endpoint (0 to disable)")(f)
         f = click.option('-d', '--debug', is_flag=True, default=False)(f)
         f = click.option('-v', '--verbose', is_flag=True, default=False)(f)
         f = click.option(
             '-u', '--sidecar-url', show_default=True,
-            default=lambda: Config().value('sidecar', 'url'),
+            default=Config().value('sidecar', 'url'),
             help="url for the sidecar server")(f)
         f = click.option(
             '-c', '--cycle', type=float, show_default=True,
-            default=lambda: Config().value('monitor', cycle_key),
+            default=Config().value('monitor', cycle_key),
             help="Delay to wait between 2 probes")(f)
         return f
     return decorator
