@@ -1,5 +1,10 @@
 # Changelog
 
+## 9.2.1 - 2026 Jul 24
+
+- rhubarbe bye can now wait for only nodes (or phones or pdus)
+- add a timeout for the phones to answer ssh when doing bye
+
 ## 9.2.0 - 2026 Jul 10
 
 - rhubarbe pdu on|off|reset require a valid lease
