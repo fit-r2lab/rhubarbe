@@ -1,8 +1,14 @@
 # Changelog
 
+## 9.2.2 - 2026 Jul 24
+
+- fix wait default timeout; it's important it to be 60 and not 5
+  (this required both a fix in rhubarbe and in faraday's local config)
+- more helpful display of default values for options with --help
+
 ## 9.2.1 - 2026 Jul 24
 
-- rhubarbe bye can now wait for only nodes (or phones or pdus)
+- rhubarbe bye can now deal with only nodes (or phones or pdus)
 - add a timeout for the phones to answer ssh when doing bye
 
 ## 9.2.0 - 2026 Jul 10
