@@ -323,7 +323,7 @@ def bye(do_nodes, do_phones, do_pdus, timeout, all_nodes, ranges):
 
         if do_phones:
             print(f"{20*'='} phones {20*'='}")
-            phones_ssh_timeout = Config().value('phones', 'ssh_timeout')
+            phones_ssh_timeout = float(Config().value('phones', 'ssh_timeout'))
             inventory_phones = InventoryPhones()
             for phone in inventory_phones.all_phones():
                 command = [
