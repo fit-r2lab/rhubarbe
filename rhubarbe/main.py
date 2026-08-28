@@ -301,8 +301,20 @@ def bye(do_nodes, do_phones, do_pdus, timeout, all_nodes, ranges):
     everything: all nodes, all phones, all auto-off PDUs. As soon as any
     scoping is given, only the implied subsystems are turned off and the
     others are left alone; RANGES/-a only ever apply to nodes and imply -n.
+
+    Allowed for anyone as long as nobody currently holds a reservation;
+    once someone does, only that owner (or root/a privileged user) may
+    run bye.
     """
     try:
+        leases = Leases(asyncio.Queue())
+        allowed = (check_reservation(leases, verbose=None)
+                   or no_reservation(leases))
+        if not allowed:
+            print("bye: refusing - the testbed is currently reserved; "
+                  "only the reservation owner (or root/admin) can run bye")
+            sys.exit(1)
+
         explicit = do_nodes or do_phones or do_pdus or all_nodes or bool(ranges)
         if explicit:
             do_nodes = do_nodes or all_nodes or bool(ranges)
