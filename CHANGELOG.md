@@ -1,5 +1,11 @@
 # Changelog
 
+## 9.2.4 - 2026 Aug 28
+
+- rhubarbe bye: used to be wide open and available to all users at any time  
+  in this version, access is restricted to the current slice owner when a slice is set
+  when no slice is set, anybody can use it
+
 ## 9.2.3 - 2026 Jul 24
 
 - bugfix: phones_ssh_timeout needs casting as number
