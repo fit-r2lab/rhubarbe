@@ -9,6 +9,7 @@ The logic for loading an image on a set of nodes
 # r1705 else after return
 # pylint: disable=c0111
 
+import re
 import asyncio
 
 from asynciojobs import Scheduler, Job
@@ -42,6 +43,42 @@ class ImageLoader:
                                for node in self.nodes])
 
 
+    async def image_sectors(self):
+        """
+        number of 512-byte sectors that the image needs on the disk,
+        i.e. 1 + the highest sector covered by the image,
+        as reported by imagedump; None if it cannot be determined
+        """
+        async def run(*command):
+            try:
+                proc = await asyncio.create_subprocess_exec(
+                    *command,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.STDOUT)
+            except OSError:
+                return None, ""
+            out, _ = await proc.communicate()
+            return proc.returncode, out.decode(errors='replace')
+
+        retcod, _ = await run('imagedump', '-v')
+        if retcod != 0:
+            await self.feedback(
+                'info',
+                "imagedump not available: cannot check that the image "
+                "fits on the nodes' disks, proceeding anyway")
+            return None
+        retcod, out = await run('imagedump', str(self.image))
+        match = re.search(r'covered sector range:\s*\[\d+-(\d+)\]', out)
+        if retcod != 0 or not match:
+            await self.feedback(
+                'info',
+                f"cannot get the size of {self.image} with imagedump: "
+                f"cannot check that it fits on the nodes' disks, "
+                f"proceeding anyway")
+            return None
+        return int(match.group(1)) + 1
+
+
     async def start_frisbeed(self):
         self.frisbeed = Frisbeed(self.image, self.bandwidth, self.message_bus)
         ip_port = await self.frisbeed.start()
@@ -56,8 +93,10 @@ class ImageLoader:
         """
         # start_frisbeed will return the ip+port to use
         ipaddr, port = await self.start_frisbeed()
-        results = await asyncio.gather(*[node.run_frisbee(ipaddr, port, reset)
-                                         for node in self.nodes])
+        sectors = await self.image_sectors()
+        results = await asyncio.gather(
+            *[node.run_frisbee(ipaddr, port, reset, min_sectors=sectors)
+              for node in self.nodes])
         # we can now kill the server
         self.frisbeed.stop_nowait()
         result = all(results)

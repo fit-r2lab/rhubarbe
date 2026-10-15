@@ -20,6 +20,8 @@ class FrisbeeParser:
     def __init__(self, proxy):
         self.proxy = proxy
         self.total_chunks = 0
+        # set when a specific error message has been issued
+        self.explained = False
 
     def ip(self):
         return self.proxy.control_ip
@@ -45,6 +47,11 @@ class FrisbeeParser:
         re.compile(r'.*Short write.*')
     matcher_status = \
         re.compile(r'FRISBEE-STATUS=(?P<status>\d+)')
+    matcher_no_disk = \
+        re.compile(r'^RHUBARBE-NO-DISK: (?P<message>.*)')
+    matcher_disk_too_small = \
+        re.compile(r'^RHUBARBE-DISK-TOO-SMALL: (?P<hdd>\S+) has '
+                   r'(?P<has>\d+) sectors, the image needs (?P<needs>\d+)')
 
     def parse_line(self, line):
         #
@@ -84,6 +91,25 @@ class FrisbeeParser:
                           "Something went wrong with frisbee (short write...)")
             return
         #
+        match = self.matcher_no_disk.match(line)
+        if match:
+            self.explained = True
+            self.feedback('frisbee_error', match.group('message'))
+            return
+        #
+        match = self.matcher_disk_too_small.match(line)
+        if match:
+            self.explained = True
+            has, needs = int(match.group('has')), int(match.group('needs'))
+            # sectors are 512 bytes; show decimal GB, like disk vendors
+            self.feedback(
+                'frisbee_error',
+                f"disk too small: {match.group('hdd')} has "
+                f"{has * 512 / 1e9:.1f} GB ({has} sectors), "
+                f"the image needs {needs * 512 / 1e9:.1f} GB "
+                f"({needs} sectors)")
+            return
+        #
         match = self.matcher_status.match(line)
         if match:
             status = int(match.group('status'))
@@ -99,13 +125,29 @@ class Frisbee(TelnetProxy):
     def line_callback(self, line):
         self.parser.parse_line(line)
 
-    async def run(self, multicast_ip, port):
+    async def run(self, multicast_ip, port, min_sectors=None):
+        """
+        if min_sectors is set, the frisbee client is only started
+        if the node's disk has at least that many 512-byte sectors
+        """
         control_ip = self.control_ip
         the_config = Config()
         client = the_config.value('frisbee', 'client')
         hdd = the_config.value('frisbee', 'hard_drive')
         self.command = (
             f"{client} -i {control_ip} -m {multicast_ip} -p {port} {hdd}")
+        if min_sectors:
+            # disk size in 512-byte sectors, as seen by the node's kernel
+            size_file = f"/sys/block/{hdd.split('/')[-1]}/size"
+            self.command = (
+                f"if [ ! -e {size_file} ]; then "
+                f"echo RHUBARBE-NO-DISK: {hdd} not found, "
+                f"block devices are: $(ls /sys/block); false; "
+                f"elif [ $(cat {size_file}) -lt {min_sectors} ]; then "
+                f"echo RHUBARBE-DISK-TOO-SMALL: {hdd} has "
+                f"$(cat {size_file}) sectors, "
+                f"the image needs {min_sectors}; false; "
+                f"else {self.command}; fi")
 
         logger.info(f"on {self.control_ip} : running command {self.command}")
         await self.feedback('frisbee_status', "starting frisbee client")
@@ -113,7 +155,7 @@ class Frisbee(TelnetProxy):
         retcod = await self.session([self.command])
 
         logger.info(f"frisbee on {self.control_ip} returned {retcod}")
-        if not retcod:
+        if not retcod and not self.parser.explained:
             tail = " | ".join(l.strip() for l in self.last_lines[-3:]
                               if l.strip())
             await self.feedback('frisbee_error',

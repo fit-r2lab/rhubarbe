@@ -282,10 +282,10 @@ class Node:                                             # pylint: disable=r0902
         await self.feedback('reboot', f"idling for {idle}s")
         await asyncio.sleep(idle)
 
-    async def run_frisbee(self, ipaddr, port, reset):
+    async def run_frisbee(self, ipaddr, port, reset, min_sectors=None):
         await self.wait_for_telnet('frisbee')
         self.manage_nextboot_symlink('cleanup')
-        result = await self.frisbee.run(ipaddr, port)
+        result = await self.frisbee.run(ipaddr, port, min_sectors)
         #logger.info(f"run_frisbee -> {result}")
         if not result:
             await self.feedback('reboot',
