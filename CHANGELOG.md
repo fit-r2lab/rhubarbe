@@ -1,5 +1,12 @@
 # Changelog
 
+## 9.3.1 - 2026 Oct 15
+
+- `rhubarbe load`: when the frisbee kernel sees no disk (e.g. no `/dev/sda`),
+  the error now suggests checking that the node's BIOS is set to IDE mode
+  rather than AHCI, as the frisbee image has no AHCI support
+  - the disk presence check is now done even when the image size is unknown
+
 ## 9.3.0 - 2026 Oct 15
 
 - new subcommand `rhubarbe rescue`: reboots nodes on the frisbee image
