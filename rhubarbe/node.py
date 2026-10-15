@@ -287,6 +287,9 @@ class Node:                                             # pylint: disable=r0902
         self.manage_nextboot_symlink('cleanup')
         result = await self.frisbee.run(ipaddr, port)
         #logger.info(f"run_frisbee -> {result}")
+        if not result:
+            await self.feedback('reboot',
+                                'frisbee failed, resetting anyway')
         if reset:
             await self.ensure_reset()
         else:

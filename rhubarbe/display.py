@@ -142,7 +142,8 @@ class Display:                                          # pylint: disable=r0902
         else:
             return str(message)
 
-    subkeys = ['frisbee_retcod', 'reboot', 'ssh_status', 'frisbee_status']
+    subkeys = ['frisbee_retcod', 'reboot', 'ssh_status', 'frisbee_status',
+               'frisbee_error']
 
     def message_to_text_ip(self, message, node, mention_node=True):
         text = None

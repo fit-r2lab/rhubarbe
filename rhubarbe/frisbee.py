@@ -113,5 +113,10 @@ class Frisbee(TelnetProxy):
         retcod = await self.session([self.command])
 
         logger.info(f"frisbee on {self.control_ip} returned {retcod}")
+        if not retcod:
+            tail = " | ".join(l.strip() for l in self.last_lines[-3:]
+                              if l.strip())
+            await self.feedback('frisbee_error',
+                                f"frisbee failed: {tail or 'no output'}")
 
         return retcod

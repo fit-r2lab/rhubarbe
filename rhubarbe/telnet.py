@@ -61,6 +61,7 @@ class TelnetProxy:
         self.running = False
         self._reader = None
         self._writer = None
+        self.last_lines = []
 
 
     def is_ready(self):
@@ -146,6 +147,8 @@ class TelnetProxy:
         retcod = False
 
         line = ""
+        # keep the tail of the output to explain failures
+        self.last_lines = []
         while True:
             if self._reader.at_eof():
                 break
@@ -155,11 +158,16 @@ class TelnetProxy:
                     logger.debug(f"telnet <- {line}")
                     if line.startswith("_TELNET_STATUS"):
                         retcod = parse_status(line)
+                    self.last_lines = (self.last_lines + [line])[-10:]
                     self.line_callback(line)
                     line = ""
                 else:
                     line += incoming
 
         self.running = False
+        if not retcod:
+            tail = " | ".join(l.strip() for l in self.last_lines)
+            logger.info(f"telnet session on {self.control_ip} failed; "
+                        f"last output: {tail}")
 
         return retcod
