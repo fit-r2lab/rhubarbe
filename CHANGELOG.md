@@ -1,5 +1,21 @@
 # Changelog
 
+## 9.3.0 - 2026 Oct 15
+
+- new subcommand `rhubarbe rescue`: reboots nodes on the frisbee image
+  and leaves them there, so one can telnet in and investigate
+  - `rhubarbe rescue --reset` removes the pxelinux symlinks, so the nodes
+    boot off their hard drive again
+  - `rhubarbe rescue --list` shows the symlinks currently in place,
+    optionally restricted to some nodes
+- `rhubarbe load` checks beforehand that the image fits on each node's disk
+  (using `imagedump`, when available), and reports a node whose disk
+  is too small - or missing - instead of failing obscurely
+  with 'No space left on device'
+- `rhubarbe load` now shows why frisbee failed on a node,
+  instead of just resetting it
+- `rhubarbe.log` now has timestamps
+
 ## 9.2.4 - 2026 Aug 28
 
 - rhubarbe bye: used to be wide open and available to all users at any time  
