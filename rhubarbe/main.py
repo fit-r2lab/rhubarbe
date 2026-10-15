@@ -365,6 +365,106 @@ def bye(do_nodes, do_phones, do_pdus, timeout, all_nodes, ranges):
 ####################
 
 
+def _rescue_list(selector):
+    """
+    print the frisbee symlinks found in pxelinux config_dir;
+    if selector is not None, restrict to these nodes
+    """
+    root = Config().value('pxelinux', 'config_dir')
+    inventory = InventoryNodes()
+    wanted = None
+    if selector is not None:
+        message_bus = asyncio.Queue()
+        wanted = {Node(cmc_name, message_bus).control_mac_address()
+                  for cmc_name in selector.cmc_names()}
+    found = 0
+    for name in sorted(os.listdir(root)):
+        path = os.path.join(root, name)
+        # of the form 01-00-03-1d-0e-03-53
+        if not (name.startswith('01-') and os.path.islink(path)):
+            continue
+        mac = name[3:].replace('-', ':')
+        if wanted is not None and mac not in wanted:
+            continue
+        hostname = inventory.control_hostname_from_mac(mac) or "unknown"
+        print(f"{hostname:<8} {name} -> {os.readlink(path)}")
+        found += 1
+    if not found:
+        print("no rescue symlink found")
+
+
+@cli.command()
+@click.option('--reset', 'do_reset', is_flag=True, default=False,
+              help="Undo a previous rescue: remove the frisbee pxelinux "
+                   "symlinks of selected nodes, without rebooting them. "
+                   "No reservation is required.")
+@click.option('--list', 'do_list', is_flag=True, default=False,
+              help="List the frisbee pxelinux symlinks currently in place; "
+                   "RANGES and -a restrict the listing to these nodes.")
+@_timeout_option()
+@selector_options
+def rescue(do_reset, do_list, timeout, all_nodes, ranges):
+    """Reboot selected nodes on the frisbee image, and leave them there.
+
+    \b
+    Nothing is loaded: the nodes just come up in the frisbee image,
+    where one can telnet to them and investigate (fdisk, dmesg, ...).
+    Their next boot stays on the frisbee image until 'rhubarbe load'
+    is run on them, or until 'rhubarbe rescue --reset' is used.
+    This function requires a valid reservation
+    - or to be root or a privileged user.
+    """
+    if do_reset and do_list:
+        raise click.UsageError("--reset and --list are mutually exclusive")
+
+    if do_list:
+        selector = (build_selector(ranges, all_nodes)
+                    if ranges or all_nodes else None)
+        _rescue_list(selector)
+        return
+
+    selector = build_selector(ranges, all_nodes)
+    message_bus = asyncio.Queue()
+
+    if do_reset:
+        for cmc_name in selector.cmc_names():
+            node = Node(cmc_name, message_bus)
+            node.manage_nextboot_symlink('harddrive')
+            print(f"{node.control_hostname()}: will boot off hard drive")
+        return
+
+    if not check_reservation(Leases(message_bus), verbose=False):
+        sys.exit(1)
+
+    nodes = [Node(cmc_name, message_bus)
+             for cmc_name in selector.cmc_names()]
+    # idle=0: we do not wait for the node to be up
+    jobs = [Job(node.reboot_on_frisbee(0), critical=True) for node in nodes]
+    display = Display(nodes, message_bus)
+    scheduler = Scheduler(Job(display.run(), forever=True, critical=True),
+                          *jobs, timeout=timeout, critical=False)
+    try:
+        if not scheduler.run():
+            scheduler.debrief(silence_done_jobs=True)
+            print(f"rhubarbe-rescue failed: {scheduler.why()}")
+            sys.exit(1)
+    except KeyboardInterrupt:
+        print("rhubarbe-rescue : keyboard interrupt - exiting")
+        sys.exit(1)
+    finally:
+        display.epilogue()
+    # same delay that 'load' idles for after the reset
+    idle = int(Config().value('nodes', 'idle_after_reset'))
+    print(f"nodes are rebooting on the frisbee image; "
+          f"allow about {idle}s before they are telnet-reachable")
+
+
+####################
+
+
+####################
+
+
 @cli.command()
 @click.option('-i', '--image', default=ImagesRepo().default(),
               show_default=True, help="Specify image to load")

@@ -49,6 +49,17 @@ class InventoryNodes(metaclass=Singleton):
             return host[interface_key][info_key]
         return None
 
+    def control_hostname_from_mac(self, mac):
+        """
+        the control hostname of the node whose control interface
+        has that mac address, or None
+        """
+        for host in self._nodes:
+            control = host.get('control')
+            if control and control.get('mac', '').lower() == mac.lower():
+                return control['hostname']
+        return None
+
     def control_ip_from_any_ip(self, ipaddr):
         host, _ = self._locate_entry_from_key('ip', ipaddr)
         if host:
