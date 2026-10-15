@@ -94,7 +94,11 @@ class FrisbeeParser:
         match = self.matcher_no_disk.match(line)
         if match:
             self.explained = True
-            self.feedback('frisbee_error', match.group('message'))
+            self.feedback(
+                'frisbee_error',
+                f"{match.group('message')} - the frisbee kernel has no "
+                f"AHCI support: check that the BIOS is configured for "
+                f"IDE (not AHCI/SATA) mode")
             return
         #
         match = self.matcher_disk_too_small.match(line)
@@ -136,18 +140,21 @@ class Frisbee(TelnetProxy):
         hdd = the_config.value('frisbee', 'hard_drive')
         self.command = (
             f"{client} -i {control_ip} -m {multicast_ip} -p {port} {hdd}")
+        # sectors count as seen by the node's kernel
+        size_file = f"/sys/block/{hdd.split('/')[-1]}/size"
+        size_check = ""
         if min_sectors:
-            # disk size in 512-byte sectors, as seen by the node's kernel
-            size_file = f"/sys/block/{hdd.split('/')[-1]}/size"
-            self.command = (
-                f"if [ ! -e {size_file} ]; then "
-                f"echo RHUBARBE-NO-DISK: {hdd} not found, "
-                f"block devices are: $(ls /sys/block); false; "
+            size_check = (
                 f"elif [ $(cat {size_file}) -lt {min_sectors} ]; then "
                 f"echo RHUBARBE-DISK-TOO-SMALL: {hdd} has "
                 f"$(cat {size_file}) sectors, "
-                f"the image needs {min_sectors}; false; "
-                f"else {self.command}; fi")
+                f"the image needs {min_sectors}; false; ")
+        self.command = (
+            f"if [ ! -e {size_file} ]; then "
+            f"echo RHUBARBE-NO-DISK: {hdd} not found, "
+            f"block devices are: $(ls /sys/block | tr '\\n' ' '); false; "
+            f"{size_check}"
+            f"else {self.command}; fi")
 
         logger.info(f"on {self.control_ip} : running command {self.command}")
         await self.feedback('frisbee_status', "starting frisbee client")
