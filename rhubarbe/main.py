@@ -365,6 +365,18 @@ def bye(do_nodes, do_phones, do_pdus, timeout, all_nodes, ranges):
 ####################
 
 
+def _check_frisbee_stacks(nodes):
+    """
+    exit if the frisbee stack of any of these nodes is missing
+    from the pxelinux config directory
+    """
+    errors = [error for error in (node.check_frisbee_stack()
+                                  for node in nodes) if error]
+    if errors:
+        print("\n".join(errors))
+        sys.exit(1)
+
+
 def _rescue_list(selector):
     """
     print the frisbee symlinks found in pxelinux config_dir;
@@ -438,6 +450,7 @@ def rescue(do_reset, do_list, timeout, all_nodes, ranges):
 
     nodes = [Node(cmc_name, message_bus)
              for cmc_name in selector.cmc_names()]
+    _check_frisbee_stacks(nodes)
     # idle=0: we do not wait for the node to be up
     jobs = [Job(node.reboot_on_frisbee(0), critical=True) for node in nodes]
     display = Display(nodes, message_bus)
@@ -496,6 +509,7 @@ def load(image, timeout, bandwidth, curses, no_reset, all_nodes, ranges):
         raise click.UsageError("no nodes selected")
     node_list = [Node(cmc_name, message_bus)
                  for cmc_name in selector.cmc_names()]
+    _check_frisbee_stacks(node_list)
 
     message_bus.put_nowait({'selected_nodes': selector})
     from rhubarbe.logger import logger

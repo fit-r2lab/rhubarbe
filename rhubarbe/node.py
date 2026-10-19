@@ -230,6 +230,28 @@ class Node:                                             # pylint: disable=r0902
             await self.feedback(
                 'reboot', f"Failed to send message {message_to_send} to CMC {self.cmc_name}")
 
+    def frisbee_stack_name(self):
+        """
+        the name of the file under pxelinux.cfg/ that defines the frisbee
+        stack for this node: `frisbee_image.<hostname>` in the [pxelinux]
+        section if set, the site-wide `frisbee_image` otherwise
+        """
+        return Config().value_for(
+            'pxelinux', 'frisbee_image', self.control_hostname())
+
+    def check_frisbee_stack(self):
+        """
+        None if the frisbee stack for this node exists under pxelinux.cfg/,
+        an error message otherwise
+        """
+        root = Config().value('pxelinux', 'config_dir')
+        name = self.frisbee_stack_name()
+        path = os.path.join(root, name)
+        if os.path.exists(path):
+            return None
+        return (f"{self.control_hostname()}: frisbee stack '{name}' "
+                f"not found - no such file {path}")
+
     # used to be a coroutine, but since we need this
     # when dealing by KeybordInterrupt, it appears much safer
     # to just keep it a traditional function
@@ -246,7 +268,7 @@ class Node:                                             # pylint: disable=r0902
 
         the_config = Config()
         root = the_config.value('pxelinux', 'config_dir')
-        frisbee = the_config.value('pxelinux', 'frisbee_image')
+        frisbee = self.frisbee_stack_name()
 
         # of the form 01-00-03-1d-0e-03-53
         mylink = "01-" + self.control_mac_address().replace(':', '-')

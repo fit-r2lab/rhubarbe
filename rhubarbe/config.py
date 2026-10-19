@@ -83,6 +83,17 @@ class Config(metaclass=Singleton):
         return config_section.get(key, None) \
             or self.get_or_raise(config_section, section, flag)
 
+    def value_for(self, section, flag, name):
+        """
+        like value(), but with an override attached to an arbitrary
+        name (e.g. a node), as in `flag.name = ...`
+        falls back to value(section, flag) if there is none
+        """
+        if section not in self.parser:
+            raise ConfigException(f"No such section {section} in config")
+        return self.parser[section].get(f"{flag}.{name}", None) \
+            or self.value(section, flag)
+
     def full_section(self, section) -> dict:
         if section not in self.parser:
             raise ConfigException(f"No such section {section} in config")
