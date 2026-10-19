@@ -1,5 +1,10 @@
 # Changelog
 
+## 9.4.0 - 2026 Oct 19
+
+- configurable frisbee pxe stack; default is pxefrisbee-k70
+  this requires installation from r2lab-misc/tftpboot
+
 ## 9.3.1 - 2026 Oct 15
 
 - `rhubarbe load`: when the frisbee kernel sees no disk (e.g. no `/dev/sda`),
