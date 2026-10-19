@@ -15,7 +15,9 @@ dependencies = [
     'aiohttp',
     'progressbar33',
     # for PDUs and yaml deserialization
-    'dataclass_wizard',
+    # the yaml extra brings PyYAML, which YAMLWizard needs
+    # 1.0 moved the old API (incl. YAMLWizard) under dataclass_wizard.v0
+    'dataclass_wizard[yaml]<1',
     # for monitors
     'asynciojobs',
     'r2lab',

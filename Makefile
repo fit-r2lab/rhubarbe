@@ -34,13 +34,21 @@ else
 endif
 
 TMPDIR=/tmp/r2lab-dev-rhubarbe
+# the sandbox venv lives outside $(TMPDIR) so that rsync never touches it
+VENV=/root/venvs/r2lab-dev
 # installing in $(TMPDIR) for testing
 sync:
 	@echo '===== '
 	rsync -ai --relative $$(git ls-files) root@$(DEST):$(TMPDIR)/
 	@echo '===== once copied, do the following as root on $(DEST)'
-	@echo 'make sure to pick 3.13 or 3.14...'
-	@echo 'conda activate r2lab-dev-314 && pip install -e $(TMPDIR)'
+	@echo 'one-time, create the sandbox on the system python:'
+	@echo '  uv venv $(VENV) --python /usr/bin/python3'
+	@echo 'then install the versions pinned in uv.lock (editable) - first time,'
+	@echo 'and whenever pyproject.toml or uv.lock changed:'
+	@echo '  UV_PROJECT_ENVIRONMENT=$(VENV) uv sync --frozen --project $(TMPDIR)'
+	@echo '===== '
+	@echo 'and run with:'
+	@echo '  source $(VENV)/bin/activate'
 
 r2lab faraday:
 	$(MAKE) sync deployment=production
