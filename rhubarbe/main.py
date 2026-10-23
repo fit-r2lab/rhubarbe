@@ -921,7 +921,7 @@ def config(sections):
 @click.option('-n', '--nodes', 'show_nodes', is_flag=True, default=False,
               help="Show template for /etc/rhubarbe/inventory-nodes.json")
 @click.option('-p', '--phones', 'show_phones', is_flag=True, default=False,
-              help="Show template for /etc/rhubarbe/inventory-phones.json")
+              help="Show template for /etc/rhubarbe/inventory-phones.yaml")
 @click.option('-u', '--pdus', 'show_pdus', is_flag=True, default=False,
               help="Show template for /etc/rhubarbe/inventory-pdus.yaml")
 def template(show_nodes, show_phones, show_pdus):
@@ -932,7 +932,7 @@ def template(show_nodes, show_phones, show_pdus):
             / f"config/inventory-{hardware_kind}.{ext}.template"
         ).read_bytes()
         print("# =========="
-              f" template for /etc/rhubarbe/inventory-{hardware_kind}.json")
+              f" template for /etc/rhubarbe/inventory-{hardware_kind}.{ext}")
         print(data.decode(encoding='utf-8'))
 
     # default: -n
@@ -941,7 +941,7 @@ def template(show_nodes, show_phones, show_pdus):
 
     for kind, ext, selected in (
         ('nodes', 'json', show_nodes),
-        ('phones', 'json', show_phones),
+        ('phones', 'yaml', show_phones),
         ('pdus', 'yaml', show_pdus),
     ):
         if selected:

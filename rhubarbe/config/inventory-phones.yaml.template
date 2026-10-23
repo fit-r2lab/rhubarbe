@@ -1,0 +1,7 @@
+phones:
+  - id: 1
+    adb_bin: /usr/local/bin/adb
+    adb_id: 062337da0051af9f
+    gw_user: tester
+    gw_host: macphone
+    gw_key: /home/faraday/r2lab-embedded/mac-ssh-keys/macphone
