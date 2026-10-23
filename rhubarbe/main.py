@@ -919,7 +919,7 @@ def config(sections):
 
 @cli.command()
 @click.option('-n', '--nodes', 'show_nodes', is_flag=True, default=False,
-              help="Show template for /etc/rhubarbe/inventory-nodes.json")
+              help="Show template for /etc/rhubarbe/inventory-nodes.yaml")
 @click.option('-p', '--phones', 'show_phones', is_flag=True, default=False,
               help="Show template for /etc/rhubarbe/inventory-phones.yaml")
 @click.option('-u', '--pdus', 'show_pdus', is_flag=True, default=False,
@@ -940,7 +940,7 @@ def template(show_nodes, show_phones, show_pdus):
         show_nodes = True
 
     for kind, ext, selected in (
-        ('nodes', 'json', show_nodes),
+        ('nodes', 'yaml', show_nodes),
         ('phones', 'yaml', show_phones),
         ('pdus', 'yaml', show_pdus),
     ):

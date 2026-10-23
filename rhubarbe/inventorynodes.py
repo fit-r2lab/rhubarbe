@@ -1,5 +1,5 @@
 """
-Parse inventory json about nodes
+Parse inventory yaml about nodes
 """
 
 # c0111 no docstrings yet
@@ -9,7 +9,7 @@ Parse inventory json about nodes
 # r1705 else after return
 # pylint: disable=c0111, r1705
 
-import json
+import yaml
 
 from rhubarbe.singleton import Singleton
 from rhubarbe.config import Config
@@ -20,7 +20,7 @@ class InventoryNodes(metaclass=Singleton):
     def __init__(self):
         the_config = Config()
         with open(the_config.value('testbed', 'inventory_nodes_path')) as feed:
-            self._nodes = json.load(feed)
+            self._nodes = yaml.safe_load(feed)['nodes']
 
     def _locate_entry_from_key(self, key, value):
         """
