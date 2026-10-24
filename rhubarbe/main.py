@@ -19,7 +19,6 @@ import time
 import logging
 import asyncio
 import traceback
-from importlib import resources
 
 import click
 import requests
@@ -915,37 +914,6 @@ def config(sections):
 
 
 ####################
-
-
-@cli.command()
-@click.option('-n', '--nodes', 'show_nodes', is_flag=True, default=False,
-              help="Show template for /etc/rhubarbe/inventory-nodes.yaml")
-@click.option('-p', '--phones', 'show_phones', is_flag=True, default=False,
-              help="Show template for /etc/rhubarbe/inventory-phones.yaml")
-@click.option('-u', '--pdus', 'show_pdus', is_flag=True, default=False,
-              help="Show template for /etc/rhubarbe/inventory-pdus.yaml")
-def template(show_nodes, show_phones, show_pdus):
-    """Show the inventory template files under /etc/rhubarbe."""
-    def show(hardware_kind, ext):
-        data = (
-            resources.files("rhubarbe")
-            / f"config/inventory-{hardware_kind}.{ext}.template"
-        ).read_bytes()
-        print("# =========="
-              f" template for /etc/rhubarbe/inventory-{hardware_kind}.{ext}")
-        print(data.decode(encoding='utf-8'))
-
-    # default: -n
-    if not show_nodes and not show_phones and not show_pdus:
-        show_nodes = True
-
-    for kind, ext, selected in (
-        ('nodes', 'yaml', show_nodes),
-        ('phones', 'yaml', show_phones),
-        ('pdus', 'yaml', show_pdus),
-    ):
-        if selected:
-            show(kind, ext)
 
 
 ####################
