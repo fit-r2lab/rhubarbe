@@ -2875,7 +2875,7 @@ wheels = [
 
 [[package]]
 name = "rhubarbe"
-version = "9.4.0"
+version = "9.5.0"
 source = { editable = "." }
 dependencies = [
     { name = "aiohttp" },
