@@ -3,7 +3,7 @@
 ## 9.5.0 - 2026 Oct 24
 
 - all inventory files are now expected in yaml, not json
-- default all_scope is unqulified, so it can be overloaded
+- default all_scope is unqualified, so it can be overloaded
   in the local rhubarbe config unqualiafied too
 
 ## 9.4.0 - 2026 Oct 19
