@@ -3,7 +3,7 @@
 # Apply the current checkout to the running services: sync the uv environment,
 # reload the units and restart the services.
 #
-# Called by r2lab-embedded/services/pull-and-restart.sh after it has moved this
+# Called by r2lab-embedded/services/run-updates.sh after it has moved this
 # repo to the latest origin commit; can also be run by hand to force a redeploy.
 # The git update itself is NOT done here, since resetting a repo under a
 # running script is unsafe.
