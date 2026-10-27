@@ -12,3 +12,4 @@ rhubarbe/scripts/*.txt
 rhubarbe/scripts/*.pdf
 rhubarbe/scripts/*.zip
 
+.venv

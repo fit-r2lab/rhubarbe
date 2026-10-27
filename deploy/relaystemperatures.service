@@ -3,4 +3,5 @@ Description=acquire all relays temperatures
 
 # keep backups during two months
 [Service]
-ExecStart=/bin/bash -c "rhubarbe relay store-temperatures"
+WorkingDirectory=/opt/rhubarbe
+ExecStart=/root/.local/bin/uv run --frozen rhubarbe relay store-temperatures
