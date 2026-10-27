@@ -1,5 +1,10 @@
 # Changelog
 
+## 9.6.0
+
+- revised layout: systemd/ -> deploy/
+- deprecate the `template` subcommand
+
 ## 9.5.0 - 2026 Oct 24
 
 - all inventory files are now expected in yaml, not json
