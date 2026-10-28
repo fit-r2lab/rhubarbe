@@ -1,8 +1,11 @@
 # Changelog
 
-## 9.6.0
+## 10.0.0
 
 - revised layout: systemd/ -> deploy/
+  the services now run within an auto-updates uv venv
+- scrubbed toplevel Makefile, no longer deal with deployment
+- use pxefrisbee-k44 by default
 - deprecate the `template` subcommand
 
 ## 9.5.0 - 2026 Oct 24
