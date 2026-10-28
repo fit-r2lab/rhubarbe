@@ -1,42 +1,24 @@
-# to publish, use publish-to-pypi-from-pyproject
+# how to deploy in a test venv on preplab or production
 
 help:
-	echo "make preplab to push on V0"
-	echo "make r2lab to push on production"
+	echo "make prep to push on preplab"
+	echo "make prod to push on production/faraday"
 
-##########
-pyfiles:
-	@git ls-files | grep '\.py$$'
+########## for deploying in a test venv
+# use preplab as a test site by default
+# unless phones or pdus or relays are needed for the test
+deployment ?= prep
 
-pep8:
-	$(MAKE) pyfiles | xargs flake8 --max-line-length=80 --exclude=__init__.py
-
-pylint:
-	$(MAKE) pyfiles | xargs pylint
-
-
-.PHONY: pep8 pylint pyfiles
-##############################
-tags:
-	git ls-files | xargs etags
-
-.PHONY: tags
-
-############################## for deploying before packaging
-# default is to mess with our preplab and let the production
-# site do proper upgrades using pip3
-deployment ?= preplab
-
-ifeq "$(deployment)" "production"
+ifeq "$(deployment)" "prod"
     DEST=faraday.inria.fr
 else
     DEST=preplab.pl.sophia.inria.fr
 endif
 
+# install in $(TMPDIR) for testing
 TMPDIR=/tmp/r2lab-dev-rhubarbe
 # the sandbox venv lives outside $(TMPDIR) so that rsync never touches it
 VENV=/root/venvs/r2lab-dev
-# installing in $(TMPDIR) for testing
 sync:
 	@echo '===== '
 	rsync -ai --relative $$(git ls-files) root@$(DEST):$(TMPDIR)/
@@ -50,23 +32,21 @@ sync:
 	@echo 'and run with:'
 	@echo '  source $(VENV)/bin/activate'
 
-r2lab faraday:
-	$(MAKE) sync deployment=production
+# shortcuts
+prod r2lab faraday:
+	$(MAKE) sync deployment=prod
 
-preplab:
-	$(MAKE) sync deployment=preplab
+prep preplab:
+	$(MAKE) sync deployment=prep
 
-.PHONY: sync r2lab faraday preplab
+.PHONY: sync prod r2lab faraday prep preplab
 
-########## actually install
-infra:
-	apssh -t r2lab.infra pip3 install --upgrade rhubarbe
-	ssh root@faraday.inria.fr systemctl restart monitornodes
-	ssh root@faraday.inria.fr systemctl restart monitorphones
-	ssh root@faraday.inria.fr systemctl restart monitorpdus
-	ssh root@faraday.inria.fr systemctl restart accountsmanager
 
-check:
+########## NOTE about actual install
+# use deploy/update.sh
+
+# check installed version
+installed-version:
 	apssh -t r2lab.infra rhubarbe version
 
-.PHONY: infra check
+.PHONY: installed-version
