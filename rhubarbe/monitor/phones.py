@@ -10,6 +10,7 @@ like 'adb shell svc enable wifi' and similar that I have found on the web
 
 # pylint: disable=logging-fstring-interpolation, fixme, missing-function-docstring
 
+import time
 import asyncio
 
 from apssh.sshproxy import SshProxy
@@ -19,6 +20,7 @@ from rhubarbe.logger import monitor_logger as logger
 
 from rhubarbe.inventoryphones import InventoryPhones
 from rhubarbe.monitor.reconnectable import ReconnectableSidecar
+from rhubarbe.monitor.watchdog import Watchdog
 
 
 class MonitorPhone:
@@ -49,6 +51,8 @@ class MonitorPhone:
         self.cycle = cycle
         self.info = {'id': self.id}
         self.verbose = verbose
+        # for the watchdog
+        self.last_probe_end = time.time()
 
     def __repr__(self):
         return (f"monitored phone #{self.id}"
@@ -102,6 +106,7 @@ class MonitorPhone:
     async def probe_forever(self):
         while True:
             await self.probe()
+            self.last_probe_end = time.time()
             await asyncio.sleep(self.cycle)
 
 
@@ -125,9 +130,12 @@ class MonitorPhones:
                          cycle=cycle,
                          **spec)
             for spec in phone_specs]
+        self.watchdog = Watchdog('monitorphones', self.reconnectable,
+                                 self.phones)
 
     async def run_forever(self):
         await asyncio.gather(
             *[phone.probe_forever()
               for phone in self.phones],
-            self.reconnectable.keep_connected())
+            self.reconnectable.keep_connected(),
+            self.watchdog.run())

@@ -11,6 +11,7 @@ and reports it to the sidecar service
 # pylint: disable=fixme,logging-fstring-interpolation,missing-function-docstring
 
 import re
+import time
 import asyncio
 
 from rhubarbe.config import Config
@@ -21,6 +22,7 @@ from rhubarbe.logger import monitor_logger as logger
 
 # connect to sidecar
 from rhubarbe.monitor.reconnectable import ReconnectableSidecar
+from rhubarbe.monitor.watchdog import Watchdog, count_open_files
 
 # translate info into a single char for logging
 def one_char_summary(info):
@@ -54,6 +56,9 @@ class MonitorNode:
         self.verbose = verbose
         # current info - will be reported to sidecar
         self.info = {'id': node.id}
+        self.id = node.id
+        # for the watchdog
+        self.last_probe_end = time.time()
 
     def set_info(self, *overrides):
         """
@@ -265,6 +270,7 @@ class MonitorNode:
                 await self.probe(ping_timeout, ssh_timeout)
             except Exception:                           # pylint: disable=broad-except
                 logger.exception("monitornodes oops 2")
+            self.last_probe_end = time.time()
             await asyncio.sleep(cycle)
 
 
@@ -293,6 +299,8 @@ class MonitorNodes:
             MonitorNode(node=node, reconnectable=self.reconnectable,
                         verbose=verbose)
             for node in nodes]
+        self.watchdog = Watchdog('monitornodes', self.reconnectable,
+                                 self.monitor_nodes)
 
     async def log(self):
         previous = 0
@@ -302,6 +310,7 @@ class MonitorNodes:
             current = self.reconnectable.counter
             delta = f"+ {current-previous}"
             line += f" {current} emits ({delta})"
+            line += f" - {self.reconnectable} - fds={count_open_files()}"
             previous = current
             logger.warning(line)
             await asyncio.sleep(self.log_period)
@@ -315,4 +324,5 @@ class MonitorNodes:
               for monitor_node in self.monitor_nodes],
             self.reconnectable.keep_connected(),
             self.log(),
+            self.watchdog.run(),
         )

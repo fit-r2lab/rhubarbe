@@ -5,6 +5,7 @@
 # pylint: disable=fixme
 
 import json
+import time
 import asyncio
 import ssl
 
@@ -25,13 +26,16 @@ class ReconnectableSidecar:
         # caller MUST run keep_connected()
         self.connection = None
         self.counter = 0
+        # when the last send succeeded; starts at creation time as a grace period
+        self.last_send_ok = time.time()
         self.backlog = []
         logger.info(f"reconnectable sidecar to {url} ")
 
     def __repr__(self):
         size = f"no backlog" if not self.backlog else f"backlog={len(self.backlog)}"
         conn = f"no connection" if not self.connection else f"connection={self.connection.state}"
-        return f"ReconnectableSidecar({self.url}) - {size} - {conn}"
+        age = f"last send ok {time.time() - self.last_send_ok:.0f}s ago"
+        return f"ReconnectableSidecar({self.url}) - {size} - {conn} - {age}"
 
 
     async def flush_backlog(self):
@@ -60,6 +64,7 @@ class ReconnectableSidecar:
         try:
             await self.connection.send(json.dumps(payload))
             self.counter += 1
+            self.last_send_ok = time.time()
             return True
         except ConnectionRefusedError:
             logger.warning(f"[conn. refused] message {infos} goes into backlog"
