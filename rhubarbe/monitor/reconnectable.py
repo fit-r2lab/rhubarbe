@@ -112,6 +112,8 @@ class ReconnectableSidecar:
                     logger.debug("connected !")
                 except ConnectionRefusedError:
                     logger.warning(f"Could not connect to {self.url} at this time")
+                except asyncio.TimeoutError:
+                    logger.warning(f"Timeout while connecting to {self.url}")
                 except Exception as exc:
                     logger.exception(
                         f"Could not connect to {self.url} at this time - uncaught {exc}")
