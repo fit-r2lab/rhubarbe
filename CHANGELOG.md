@@ -1,5 +1,7 @@
 # Changelog
 
+- monitors now merge their backlog before sending
+
 ## 10.0.0
 
 - revised layout: systemd/ -> deploy/
