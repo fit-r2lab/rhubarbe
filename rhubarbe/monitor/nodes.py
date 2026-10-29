@@ -321,7 +321,7 @@ class MonitorNodes:
 
     async def run_forever(self):
         logger.info(f"Starting nodes on {len(self.monitor_nodes)} nodes")
-        return asyncio.gather(
+        await asyncio.gather(
             *[monitor_node.probe_forever(self.cycle,
                                          ping_timeout=self.ping_timeout,
                                          ssh_timeout=self.ssh_timeout)
