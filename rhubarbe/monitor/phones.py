@@ -16,6 +16,7 @@ import asyncio
 from apssh.sshproxy import SshProxy
 from apssh.formatters import CaptureFormatter
 
+from rhubarbe.config import Config
 from rhubarbe.logger import monitor_logger as logger
 
 from rhubarbe.inventoryphones import InventoryPhones
@@ -51,6 +52,9 @@ class MonitorPhone:
         self.cycle = cycle
         self.info = {'id': self.id}
         self.verbose = verbose
+        # nothing in apssh bounds the duration of run(), and a stuck
+        # 'adb shell' would otherwise freeze this phone's loop forever
+        self.ssh_timeout = float(Config().value('networking', 'ssh_timeout'))
         # for the watchdog
         self.last_probe_end = time.time()
 
@@ -62,6 +66,19 @@ class MonitorPhone:
     async def emit(self):
         await self.reconnectable.emit_info(self.info)
 
+    async def drop_gateway(self):
+        """
+        force a reconnection at the next probe; close the connection
+        rather than just forget about it, but never wait for long
+        """
+        try:
+            await asyncio.wait_for(self.gateway.close(), self.ssh_timeout)
+        except Exception as exc:                        # pylint: disable=broad-except
+            logger.error(f"Could not close gateway cleanly "
+                         f"({type(exc).__name__}: {exc})")
+        # whatever happened, make sure we reconnect next time
+        self.gateway.conn = None
+
     async def probe(self):
 
         # connect or reconnect if needed
@@ -70,10 +87,12 @@ class MonitorPhone:
                 if self.verbose:
                     logger.info(f"{self}: connecting to gateway "
                                 f"{self.gateway}")
-                await self.gateway.connect_lazy()
+                await asyncio.wait_for(self.gateway.connect_lazy(),
+                                       self.ssh_timeout)
                 logger.info(f"Connected -> {self.gateway}")
             except Exception as exc:                        # pylint: disable=broad-except
-                logger.error(f"Could not connect -> {self.gateway} (exc={exc})")
+                logger.error(f"Could not connect -> {self.gateway} "
+                             f"({type(exc).__name__}: {exc})")
                 self.info['airplane_mode'] = 'fail'
                 await self.emit()
 
@@ -86,8 +105,10 @@ class MonitorPhone:
                 logger.info(f"{self}: retrieving airplane settings to gateway "
                             f"{self.gateway}")
             self.gateway.formatter.start_capture()
-            retcod = await self.gateway.run(
-                f"{self.adb_bin} shell \"settings get global airplane_mode_on\"")
+            retcod = await asyncio.wait_for(
+                self.gateway.run(
+                    f"{self.adb_bin} shell \"settings get global airplane_mode_on\""),
+                self.ssh_timeout)
             result = self.gateway.formatter.get_capture().strip()
             airplane_mode = 'fail' if retcod != 0 \
                 else 'on' if result == '1' else 'off'
@@ -97,10 +118,10 @@ class MonitorPhone:
             self.info['airplane_mode'] = airplane_mode
 
         except Exception as exc:                        # pylint: disable=broad-except
-            logger.error(f"Could not probe {self.adb_id} -> (e={exc})")
+            logger.error(f"Could not probe {self.adb_id} -> "
+                         f"({type(exc).__name__}: {exc})")
             self.info['airplane_mode'] = 'fail'
-            # force ssh reconnect
-            self.gateway.conn = None
+            await self.drop_gateway()
         await self.emit()
 
     async def probe_forever(self):
@@ -115,7 +136,8 @@ class MonitorPhones:
     monitor all phones status and report to the sidecar service
     """
 
-    def __init__(self, verbose, sidecar_url, cycle):
+    def __init__(self, verbose, sidecar_url, cycle,
+                 stall_timeout=300., stall_check_period=30.):
         self.verbose = verbose
 
         phone_specs = InventoryPhones().all_phones()
@@ -131,11 +153,17 @@ class MonitorPhones:
                          **spec)
             for spec in phone_specs]
         self.watchdog = Watchdog('monitorphones', self.reconnectable,
-                                 self.phones)
+                                 self.phones,
+                                 stall_timeout=stall_timeout,
+                                 check_period=stall_check_period)
 
     async def run_forever(self):
+        # named tasks, so the watchdog snapshot shows which phone is stuck
+        probes = [
+            asyncio.create_task(phone.probe_forever(),
+                                name=f"probe-phone-{phone.id}")
+            for phone in self.phones]
         await asyncio.gather(
-            *[phone.probe_forever()
-              for phone in self.phones],
+            *probes,
             self.reconnectable.keep_connected(),
             self.watchdog.run())
