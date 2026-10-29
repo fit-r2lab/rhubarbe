@@ -28,21 +28,58 @@ class ReconnectableSidecar:
         self.counter = 0
         # when the last send succeeded; starts at creation time as a grace period
         self.last_send_ok = time.time()
-        self.backlog = []
+        # what remains to be sent: id -> info, merged; see emit_infos()
+        self.backlog = {}
+        # True while flush_backlog() is sending
+        self._flushing = False
         logger.info(f"reconnectable sidecar to {url} ")
 
     def __repr__(self):
-        size = f"no backlog" if not self.backlog else f"backlog={len(self.backlog)}"
+        size = f"no backlog" if not self.backlog else f"backlog={len(self.backlog)} ids"
         conn = f"no connection" if not self.connection else f"connection={self.connection.state}"
         age = f"last send ok {time.time() - self.last_send_ok:.0f}s ago"
         return f"ReconnectableSidecar({self.url}) - {size} - {conn} - {age}"
 
 
+    def _buffer(self, infos):
+        """
+        Merge infos into the backlog; the backlog only keeps one
+        (merged) info per id, so its size is bounded by the number of ids,
+        however long we stay disconnected. Later values win, which matches
+        how the sidecar itself overwrites (id x key) values
+        """
+        for info in infos:
+            if 'id' not in info:
+                logger.error(f"dropping info without an id: {info}")
+                continue
+            self.backlog.setdefault(info['id'], {}).update(info)
+
+    def _requeue(self, infos):
+        """
+        Same as _buffer, for infos that we failed to send; the backlog
+        may already contain news about the same ids, that need to win
+        """
+        for info in infos:
+            older = dict(info)
+            older.update(self.backlog.get(info['id'], {}))
+            self.backlog[info['id']] = older
+
+
     async def flush_backlog(self):
-        # do not mess with the iteration subject
-        for infos in self.backlog[:]:
-            if await self.emit_infos(infos):
-                self.backlog.remove(infos)
+        """
+        Send the whole backlog as one message
+        """
+        if self._flushing or not self.backlog:
+            return
+        self._flushing = True
+        try:
+            pending = list(self.backlog.values())
+            # emits that come in while we send go into a fresh backlog
+            self.backlog = {}
+            if not await self._send(pending):
+                self._requeue(pending)
+        finally:
+            self._flushing = False
 
 
     # info singular: create a list with that one info
@@ -51,40 +88,57 @@ class ReconnectableSidecar:
 
 
     async def emit_infos(self, infos):
+        """
+        Send infos to the sidecar, or keep them for later
+
+        As long as the backlog is not empty, or is being flushed,
+        everything goes through the backlog and is sent by keep_connected();
+        this is how we make sure that older data never gets sent
+        after newer data, e.g. right after a reconnection.
+
+        Returns True if infos were sent right away
+        """
         # logger.debug(f"{self}: emit_infos is sending {infos}")
         from rhubarbe.monitor.prometheus import PrometheusExporter  # avoid circular import
         PrometheusExporter().update(self.category, infos)
-        if not self.connection:
-            logger.warning(f"[no conn.] backlog ->  {infos}"
-                           f" (with {len(self.backlog)} others)")
-            self.backlog.append(infos)
-            return False
+        if self.connection and not self.backlog and not self._flushing:
+            if await self._send(infos):
+                return True
+            self._requeue(infos)
+        else:
+            if not self.backlog:
+                logger.warning(f"[no conn.] buffering until the sidecar is back")
+            self._buffer(infos)
+        return False
 
-        payload = dict(category=self.category, action='info', message=infos)
-        try:
-            await self.connection.send(json.dumps(payload))
-            self.counter += 1
-            self.last_send_ok = time.time()
-            return True
-        except ConnectionRefusedError:
-            logger.warning(f"[conn. refused] message {infos} goes into backlog"
-                           f" (with {len(self.backlog)} others)")
-            self.backlog.append(infos)
+
+    async def _send(self, infos):
+        """
+        The actual sending; returns True if successful
+        it is up to the caller to take care of infos if not
+        """
+        connection = self.connection
+        if connection is None:
             return False
-        except websockets.exceptions.ConnectionClosedError as exc:
-            logger.warning(f"[conn. closed] message {infos} goes into backlog"
-                           f" (with {len(self.backlog)} others)")
-            self.backlog.append(infos)
+        payload = json.dumps(
+            dict(category=self.category, action='info', message=infos))
+        try:
+            await connection.send(payload)
+        except ConnectionRefusedError:
+            logger.warning(f"[conn. refused] {len(infos)} infos not sent")
+            return False
+        except websockets.exceptions.ConnectionClosed as exc:
+            # this includes both ConnectionClosedError and ConnectionClosedOK
+            logger.warning(f"[conn. closed] {len(infos)} infos not sent - {exc}")
             self.connection = None
             return False
         except Exception as exc:
-            # xxx to review
             logger.exception(f"connection.send failed: {type(exc)}: {exc}")
             self.connection = None
             return False
-        finally:
-            pass
-            # logger.debug(f"<<< emit_infos is leaving connection.send() with {payload}")
+        self.counter += 1
+        self.last_send_ok = time.time()
+        return True
 
 
     async def keep_connected(self):
@@ -95,9 +149,9 @@ class ReconnectableSidecar:
             if self.connection and self.connection.state == websockets.protocol.State.OPEN:
                 logger.debug(f"in keep_connected, connection is open")
                 if self.backlog:
-                    logger.info(f"flushing backlog of {len(self.backlog)} messages")
+                    logger.info(f"flushing backlog with {len(self.backlog)} ids")
                     await self.flush_backlog()
-                    logger.info(f"after flush, backlog now has {len(self.backlog)} messages")
+                    logger.info(f"after flush, backlog now has {len(self.backlog)} ids")
             else:
                 # xxx should we close() our client ?
                 self.connection = None
@@ -110,10 +164,15 @@ class ReconnectableSidecar:
                     logger.info(f"(re)-connecting to {self.url} ...")
                     self.connection = await SidecarAsyncClient(self.url, **kwds)
                     logger.debug("connected !")
-                except ConnectionRefusedError:
-                    logger.warning(f"Could not connect to {self.url} at this time")
+                # TimeoutError is a subclass of OSError, so it must come first
                 except asyncio.TimeoutError:
                     logger.warning(f"Timeout while connecting to {self.url}")
+                # a refused connection may come as a ConnectionRefusedError
+                # or as an OSError('Multiple exceptions: ...'), when
+                # the hostname resolves to several addresses
+                except OSError as exc:
+                    logger.warning(
+                        f"Could not connect to {self.url} at this time: {exc}")
                 except Exception as exc:
                     logger.exception(
                         f"Could not connect to {self.url} at this time - uncaught {exc}")
