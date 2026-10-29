@@ -11,7 +11,6 @@ querying status, turning on or off, and similar
 # pylint: disable=logging-fstring-interpolation
 
 import os.path
-import traceback
 
 import asyncio
 import aiohttp
@@ -150,8 +149,8 @@ class Node:                                             # pylint: disable=r0902
             logger.info(f"cannot connect to {url}")
             setattr(self, verb, None)
             return None
-        except Exception:
-            traceback.print_exc()
+        except Exception as exc:
+            logger.warning(f"{url} failed: {type(exc).__name__}: {exc}")
             setattr(self, verb, None)
             return None
         return getattr(self, verb)
