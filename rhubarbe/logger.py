@@ -11,6 +11,7 @@ create/configure logger objects
 # r0903 too few public methods
 # pylint: disable=c0103, w0703
 
+import os
 import sys
 from pathlib import Path
 
@@ -25,6 +26,10 @@ from pathlib import Path
 # * one special handler for accounts - ditto but with a shorter layout
 
 # most logs now end upin journalctl so the timestamp is redundant
+# journald sets JOURNAL_STREAM for the services it runs; when we run
+# interactively there is no journal to add timestamps, so we add our own
+_under_journald = 'JOURNAL_STREAM' in os.environ
+
 rhubarbe_logging_config = {
     'version': 1,
     'disable_existing_loggers': True,
@@ -36,6 +41,12 @@ rhubarbe_logging_config = {
         'shorter': {
             'format': '%(levelname)s %(message)s',
             # 'datefmt': '%d %H:%M:%S'
+        },
+        # monitors, when not run under systemd (see below)
+        'standard_timestamped': {
+            'format': '%(levelname)s %(asctime)s %(filename)s:%(lineno)d '
+                      '%(message)s',
+            'datefmt': '%m-%d %H:%M:%S',
         },
         # for ~/rhubarbe.log, which is not managed by journald
         'timestamped': {
@@ -55,7 +66,8 @@ rhubarbe_logging_config = {
         'monitor': {
             'level': 'DEBUG',
             'class': 'logging.StreamHandler',
-            'formatter': 'standard',
+            'formatter': 'standard' if _under_journald
+                         else 'standard_timestamped',
             'stream': sys.stdout,
         },
         'accounts': {
