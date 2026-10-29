@@ -1,12 +1,17 @@
 # Changelog
 
+## 10.0.1
+
+- hunting for monitornodes and monitorphones stalls:
+  add a watchdog that dumps stacks when something gets stuck
+
 ## 10.0.0
 
-- revised layout: systemd/ -> deploy/
-  the services now run within an auto-updates uv venv
-- scrubbed toplevel Makefile, no longer deal with deployment
 - use pxefrisbee-k44 by default
 - deprecate the `template` subcommand
+- revised layout: systemd/ -> deploy/
+  the services now run within an auto-updated uv venv
+- scrubbed toplevel Makefile, no longer deal with deployment
 
 ## 9.5.0 - 2026 Oct 24
 
