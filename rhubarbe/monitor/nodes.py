@@ -219,8 +219,12 @@ class MonitorNode:
                     output = await asyncio.wait_for(
                         ssh.run(command), timeout=ssh_timeout)
                     logger.debug(f"{output=:20s}...")
-                    # padding dict here sets control_ssh and control_ping to on
-                    self.parse_ssh_probe_output(output, padding_dict)
+                    if output is None:
+                        # ssh.run() has already logged the reason
+                        self.set_info({'control_ssh': 'off'})
+                    else:
+                        # padding dict here sets control_ssh and control_ping to on
+                        self.parse_ssh_probe_output(output, padding_dict)
                     # required as otherwise we leak openfiles
                     try:
                         await ssh.close()
