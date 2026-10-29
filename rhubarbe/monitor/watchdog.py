@@ -4,8 +4,13 @@ A stall detector for the monitor services
 The monitors are known to get stuck every now and then, in a way that is not
 well understood yet; the symptom being that nothing gets published anymore.
 
-The watchdog checks periodically that something was successfully sent
-to the sidecar recently; if not, it logs a snapshot of the internal state
+The watchdog checks periodically 2 things
+* that something was successfully sent to the sidecar recently
+* that each prober (one per node or phone) completed a probe recently
+  - a single stuck prober would not show up in the first check, as the
+    other ones keep emitting
+
+if either fails, it logs a snapshot of the internal state
 (all asyncio tasks and where they are suspended, connection state, backlog,
 open files, probes that did not complete recently) and then exits the
 process, so that systemd (Restart=always) brings it back up.
@@ -52,7 +57,8 @@ class Watchdog:
     reconnectable: the ReconnectableSidecar whose last_send_ok is monitored
     probers: objects with an 'id' and a 'last_probe_end' attribute,
       used only to enrich the snapshot
-    stall_timeout: seconds without a successful send before we give up
+    stall_timeout: seconds without a successful send, or without
+      a prober completing a probe, before we give up
     """
 
     def __init__(self, name, reconnectable, probers,
@@ -80,15 +86,33 @@ class Watchdog:
             logger.error(f"watchdog {self.name}: task {task.get_name()} "
                          f"suspended at: {chain}")
 
+    def stuck_probers(self):
+        """
+        the (age, id) of the probers that have not completed a probe
+        for more than stall_timeout seconds, oldest first
+        """
+        now = time.time()
+        return sorted(
+            ((now - p.last_probe_end, getattr(p, 'id', repr(p)))
+             for p in self.probers
+             if now - p.last_probe_end >= self.stall_timeout),
+            reverse=True)
+
     async def run(self):
         while True:
             await asyncio.sleep(self.check_period)
             silence = time.time() - self.reconnectable.last_send_ok
-            if silence < self.stall_timeout:
+            stuck = self.stuck_probers()
+            if silence >= self.stall_timeout:
+                reason = (f"no successful send for {silence:.0f}s "
+                          f"(limit {self.stall_timeout:.0f}s)")
+            elif stuck:
+                reason = (f"{len(stuck)} prober(s) stuck for more than "
+                          f"{self.stall_timeout:.0f}s, "
+                          f"(age in s, id): {stuck[:10]}")
+            else:
                 continue
-            logger.error(f"watchdog {self.name}: no successful send "
-                         f"for {silence:.0f}s (limit {self.stall_timeout:.0f}s) "
-                         f"- exiting")
+            logger.error(f"watchdog {self.name}: {reason} - exiting")
             try:
                 self.snapshot()
             except Exception:                       # pylint: disable=broad-except

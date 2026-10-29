@@ -829,10 +829,24 @@ def _monitor_common_options(cycle_key, prometheus_key):
     return decorator
 
 
+def _watchdog_options(f):
+    """Options for the stall watchdog of monitornodes and monitorphones."""
+    f = click.option(
+        '--stall-check-period', type=float, show_default=True, default=30.,
+        help="how often the watchdog checks for a stall (seconds)")(f)
+    f = click.option(
+        '--stall-timeout', type=float, show_default=True, default=300.,
+        help="exit if nothing could be sent to the sidecar for that long "
+             "(seconds); systemd then restarts the service")(f)
+    return f
+
+
 @cli.command()
 @_monitor_common_options('cycle_nodes', 'prometheus_port_nodes')
+@_watchdog_options
 @selector_options
 def monitornodes(cycle, sidecar_url, verbose, debug, prometheus_port,
+                 stall_timeout, stall_check_period,
                  all_nodes, ranges):
     """Cyclically probe all selected nodes; report status to the sidecar."""
     set_loggers_level(verbose, debug)
@@ -847,7 +861,9 @@ def monitornodes(cycle, sidecar_url, verbose, debug, prometheus_port,
                        message_bus=message_bus,
                        cycle=cycle,
                        sidecar_url=sidecar_url,
-                       verbose=verbose)
+                       verbose=verbose,
+                       stall_timeout=stall_timeout,
+                       stall_check_period=stall_check_period)
 
     async def async_main():
         await asyncio.gather(mon.run_forever(), display.run())
@@ -857,13 +873,17 @@ def monitornodes(cycle, sidecar_url, verbose, debug, prometheus_port,
 
 @cli.command()
 @_monitor_common_options('cycle_phones', 'prometheus_port_phones')
-def monitorphones(cycle, sidecar_url, verbose, debug, prometheus_port):
+@_watchdog_options
+def monitorphones(cycle, sidecar_url, verbose, debug, prometheus_port,
+                  stall_timeout, stall_check_period):
     """Cyclically probe all known phones; report status to the sidecar."""
     set_loggers_level(verbose, debug)
     PrometheusExporter().start(prometheus_port)
 
     monitor_logger.info("Using all phones")
-    mon = MonitorPhones(cycle=cycle, sidecar_url=sidecar_url, verbose=verbose)
+    mon = MonitorPhones(cycle=cycle, sidecar_url=sidecar_url, verbose=verbose,
+                        stall_timeout=stall_timeout,
+                        stall_check_period=stall_check_period)
     MonitorLoop("monitorphones").run(mon.run_forever())
 
 

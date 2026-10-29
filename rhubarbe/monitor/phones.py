@@ -115,7 +115,8 @@ class MonitorPhones:
     monitor all phones status and report to the sidecar service
     """
 
-    def __init__(self, verbose, sidecar_url, cycle):
+    def __init__(self, verbose, sidecar_url, cycle,
+                 stall_timeout=300., stall_check_period=30.):
         self.verbose = verbose
 
         phone_specs = InventoryPhones().all_phones()
@@ -131,11 +132,17 @@ class MonitorPhones:
                          **spec)
             for spec in phone_specs]
         self.watchdog = Watchdog('monitorphones', self.reconnectable,
-                                 self.phones)
+                                 self.phones,
+                                 stall_timeout=stall_timeout,
+                                 check_period=stall_check_period)
 
     async def run_forever(self):
+        # named tasks, so the watchdog snapshot shows which phone is stuck
+        probes = [
+            asyncio.create_task(phone.probe_forever(),
+                                name=f"probe-phone-{phone.id}")
+            for phone in self.phones]
         await asyncio.gather(
-            *[phone.probe_forever()
-              for phone in self.phones],
+            *probes,
             self.reconnectable.keep_connected(),
             self.watchdog.run())

@@ -280,7 +280,8 @@ class MonitorNodes:
     """
 
     def __init__(self, cmc_names, message_bus,
-                 sidecar_url, cycle, verbose=False):
+                 sidecar_url, cycle, verbose=False,
+                 stall_timeout=300., stall_check_period=30.):
         self.cycle = cycle
         self.verbose = verbose
 
@@ -300,7 +301,9 @@ class MonitorNodes:
                         verbose=verbose)
             for node in nodes]
         self.watchdog = Watchdog('monitornodes', self.reconnectable,
-                                 self.monitor_nodes)
+                                 self.monitor_nodes,
+                                 stall_timeout=stall_timeout,
+                                 check_period=stall_check_period)
 
     async def log(self):
         previous = 0
@@ -317,11 +320,16 @@ class MonitorNodes:
 
     async def run_forever(self):
         logger.info(f"Starting nodes on {len(self.monitor_nodes)} nodes")
+        # named tasks, so the watchdog snapshot shows which node is stuck
+        probes = [
+            asyncio.create_task(
+                monitor_node.probe_forever(self.cycle,
+                                           ping_timeout=self.ping_timeout,
+                                           ssh_timeout=self.ssh_timeout),
+                name=f"probe-node-{monitor_node.id}")
+            for monitor_node in self.monitor_nodes]
         return asyncio.gather(
-            *[monitor_node.probe_forever(self.cycle,
-                                         ping_timeout=self.ping_timeout,
-                                         ssh_timeout=self.ssh_timeout)
-              for monitor_node in self.monitor_nodes],
+            *probes,
             self.reconnectable.keep_connected(),
             self.log(),
             self.watchdog.run(),
