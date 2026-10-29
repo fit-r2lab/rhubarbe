@@ -23,8 +23,11 @@
 # in between a push to main and the next release on pypi.
 # also, a system upgrade of python needs a manual pip install -U rhubarbe
 #
-# The relaystemperatures service is run by its timer, and so it
-# is not restarted here, it just picks up the new code next time.
+# Only the units that are installed AND enabled are restarted, so that
+# this script also works on hosts that run none (or only some) of them, like
+# distrait. The relaystemperatures service is run by its timer, so it is not
+# restarted itself, it just picks up the new code next time; the timer is
+# restarted like the others, if enabled.
 #
 
 set -euo pipefail
@@ -35,4 +38,23 @@ export PATH="/root/.local/bin:$PATH"
 
 uv sync --frozen
 systemctl daemon-reload
-systemctl restart monitornodes monitorphones monitorpdus accountsmanager relaysapi
+
+UNITS="monitornodes monitorphones monitorpdus accountsmanager relaysapi relaystemperatures.timer"
+
+to_restart=""
+skipped=""
+for unit in $UNITS; do
+    if systemctl is-enabled --quiet "$unit"; then
+        to_restart="$to_restart $unit"
+    else
+        skipped="$skipped $unit"
+    fi
+done
+
+[ -n "$skipped" ] && echo "update.sh: skipping (not installed or not enabled):$skipped"
+
+if [ -n "$to_restart" ]; then
+    systemctl restart $to_restart
+else
+    echo "update.sh: no enabled unit to restart"
+fi
