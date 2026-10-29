@@ -39,6 +39,30 @@ def one_char_summary(info):
     return '^'
 
 
+async def ping(hostname, timeout):
+    """
+    Returns True if hostname answers to a single ping within timeout seconds
+
+    I don't know of an asyncio library to deal with icmp,
+    so let's use asyncio.subprocess; the options are kept to the bare minimum
+    as the ones that deal with timeouts differ between linux and macos;
+    we enforce the timeout ourselves, and make sure to kill the child
+    """
+    process = await asyncio.create_subprocess_exec(
+        "ping", "-c", "1", hostname,
+        stdout=asyncio.subprocess.DEVNULL,
+        stderr=asyncio.subprocess.DEVNULL)
+    try:
+        # a ping that fails fast (unreachable, unknown host) is a failure too
+        return await asyncio.wait_for(process.wait(), timeout) == 0
+    except asyncio.TimeoutError:
+        return False
+    finally:
+        if process.returncode is None:
+            process.kill()
+            await process.wait()
+
+
 class MonitorNode:
     """
     the logic for probing a node as part of monitoring
@@ -242,24 +266,9 @@ class MonitorNode:
         logger.info(f"entering pass3, info={self.info}")
         # pass3 : node is ON but could not ssh
         # check for ping
-        # I don't know of an asyncio library to deal with icmp
-        # so let's use asyncio.subprocess
-        # xxx maybe a Ping class would be the way to go
         control = self.node.control_hostname()
-        command = ["ping", "-c", "1", "-t", "1", control]
-        try:
-            subprocess = await asyncio.create_subprocess_exec(
-                *command,
-                stdout=asyncio.subprocess.DEVNULL,
-                stderr=asyncio.subprocess.DEVNULL)
-            # failure occurs through timeout
-            await asyncio.wait_for(subprocess.wait(),
-                                   timeout=ping_timeout)
-            await self.set_info_and_report({'control_ping': 'on'})
-            return
-        except asyncio.TimeoutError:
-            await self.set_info_and_report({'control_ping': 'off'})
-            return
+        control_ping = 'on' if await ping(control, ping_timeout) else 'off'
+        await self.set_info_and_report({'control_ping': control_ping})
 
     async def probe_forever(self, cycle, ping_timeout, ssh_timeout):
         """
