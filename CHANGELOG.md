@@ -3,8 +3,10 @@
 ## 10.0.1
 
 - monitors now merge their backlog before sending
+- harden the nodes and phones monitors
 - hunting for monitornodes and monitorphones stalls:
   add a watchdog that dumps stacks when something gets stuck
+- cosmetic: no longer dump stack when node meets exception, warning instead
 
 ## 10.0.0
 
