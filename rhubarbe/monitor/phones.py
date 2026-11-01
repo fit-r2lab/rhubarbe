@@ -21,7 +21,12 @@ from rhubarbe.logger import monitor_logger as logger
 
 from rhubarbe.inventoryphones import InventoryPhones
 from rhubarbe.monitor.reconnectable import ReconnectableSidecar
-from rhubarbe.monitor.watchdog import Watchdog
+from rhubarbe.monitor.watchdog import Watchdog, count_open_files
+
+
+def one_char_summary(info):
+    mode = info.get('airplane_mode')
+    return {'on': 'A', 'off': '^', 'fail': 'x'}.get(mode, '?')
 
 
 class MonitorPhone:
@@ -52,6 +57,8 @@ class MonitorPhone:
         self.cycle = cycle
         self.info = {'id': self.id}
         self.verbose = verbose
+        # to log only when the airplane mode changes
+        self.previous_mode = None
         # nothing in apssh bounds the duration of run(), and a stuck
         # 'adb shell' would otherwise freeze this phone's loop forever
         self.ssh_timeout = float(Config().value('networking', 'ssh_timeout'))
@@ -102,7 +109,7 @@ class MonitorPhone:
 
         try:
             if self.verbose:
-                logger.info(f"{self}: retrieving airplane settings to gateway "
+                logger.debug(f"{self}: retrieving airplane settings to gateway "
                             f"{self.gateway}")
             self.gateway.formatter.start_capture()
             retcod = await asyncio.wait_for(
@@ -112,9 +119,14 @@ class MonitorPhone:
             result = self.gateway.formatter.get_capture().strip()
             airplane_mode = 'fail' if retcod != 0 \
                 else 'on' if result == '1' else 'off'
+            # one line per cycle and per phone is too much; log changes only
+            changed = airplane_mode != self.previous_mode
+            self.previous_mode = airplane_mode
             if self.verbose:
-                logger.info(f"probed phone {self.adb_id} : {retcod=} {result=} "
-                            f"-> {airplane_mode=}")
+                level = logger.info if changed or airplane_mode == 'fail' \
+                    else logger.debug
+                level(f"probed phone {self.adb_id} : {retcod=} {result=} "
+                      f"-> {airplane_mode=}")
             self.info['airplane_mode'] = airplane_mode
 
         except Exception as exc:                        # pylint: disable=broad-except
@@ -139,6 +151,7 @@ class MonitorPhones:
     def __init__(self, verbose, sidecar_url, cycle,
                  stall_timeout=300., stall_check_period=30.):
         self.verbose = verbose
+        self.log_period = float(Config().value('monitor', 'log_period'))
 
         phone_specs = InventoryPhones().all_phones()
 
@@ -157,6 +170,18 @@ class MonitorPhones:
                                  stall_timeout=stall_timeout,
                                  check_period=stall_check_period)
 
+    async def log(self):
+        previous = 0
+        while True:
+            line = "".join([one_char_summary(phone.info)
+                            for phone in self.phones])
+            current = self.reconnectable.counter
+            line += f" {current} emits (+ {current-previous})"
+            line += f" - {self.reconnectable} - fds={count_open_files()}"
+            previous = current
+            logger.warning(line)
+            await asyncio.sleep(self.log_period)
+
     async def run_forever(self):
         # named tasks, so the watchdog snapshot shows which phone is stuck
         probes = [
@@ -166,4 +191,5 @@ class MonitorPhones:
         await asyncio.gather(
             *probes,
             self.reconnectable.keep_connected(),
+            self.log(),
             self.watchdog.run())
