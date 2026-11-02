@@ -14,7 +14,6 @@ import os
 import subprocess
 import time
 import re
-import glob
 from pathlib import Path
 #from itertools import chain
 from collections import defaultdict
@@ -53,9 +52,12 @@ def root_privileges():
 
 
 class ImagePath:                                 # pylint: disable=r0902, r0903
-    def __init__(self, repo, path):
+    def __init__(self, repo, path, toplevel=True):
         self.repo = repo
         self.path = Path(path)
+        # False for images found in a subfolder of the images repo;
+        # only toplevel images are considered 'official' (and synced)
+        self.toplevel = toplevel
         # pylint: disable=w0212
         self.radical = self.repo._radical_part(self.path)
         self.stem = self.path.stem
@@ -70,7 +72,7 @@ class ImagePath:                                 # pylint: disable=r0902, r0903
                 pass
             self.readable = True
         except OSError:
-            print(f"WARNING unreadable path {self}")
+            print(f"WARNING unreadable path {self}", file=sys.stderr)
             self.readable = False
             self.mtime = 0
             self.size = 0
@@ -185,6 +187,9 @@ class ImagesRepo(metaclass=Singleton):
         the_config = Config()
         self.public = Path(the_config.value('frisbee', 'images_dir'))
         self.default_name = the_config.value('frisbee', 'default_image')
+        # where 'share' stores images, relative to the public repo
+        # empty means the toplevel; can be set per host
+        self.share_subdir = the_config.value('frisbee', 'share_subdir')
         # for building hostname patterns
         regularname = the_config.value('testbed', 'regularname')
         self._radical_re_matcher = re.compile(
@@ -224,33 +229,89 @@ class ImagesRepo(metaclass=Singleton):
             return match.group('radical')
         return stem
 
-    def _iterate_images(self, directory, predicate) -> Iterator[ImagePath]:
+    @staticmethod
+    def _walk_ndz(directory, recursive) -> Iterator[Path]:
+        """
+        yields the (plain or symlink) *.ndz files in this directory,
+        and, if recursive, in its subfolders (symlinks to folders are
+        not followed); the order is deterministic
+        """
+        directory = Path(directory)
+        found = (directory.rglob if recursive else directory.glob)(
+            f"*{SUFFIX}")
+        yield from sorted(found)
+
+    def _iterate_images(self, directory, predicate, recursive=False) \
+            -> Iterator[ImagePath]:
         """
         returns an iterator on ImagePath objects
         in this directory so that bool(predicate(image_path)) is True
+        the images repo is meant to be scanned recursively, so that
+        old images can be stored in subfolders and still be found;
+        images that sit right in the directory are flagged as toplevel
         """
         directory = Path(directory)
-        #2019 nov 22 - somehow this is broken
-        #for filename in directory.glob(f"*{SUFFIX}"):
-        for filename in glob.glob(f"{directory}/*{SUFFIX}"):
-            image_path = ImagePath(self, filename)
+        for filename in self._walk_ndz(directory, recursive):
+            image_path = ImagePath(
+                self, filename, toplevel=(filename.parent == directory))
             if predicate(image_path):
                 yield image_path
 
     def locate_all_images(self, radical, look_in_global) -> List[ImagePath]:
+        """
+        all the readable matches, best first: toplevel images (cwd and
+        images repo) come first, newest first among them; images that are
+        stored in subfolders of the repo come next, newest first
+        """
         match = lambda image_path: (image_path.radical == radical
                                     or str(image_path) == radical)
         candidates = list(self._iterate_images(".", match))
         if look_in_global:
-            candidates += list(self._iterate_images(self.public, match))
-        candidates = [candidate for candidate in candidates if candidate.readable]
-        candidates.sort(key=lambda info: info.mtime, reverse=True)
+            candidates += list(self._iterate_images(
+                self.public, match, recursive=True))
+        candidates = [candidate for candidate in candidates
+                      if candidate.readable]
+        # the same file can be seen twice, e.g. if cwd is the repo
+        candidates = self._remove_duplicates(candidates)
+        candidates.sort(key=lambda info: (info.toplevel, info.mtime),
+                        reverse=True)
         return candidates
 
+    @staticmethod
+    def _remove_duplicates(image_paths):
+        """
+        the same entry can be reached through several paths,
+        for example if the current directory is the images repo
+        """
+        seen = set()
+        result = []
+        for image_path in image_paths:
+            path = image_path.path
+            key = (path.parent.resolve(), path.name)
+            if key not in seen:
+                seen.add(key)
+                result.append(image_path)
+        return result
+
+    @staticmethod
+    def _warn_competing(radical, winner, others):
+        """
+        always warn when a name can be found in several places
+        goes to stderr as resolve prints its result on stdout
+        """
+        print(f"WARNING: {len(others) + 1} candidates for image {radical}",
+              file=sys.stderr)
+        print(f"  * {winner.path}   (selected)", file=sys.stderr)
+        for other in others:
+            print(f"    {other.path}", file=sys.stderr)
 
     def locate_image(self, radical, look_in_global) -> ImagePath:
         all_matches = self.locate_all_images(radical, look_in_global)
-        return all_matches[0] if all_matches else None
+        if not all_matches:
+            return None
+        if len(all_matches) > 1:
+            self._warn_competing(radical, all_matches[0], all_matches[1:])
+        return all_matches[0]
 
 
     def _search_clusters(self, *, show_dot, show_public,
@@ -258,6 +319,7 @@ class ImagesRepo(metaclass=Singleton):
                          sort_clusters=None, reverse=False):
         """
         search for images in either '.' and public dirs,
+        (the public dir is scanned recursively)
         that satisfy the image predicate
         then groups them by clusters
         filters out the ones that don't match
@@ -269,11 +331,12 @@ class ImagesRepo(metaclass=Singleton):
             candidates += list(self._iterate_images(".", image_predicate))
         if show_public:
             candidates += list(self._iterate_images(
-                self.public, image_predicate))
+                self.public, image_predicate, recursive=True))
+        candidates = self._remove_duplicates(candidates)
         clusters_hash = defaultdict(list)
         for image in candidates:
             if not image.readable:
-                print(f"WARNING: ignoring unreadable image {image}")
+                # already reported by ImagePath._infos
                 continue
             clusters_hash[image.inode].append(image)
         clusters = [ImageCluster(self, images)
@@ -286,13 +349,38 @@ class ImagesRepo(metaclass=Singleton):
         return clusters
 
 
+    def _in_subfolders(self, image_path, subfolders) -> bool:
+        """
+        is this image stored in one of these subfolders (or below)
+        of the public repo
+        """
+        try:
+            parts = image_path.path.parent.relative_to(self.public).parts
+        except ValueError:
+            # not in the public repo, e.g. in the current directory
+            return False
+        for subfolder in subfolders:
+            wanted = Path(subfolder).parts
+            if wanted and parts[:len(wanted)] == wanted:
+                return True
+        return False
+
     def images(self, focus, sort_by, reverse,           # pylint: disable=r0913
-               labeled, public_only, narrow, and_or):
+               labeled, public_only, narrow, and_or, show_all=False,
+               subfolders=()):
+        """
+        subfolders: names of subfolders of the public repo (possibly nested,
+        like old/sub); if given, only the images stored in these are shown,
+        and that includes the nested ones
+        """
+        for subfolder in subfolders:
+            if not (self.public / subfolder).is_dir():
+                print(f"WARNING: no subfolder {subfolder} in {self.public}",
+                      file=sys.stderr)
         show_dot = not public_only
-        # avoid showing images twice if already in the public repo
+        # images that are found twice, e.g. when running from within
+        # the public repo, are only shown once by _search_clusters
         show_public = True
-        if Path.cwd().absolute() == self.public.absolute():
-            show_public = False
         long_format = not narrow
         # is a given cluster filtered by focus
         def in_focus(cluster):
@@ -313,8 +401,21 @@ class ImagesRepo(metaclass=Singleton):
                 return True
             # else we select only the ones that have an alias
             return cluster.aliases >= 1
+        def select_toplevel(cluster):
+            # by default, images stored in subfolders of the repo
+            # (i.e. old stuff) are not shown, unless they have an alias
+            # at toplevel, as the cluster then has a toplevel member
+            if show_all or subfolders:
+                return True
+            return any(image_path.toplevel for image_path in cluster)
+        def select_subfolders(cluster):
+            if not subfolders:
+                return True
+            return any(self._in_subfolders(image_path, subfolders)
+                       for image_path in cluster)
         def cluster_predicate(cluster):
-            return select_labeled(cluster) and in_focus(cluster)
+            return (select_toplevel(cluster) and select_subfolders(cluster)
+                    and select_labeled(cluster) and in_focus(cluster))
         def cluster_key(cluster):
             if sort_by == 'size':
                 return cluster.regular.size
@@ -343,18 +444,34 @@ class ImagesRepo(metaclass=Singleton):
         default output is just **one** readable path
         in verbose mode, the whole cluster(s) are displayed
         """
+        def matching_images(cluster):
+            return [image for image in cluster
+                    if image.radical == focus or str(image) == focus]
+
         def cluster_matches(cluster):
-            return any(image.radical == focus
-                       or str(image) == focus for image in cluster)
+            return bool(matching_images(cluster))
+
+        def cluster_rank(cluster):
+            # a cluster that is matched by a toplevel image beats the ones
+            # that are only matched in subfolders, whatever their dates
+            return (any(image.toplevel for image in matching_images(cluster)),
+                    cluster.regular.mtime)
 
         true_function = lambda x: True
         clusters = self._search_clusters(
             show_dot=True, show_public=True,
             cluster_predicate=cluster_matches,
             image_predicate=true_function,
-            sort_clusters=lambda cluster: cluster.regular.mtime, reverse=False)
+            sort_clusters=cluster_rank, reverse=False)
         if not clusters:
             return 1
+        if len(clusters) > 1:
+            # the best cluster is the last one
+            self._warn_competing(
+                focus,
+                matching_images(clusters[-1])[0],
+                [image for cluster in reversed(clusters[:-1])
+                 for image in matching_images(cluster)])
         if not verbose:
             print(clusters[-1].regular.path)
             return 0
@@ -368,8 +485,45 @@ class ImagesRepo(metaclass=Singleton):
         return 0
 
 
-    def share(self, image, alias,           # pylint:disable=r0912,r0913,r0914
-              dry_run, force, clean) -> OsRetcod:
+    def _subfolders(self) -> List[str]:
+        """
+        the subfolders of the public repo, as paths relative to it
+        """
+        relatives = (path.relative_to(self.public)
+                     for path in self.public.rglob("*")
+                     if path.is_dir() and not path.is_symlink())
+        return sorted(str(relative) for relative in relatives
+                      if not any(part.startswith('.')
+                                 for part in relative.parts))
+
+    def _suggest_archiving(self, old_target, alias_path):
+        """
+        print a suggestion, but do not do anything: the alias has just been
+        redirected, and its former target is not the latest any longer
+        the user is in charge of picking a subfolder where to move it
+        """
+        others = [str(path) for path in self._walk_ndz(self.public, True)
+                  if path.is_symlink() and path != alias_path
+                  and path.resolve() == old_target]
+        size = ImagePath.bytes2human(old_target.stat().st_size)
+        print(f"SUGGESTION: {alias_path.name} used to point at "
+              f"{old_target.name} ({size}), that is now superseded")
+        if others:
+            print("  but these other aliases still point at it "
+                  "(they would dangle if it was moved):")
+            for other in others:
+                print(f"    {other}")
+        subfolders = self._subfolders()
+        if subfolders:
+            print("  Subfolders available in "
+                  f"{self.public}: {', '.join(sub + '/' for sub in subfolders)}")
+        else:
+            print(f"  No subfolder exists yet in {self.public}")
+        print(f"  To archive it, something like: "
+              f"mv {old_target} {self.public}/<SUBFOLDER>/")
+
+    def share(self, image, alias,           # pylint:disable=r0912,r0913,r0914,r0915
+              dry_run, force, clean, subdir=None) -> OsRetcod:
         """
         A utility to install one or several images in the shared repo
 
@@ -377,6 +531,10 @@ class ImagesRepo(metaclass=Singleton):
           image: a local image name (not searched in global repo)
             to promote in the public repo
           alias: a name for the installed image
+          subdir: a subfolder of the public repo where to store the image
+            (and the alias); defaults to the share_subdir config entry,
+            which is empty (i.e. the toplevel) unless set for this host
+            e.g. on the preplab so that images are not deleted by a sync
 
         image gets renamed into the radical from the origin name,
         i.e. with the extra saving__*blabla removed
@@ -394,7 +552,7 @@ class ImagesRepo(metaclass=Singleton):
         if dry_run is None:
             dry_run = not is_root
             if dry_run:
-                print("WARNING: without sudo you can only dry-run")
+                print("WARNING: without sudo you can only dry-run", file=sys.stderr)
 
         if not dry_run and not is_root:
             print("You need to run rhubarbe-share under sudo")
@@ -418,25 +576,55 @@ class ImagesRepo(metaclass=Singleton):
         removes = []
         chmods = []
 
+        if subdir is None:
+            subdir = self.share_subdir
+        subdir_path = Path(subdir) if subdir else Path()
+        if subdir_path.is_absolute() or '..' in subdir_path.parts:
+            print(f"Invalid subfolder {subdir} - must be relative to "
+                  f"{self.public} - ignored")
+            return 1
+        dest_dir = self.public / subdir_path
+
         origin = image_path.path
-        destination = self.public / (radical + SUFFIX)
+        destination = dest_dir / (radical + SUFFIX)
+        toplevel_destination = self.public / (radical + SUFFIX)
+        skip = False
         if destination.exists() and not force:
-            print(f"WARNING: Destination {destination} already exists - ignored")
+            print(f"WARNING: Destination {destination} already exists "
+                  f"- ignored", file=sys.stderr)
+        elif (dest_dir != self.public and not force
+              and (toplevel_destination.exists()
+                   or toplevel_destination.is_symlink())):
+            # it would be shadowed by the toplevel one
+            print(f"WARNING: {toplevel_destination} already exists, "
+                  f"it would take precedence over {destination} "
+                  f"- ignored (use --force to override)", file=sys.stderr)
+            skip = True
         else:
             moves.append((origin, destination))  # append a tuple
             chmods.append(destination)
 
-        if alias:
-            symlink = self.public / (alias + SUFFIX)
-            symlinks.append((destination, symlink))
-            chmods.append(symlink)
-        else:
-            print("WARNING: you are sharing an image without an alias")
+        # the former target of the alias, if any, to suggest archiving it
+        old_target = None
+        alias_path = None
+        if alias and not skip and dest_dir / (alias + SUFFIX) == destination:
+            # the alias would replace the very image it is meant to point at
+            print(f"WARNING: alias {alias} is the name of the image itself "
+                  f"- no alias created", file=sys.stderr)
+        elif alias and not skip:
+            alias_path = dest_dir / (alias + SUFFIX)
+            if alias_path.is_symlink():
+                old_target = alias_path.resolve()
+            symlinks.append((destination, alias_path))
+            chmods.append(alias_path)
+        elif not alias:
+            print("WARNING: you are sharing an image without an alias",
+                  file=sys.stderr)
 
         if clean:
             # item # 0 is the one selected for being moved
             for match in matches:
-                if match == origin:
+                if match.path == origin:
                     continue
                 if match.is_official:
                     continue
@@ -463,6 +651,7 @@ class ImagesRepo(metaclass=Singleton):
             if dry_run:
                 show_dry_run(f"mv {origin} {destination}")
             else:
+                destination.parent.mkdir(parents=True, exist_ok=True)
                 print(f"Moving {origin} -> {destination}")
                 # the library folder may be shared over sshfs
                 # and in that case using rename does not work 
@@ -472,13 +661,15 @@ class ImagesRepo(metaclass=Singleton):
                                check=False)
 
         for plainfile, symlink in symlinks:
+            # both live in the same folder, so that a relative link is enough
             if dry_run:
-                show_dry_run(f"ln -sf {plainfile} {symlink}")
+                show_dry_run(f"ln -sf {plainfile.name} {symlink}")
             else:
-                print(f"Creating symlink {symlink} -> {plainfile}")
-                if symlink.exists():
+                print(f"Creating symlink {symlink} -> {plainfile.name}")
+                # a dangling link does not 'exist'
+                if symlink.exists() or symlink.is_symlink():
                     symlink.unlink()
-                symlink.symlink_to(plainfile)
+                symlink.symlink_to(plainfile.name)
 
         for chmod in chmods:
             if dry_run:
@@ -489,5 +680,9 @@ class ImagesRepo(metaclass=Singleton):
             print(f"new mode for {chmod} is {oct(nmod)}")
             chmod.chmod(nmod)
 
+        if (old_target is not None and old_target.exists()
+                and old_target != destination.resolve()
+                and old_target.parent == self.public.resolve()):
+            self._suggest_archiving(old_target, alias_path)
 
         return 0

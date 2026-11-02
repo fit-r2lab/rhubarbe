@@ -642,19 +642,27 @@ def wait(curses, timeout, backoff, user, silent, verbose, all_nodes, ranges):
               help="only images that have at least one symlink to them")
 @click.option('-p', '--public-only', is_flag=True, default=False,
               help="display only publicly visible images")
-@click.option('-s', '--size', 'sort_size', is_flag=True, default=False,
+@click.option('-S', '--size', 'sort_size', is_flag=True, default=False,
               help="sort by size (default is by name)")
-@click.option('-d', '--date', 'sort_date', is_flag=True, default=False,
+@click.option('-D', '--date', 'sort_date', is_flag=True, default=False,
               help="sort by date")
 @click.option('-r', '--reverse', is_flag=True, default=False,
               help="reverse sort")
 @click.option('-n', '--narrow', is_flag=True, default=False,
               help="show only radicals instead of full paths")
-@click.option('-a', '--and', 'and_or', flag_value='and', default='or',
+@click.option('--and', 'and_or', flag_value='and', default='or',
               help="use AND logic instead of OR")
+@click.option('-a', '--all', 'show_all', is_flag=True, default=False,
+              help="also show the images stored in subfolders "
+                   "of the images repo (by default only toplevel images "
+                   "are shown)")
+@click.option('-s', '--subfolder', 'subfolders', multiple=True,
+              help="show only the images stored in that subfolder of the "
+                   "images repo (and below); can be repeated; "
+                   "implies --all")
 @click.argument('focus', nargs=-1)
 def images(labeled, public_only, sort_size, sort_date, reverse,
-           narrow, and_or, focus):
+           narrow, and_or, show_all, subfolders, focus):
     """Display available images."""
     imagesrepo = ImagesRepo()
     if sort_size:
@@ -664,7 +672,8 @@ def images(labeled, public_only, sort_size, sort_date, reverse,
     else:
         sort_by = 'name'
     sys.exit(imagesrepo.images(
-        list(focus), sort_by, reverse, labeled, public_only, narrow, and_or))
+        list(focus), sort_by, reverse, labeled, public_only, narrow, and_or,
+        show_all, subfolders))
 
 
 ####################
@@ -695,8 +704,11 @@ def resolve(verbose, focus):
               help="remove other matches than the one being promoted; "
                    "useful when one name has several matches and only "
                    "the last one is desired (typically after a successful rsave)")
+@click.option('--subdir', default=None,
+              help="store the image (and its alias) in that subfolder of the "
+                   "images repo; default is the share_subdir config entry")
 @click.argument('image')
-def share(alias, dry_run, force, clean, image):
+def share(alias, dry_run, force, clean, subdir, image):
     """Install privately-stored images into the global images repo.
 
     Destination name is derived from the radical provided at save-time
@@ -708,7 +720,7 @@ def share(alias, dry_run, force, clean, image):
     via `sudo rhubarbe-share`.
     """
     imagesrepo = ImagesRepo()
-    sys.exit(imagesrepo.share(image, alias, dry_run, force, clean))
+    sys.exit(imagesrepo.share(image, alias, dry_run, force, clean, subdir))
 
 
 ####################
