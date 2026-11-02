@@ -1,12 +1,24 @@
 # Changelog
 
-## 10.1.0 - 2026 Nov 2
+## 10.1.1 - 2026 Nov 2
 
 - support for subfolders under /var/lib/rhubarbe-images
   - resolve looks for the entire subtree - toplevel wins if present, otherwise date
   - images by default lists only toplevel; new -a and -s options allow to look deeper
   - images -D and -S are now the shortcuts for sorting by date or size
   - purpose it to provide for more structure so we can better tune backup strategies
+  - images -s/--subfolder restricts the listing to some subfolders (can be repeated)
+  - a warning is issued whenever a name has several candidates
+  - new `frisbee.share_subdir` config entry (and `share --subdir`),
+    set to `prep` on distrait so that its own images survive a sync from faraday
+- share
+  - symlinks are now relative
+  - several -a are accepted, as in `-a ubuntu-26 -a ubuntu:ubuntu-26` to build
+    ubuntu -> ubuntu-26 -> image; order does not matter
+  - shows the aliases before and after, and suggests where to archive the superseded image
+- new subcommand fix-links, that moves dangling aliases next to the image
+  they point to, after it was moved to a subfolder by hand
+- the warnings go to stderr
 
 ## 10.0.1 - 2026 Oct 31
 
