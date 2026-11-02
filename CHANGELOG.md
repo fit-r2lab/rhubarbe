@@ -1,6 +1,14 @@
 # Changelog
 
-## 10.0.1
+## 10.1.0 - 2026 Nov 2
+
+- support for subfolders under /var/lib/rhubarbe-images
+  - resolve looks for the entire subtree - toplevel wins if present, otherwise date
+  - images by default lists only toplevel; new -a and -s options allow to look deeper
+  - images -D and -S are now the shortcuts for sorting by date or size
+  - purpose it to provide for more structure so we can better tune backup strategies
+
+## 10.0.1 - 2026 Oct 31
 
 - monitors now merge their backlog before sending
 - harden the nodes and phones monitors
@@ -8,7 +16,7 @@
   add a watchdog that dumps stacks when something gets stuck
 - cosmetic: no longer dump stack when node meets exception, warning instead
 
-## 10.0.0
+## 10.0.0 - 2026 Oct 28
 
 - use pxefrisbee-k44 by default
 - deprecate the `template` subcommand
