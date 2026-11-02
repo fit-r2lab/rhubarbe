@@ -693,8 +693,36 @@ def resolve(verbose, focus):
 
 
 @cli.command()
-@click.option('-a', '--alias-name', 'alias', default=None,
-              help="also create a symlink of that name")
+@click.option('-n', '--dry-run', default=None, is_flag=True,
+              help="only show what would be done "
+                   "(default unless running under sudo)")
+def fix_links(dry_run):
+    """Move dangling aliases next to the image they point to.
+
+    When an image is moved to a subfolder of the images repo by hand,
+    the aliases that lead to it stay behind and dangle. This looks for
+    these in the whole repo, and moves each one into the folder where
+    the image now sits, so it works again.
+
+    \b
+    Aliases that lead to another alias are only reported, as are the
+    ambiguous cases (several candidate files, or name already taken).
+    Needs sudo to actually do something.
+    """
+    imagesrepo = ImagesRepo()
+    sys.exit(imagesrepo.fix_links(dry_run))
+
+
+####################
+
+
+@cli.command()
+@click.option('-a', '--alias-name', 'aliases', multiple=True,
+              help="also create a symlink of that name; can be repeated; "
+                   "-a LINK points at the image, -a LINK:TARGET points at "
+                   "TARGET, a name given by another -a or an existing one; "
+                   "so ubuntu -> ubuntu-26 -> image is "
+                   "-a ubuntu-26 -a ubuntu:ubuntu-26, in any order")
 @click.option('-n', '--dry-run', default=None, is_flag=True,
               help="only show what would be done "
                    "(default unless running under sudo)")
@@ -708,19 +736,22 @@ def resolve(verbose, focus):
               help="store the image (and its alias) in that subfolder of the "
                    "images repo; default is the share_subdir config entry")
 @click.argument('image')
-def share(alias, dry_run, force, clean, subdir, image):
+def share(aliases, dry_run, force, clean, subdir, image):
     """Install privately-stored images into the global images repo.
 
     Destination name is derived from the radical provided at save-time
     (the trailing part after `saving__<date>__`).
 
-    With -a it is possible to make the new image also visible under that
-    alias name. If your account is enabled in /etc/sudoers.d/rhubarbe-share,
+    With -a it is possible to make the new image also visible under other
+    names, possibly through a chain of aliases: -a ubuntu-26 -a
+    ubuntu:ubuntu-26 makes ubuntu -> ubuntu-26 -> the image, whatever the
+    order of the options. When only the inner alias changes, as in an
+    incremental update, give just that one. If your account is enabled in /etc/sudoers.d/rhubarbe-share,
     the command will actually perform the mv operation — requires running
     via `sudo rhubarbe-share`.
     """
     imagesrepo = ImagesRepo()
-    sys.exit(imagesrepo.share(image, alias, dry_run, force, clean, subdir))
+    sys.exit(imagesrepo.share(image, aliases, dry_run, force, clean, subdir))
 
 
 ####################

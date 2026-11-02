@@ -496,17 +496,20 @@ class ImagesRepo(metaclass=Singleton):
                       if not any(part.startswith('.')
                                  for part in relative.parts))
 
-    def _suggest_archiving(self, old_target, alias_path):
+    def _suggest_archiving(self, old_target, previous_links, all_links):
         """
-        print a suggestion, but do not do anything: the alias has just been
-        redirected, and its former target is not the latest any longer
+        print a suggestion, but do not do anything: these links
+        (previous_links) used to lead to old_target and have been redirected,
+        so that old_target is not the latest any longer
+        all_links are all the links that share is dealing with
         the user is in charge of picking a subfolder where to move it
         """
         others = [str(path) for path in self._walk_ndz(self.public, True)
-                  if path.is_symlink() and path != alias_path
+                  if path.is_symlink() and path not in all_links
                   and path.resolve() == old_target]
         size = ImagePath.bytes2human(old_target.stat().st_size)
-        print(f"SUGGESTION: {alias_path.name} used to point at "
+        names = ', '.join(path.name for path in previous_links)
+        print(f"SUGGESTION: {names} used to lead to "
               f"{old_target.name} ({size}), that is now superseded")
         if others:
             print("  but these other aliases still point at it "
@@ -522,7 +525,78 @@ class ImagesRepo(metaclass=Singleton):
         print(f"  To archive it, something like: "
               f"mv {old_target} {self.public}/<SUBFOLDER>/")
 
-    def share(self, image, alias,           # pylint:disable=r0912,r0913,r0914,r0915
+    def _plan_links(self, aliases, radical, dest_dir, force):
+        """
+        turns the -a specs into a dict {link filename: target filename}
+        all links are bare names, living in dest_dir like the image
+        a spec is either LINK, that points at the image, or LINK:TARGET,
+        where TARGET is another link of the same command, or something that
+        already exists in dest_dir; so the order of the specs does not matter
+
+        returns None, after having explained why, if this is not doable;
+        nothing is done at this stage
+        """
+        def fail(message):
+            print(f"Invalid alias: {message} - nothing done")
+
+        links = {}
+        for spec in aliases:
+            link, _, target = spec.partition(':')
+            target = target or radical
+            if not link or '/' in link or '/' in target:
+                return fail(f"{spec!r} is not LINK or LINK:TARGET with bare "
+                            f"names")
+            if link in links:
+                return fail(f"{link} is given twice")
+            if link == radical:
+                return fail(f"{link} is the name of the image itself")
+            links[link] = target
+        for link, target in links.items():
+            if target != radical and target not in links \
+                    and not (dest_dir / (target + SUFFIX)).exists():
+                return fail(f"the target {target} of {link} is neither "
+                            f"the image, nor another alias, nor an existing "
+                            f"image in {dest_dir}")
+            path = dest_dir / (link + SUFFIX)
+            if path.exists() and not path.is_symlink() and not force:
+                return fail(f"{path} is a plain file, not a symlink "
+                            f"(use --force to replace it)")
+
+        def next_hop(name):
+            """what a name leads to, once all links are in place"""
+            if name in links:
+                return links[name]
+            path = dest_dir / (name + SUFFIX)
+            if name == radical or not path.is_symlink():
+                return None
+            # an existing symlink, that is not touched by this command
+            target = path.parent / path.readlink()
+            if (target.parent.resolve() != dest_dir.resolve()
+                    or not target.name.endswith(SUFFIX)):
+                return None
+            return target.name[:-len(SUFFIX)]
+
+        for link in links:
+            seen = set()
+            name = link
+            while name is not None:
+                if name in seen:
+                    return fail(f"{link} would lead back to itself")
+                seen.add(name)
+                name = next_hop(name)
+        return {link + SUFFIX: target + SUFFIX
+                for link, target in links.items()}
+
+    @staticmethod
+    def _links_depth(links, filename):
+        """number of hops in links before reaching something else"""
+        depth = 0
+        while filename in links:
+            filename = links[filename]
+            depth += 1
+        return depth
+
+    def share(self, image, aliases,         # pylint:disable=r0912,r0913,r0914,r0915
               dry_run, force, clean, subdir=None) -> OsRetcod:
         """
         A utility to install one or several images in the shared repo
@@ -530,7 +604,9 @@ class ImagesRepo(metaclass=Singleton):
         Parameters:
           image: a local image name (not searched in global repo)
             to promote in the public repo
-          alias: a name for the installed image
+          aliases: a list of LINK or LINK:TARGET, to make the installed image
+            visible under other names, possibly through several levels like
+            ubuntu -> ubuntu-26 -> the image; see _plan_links
           subdir: a subfolder of the public repo where to store the image
             (and the alias); defaults to the share_subdir config entry,
             which is empty (i.e. the toplevel) unless set for this host
@@ -572,7 +648,6 @@ class ImagesRepo(metaclass=Singleton):
         # compute a list of tuples (origin, destination)
         # all these objects are plain pathlib.Path instances
         moves = []     # list of tuples oldname, newname
-        symlinks = []  # list of tuples plainfile, symlink
         removes = []
         chmods = []
 
@@ -604,22 +679,24 @@ class ImagesRepo(metaclass=Singleton):
             moves.append((origin, destination))  # append a tuple
             chmods.append(destination)
 
-        # the former target of the alias, if any, to suggest archiving it
-        old_target = None
-        alias_path = None
-        if alias and not skip and dest_dir / (alias + SUFFIX) == destination:
-            # the alias would replace the very image it is meant to point at
-            print(f"WARNING: alias {alias} is the name of the image itself "
-                  f"- no alias created", file=sys.stderr)
-        elif alias and not skip:
-            alias_path = dest_dir / (alias + SUFFIX)
-            if alias_path.is_symlink():
-                old_target = alias_path.resolve()
-            symlinks.append((destination, alias_path))
-            chmods.append(alias_path)
-        elif not alias:
+        # file names of the links to create, and what they lead to
+        links = {}
+        if aliases and not skip:
+            links = self._plan_links(aliases, radical, dest_dir, force)
+            if links is None:
+                return 1
+        elif not aliases:
             print("WARNING: you are sharing an image without an alias",
                   file=sys.stderr)
+        link_paths = {dest_dir / filename: target
+                      for filename, target in links.items()}
+        # what the links are about to replace, to suggest archiving it
+        previous = {path: path.readlink() for path in link_paths
+                    if path.is_symlink()}
+        old_targets = defaultdict(list)
+        for path in previous:
+            old_targets[path.resolve()].append(path)
+        chmods += list(link_paths)
 
         if clean:
             # item # 0 is the one selected for being moved
@@ -635,6 +712,20 @@ class ImagesRepo(metaclass=Singleton):
             prefix = '* ' if (index == len(matches) - 1) else '  '
             print(match._to_display(
                 show_path=True, radical_width=len(radical), prefix=prefix))
+
+        if links:
+            print("Aliases once done, outermost first:")
+            width = max(len(filename) for filename in links)
+            for filename in sorted(links, key=lambda name: (
+                    -self._links_depth(links, name), name)):
+                before = previous.get(dest_dir / filename)
+                if before is None:
+                    note = "(new)"
+                elif str(before) == links[filename]:
+                    note = "(unchanged)"
+                else:
+                    note = f"(was -> {before})"
+                print(f"  {filename:{width}} -> {links[filename]}  {note}")
 
         def show_dry_run(*args):
             print("DRY-RUN: would do: ", end="")
@@ -660,16 +751,18 @@ class ImagesRepo(metaclass=Singleton):
                 subprocess.run(["mv", str(origin), str(destination)],
                                check=False)
 
-        for plainfile, symlink in symlinks:
-            # both live in the same folder, so that a relative link is enough
+        for symlink, target in link_paths.items():
+            # all in the same folder, so that a relative link is enough
             if dry_run:
-                show_dry_run(f"ln -sf {plainfile.name} {symlink}")
+                show_dry_run(f"ln -sf {target} {symlink}")
             else:
-                print(f"Creating symlink {symlink} -> {plainfile.name}")
-                # a dangling link does not 'exist'
-                if symlink.exists() or symlink.is_symlink():
-                    symlink.unlink()
-                symlink.symlink_to(plainfile.name)
+                print(f"Creating symlink {symlink} -> {target}")
+                # atomic, so that the name is never missing
+                temporary = symlink.with_name(symlink.name + ".tmp-share")
+                if temporary.is_symlink():
+                    temporary.unlink()
+                temporary.symlink_to(target)
+                temporary.replace(symlink)
 
         for chmod in chmods:
             if dry_run:
@@ -680,9 +773,92 @@ class ImagesRepo(metaclass=Singleton):
             print(f"new mode for {chmod} is {oct(nmod)}")
             chmod.chmod(nmod)
 
-        if (old_target is not None and old_target.exists()
-                and old_target != destination.resolve()
-                and old_target.parent == self.public.resolve()):
-            self._suggest_archiving(old_target, alias_path)
+        for old_target, previous_links in old_targets.items():
+            if (old_target.exists()
+                    and old_target != destination.resolve()
+                    and old_target.parent == self.public.resolve()):
+                self._suggest_archiving(
+                    old_target, previous_links, set(link_paths))
 
+        return 0
+
+
+    def fix_links(self, dry_run) -> OsRetcod:
+        """
+        repair the symlinks that dangle because the image they point at
+        was moved to another folder of the repo, typically to a subfolder
+        when archiving it
+
+        such a link is moved right next to the plain file, where its
+        bare-name relative target is valid again
+
+        - only plain files are looked for: a link that leads to another
+          link is reported, not moved, as it is probably meant to be
+          retargeted (or it would drag e.g. default.ndz out of toplevel)
+        - nothing is done if the name has several candidates, or if the
+          name is already taken in the destination folder
+
+        dry_run defaults to True unless running as root, like share
+        return 0 once done, 1 if not allowed
+        """
+        is_root = root_privileges()
+        if dry_run is None:
+            dry_run = not is_root
+            if dry_run:
+                print("WARNING: without sudo you can only dry-run",
+                      file=sys.stderr)
+        if not dry_run and not is_root:
+            print("You need to run rhubarbe-fix-links under sudo")
+            return 1
+
+        everything = list(self._walk_ndz(self.public, True))
+        # plain files, by name
+        plains = defaultdict(list)
+        for path in everything:
+            if not path.is_symlink() and path.is_file():
+                plains[path.name].append(path)
+        dangling = [path for path in everything
+                    if path.is_symlink() and not path.exists()]
+        # computed upfront, as moving links around changes what is where
+        link_names = {path.name for path in everything if path.is_symlink()}
+
+        def show(path):
+            return str(path.relative_to(self.public))
+
+        fixed = 0
+        pending = []
+        for link in dangling:
+            target = link.readlink()
+            candidates = [path for path in plains.get(target.name, [])
+                          if path.parent != link.parent]
+            if len(candidates) == 1:
+                new_link = candidates[0].parent / link.name
+                if new_link.exists() or new_link.is_symlink():
+                    pending.append(
+                        (link, f"{show(new_link)} already exists"))
+                    continue
+                print(f"{'DRY-RUN: would move' if dry_run else 'Moving'} "
+                      f"{show(link)} -> {show(new_link)}   "
+                      f"(-> {target.name})")
+                fixed += 1
+                if not dry_run:
+                    # bare name, whatever the previous target looked like
+                    new_link.symlink_to(target.name)
+                    link.unlink()
+            elif candidates:
+                pending.append((link, "several candidates: " + ", ".join(
+                    show(path) for path in candidates)))
+            elif target.name in link_names:
+                pending.append(
+                    (link, f"leads to the alias {target.name}, not to a "
+                           f"plain file: retarget it, or move it next to "
+                           f"that alias, by hand"))
+            else:
+                pending.append((link, f"no plain file {target.name} found"))
+
+        for link, reason in pending:
+            print(f"NOT FIXED {show(link)} -> {link.readlink()}: {reason}")
+        print(f"{len(dangling)} dangling link(s), {fixed} "
+              f"{'would be ' if dry_run else ''}fixed, "
+              f"{len(pending)} left as is")
         return 0
