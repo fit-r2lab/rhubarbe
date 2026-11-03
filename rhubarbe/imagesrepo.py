@@ -504,9 +504,23 @@ class ImagesRepo(metaclass=Singleton):
         all_links are all the links that share is dealing with
         the user is in charge of picking a subfolder where to move it
         """
+        def goes_through_planned(path):
+            # follow the chain of symlinks hop by hop; if it crosses
+            # one of the links that share (re)creates, then it will follow
+            # that link to its new target, and so it won't dangle
+            # (matters in dry-run mode, where links are not yet redirected)
+            seen = set()
+            while path.is_symlink() and path not in seen:
+                seen.add(path)
+                path = path.parent / os.readlink(path)
+                if path in all_links:
+                    return True
+            return False
+
         others = [str(path) for path in self._walk_ndz(self.public, True)
                   if path.is_symlink() and path not in all_links
-                  and path.resolve() == old_target]
+                  and path.resolve() == old_target
+                  and not goes_through_planned(path)]
         size = ImagePath.bytes2human(old_target.stat().st_size)
         names = ', '.join(path.name for path in previous_links)
         print(f"SUGGESTION: {names} used to lead to "
