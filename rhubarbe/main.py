@@ -655,15 +655,28 @@ def wait(curses, timeout, backoff, user, silent, verbose, all_nodes, ranges):
 @click.option('-a', '--all', 'show_all', is_flag=True, default=False,
               help="also show the images stored in subfolders "
                    "of the images repo (by default only toplevel images "
-                   "are shown)")
+                   "are shown, unless a search term is given)")
+@click.option('-t', '--toplevel', is_flag=True, default=False,
+              help="show only toplevel images, even when a search term "
+                   "is given (which otherwise implies --all)")
 @click.option('-s', '--subfolder', 'subfolders', multiple=True,
               help="show only the images stored in that subfolder of the "
                    "images repo (and below); can be repeated; "
                    "implies --all")
 @click.argument('focus', nargs=-1)
 def images(labeled, public_only, sort_size, sort_date, reverse,
-           narrow, and_or, show_all, subfolders, focus):
-    """Display available images."""
+           narrow, and_or, show_all, toplevel, subfolders, focus):
+    """Display available images.
+
+    By default only the images at the toplevel of the images repo are
+    shown; but if you give a search term, the whole tree is searched,
+    unless you use -t.
+    """
+    if toplevel and (show_all or subfolders):
+        raise click.UsageError(
+            "--toplevel cannot be used with --all or --subfolder")
+    # someone who is looking for something wants to see it
+    show_all = show_all or (bool(focus) and not toplevel)
     imagesrepo = ImagesRepo()
     if sort_size:
         sort_by = 'size'
