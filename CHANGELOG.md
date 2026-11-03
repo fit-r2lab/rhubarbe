@@ -1,24 +1,29 @@
 # Changelog
 
-## 10.1.1 - 2026 Nov 2
+## 10.1.2 - 2026 Nov 3
 
 - support for subfolders under /var/lib/rhubarbe-images
-  - resolve looks for the entire subtree - toplevel wins if present, otherwise date
-  - images by default lists only toplevel; new -a and -s options allow to look deeper
-  - images -D and -S are now the shortcuts for sorting by date or size
   - purpose it to provide for more structure so we can better tune backup strategies
-  - images -s/--subfolder restricts the listing to some subfolders (can be repeated)
-  - a warning is issued whenever a name has several candidates
+  - resolve / load:
+    - look for the entire subtree - toplevel wins if present, otherwise date
+    - a warning is issued whenever a name has several candidates
+  - images:
+    - by default lists only toplevel
+    - new -a/--all and -s/--subfolder options allow to look deeper
+    - -s/--subfolder restricts the listing to some subfolders (can be repeated)
+    - when a search term is given, --all is implied, unless -t/--toplevel is given
+    - images -D and -S are now the shortcuts for sorting by date or size
+    - the warnings go to stderr
   - new `frisbee.share_subdir` config entry (and `share --subdir`),
     set to `prep` on distrait so that its own images survive a sync from faraday
-- share
-  - symlinks are now relative
-  - several -a are accepted, as in `-a ubuntu-26 -a ubuntu:ubuntu-26` to build
-    ubuntu -> ubuntu-26 -> image; order does not matter
-  - shows the aliases before and after, and suggests where to archive the superseded image
-- new subcommand fix-links, that moves dangling aliases next to the image
-  they point to, after it was moved to a subfolder by hand
-- the warnings go to stderr
+  - share
+    - symlinks are now relative
+    - several -a are accepted, as in `-a ubuntu-26 -a ubuntu:ubuntu-26` to build
+      ubuntu -> ubuntu-26 -> image; order does not matter
+    - shows the aliases before and after, and suggests where to archive the superseded image
+  - new subcommand fix-links, that moves dangling aliases next to the image
+    they point to, after it was moved to a subfolder by hand
+  - see fit-r2lab/r2lab-imaging repo for more details on the backup/sync workflows in place
 
 ## 10.0.1 - 2026 Oct 31
 
