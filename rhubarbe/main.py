@@ -1162,6 +1162,159 @@ def help(ctx, subcommand):  # pylint: disable=redefined-builtin
 
 
 ####################
+# docker — click subgroup
+
+
+@cli.group(cls=AliasedGroup)
+def docker():
+    """Run user containers on nodes loaded with a docker-enabled image.
+
+    \b
+    Conventions:
+      - the nodes boot a frisbee 'host image' that has docker installed
+        (docker, or podman on fedora; the remote command is always 'docker')
+      - the user container is always named 'container'; it owns ssh port 22
+        and the host's own sshd listens on [docker] host_ssh_port
+      - container images live in the [docker] registry
+    """
+
+
+def _docker_ssh_settings():
+    config = Config()
+    return (int(config.value('docker', 'host_ssh_port')),
+            float(config.value('networking', 'ssh_backoff')),
+            config.value('docker', 'registry'))
+
+
+def _run_docker_jobs(jobs, timeout):
+    """run jobs in a scheduler, return the list of their results (bool)"""
+    asyncssh_set_log_level(logging.WARNING)
+    turn_off_ssh_debug_messages()
+
+    # ssh.py also logs one INFO line per command run, too noisy here
+    class NoInfoFilter(logging.Filter):
+        def filter(self, record):
+            return record.levelno >= logging.WARNING
+    monitor_logger.addFilter(NoInfoFilter())
+    scheduler = Scheduler(*jobs, timeout=timeout, critical=False)
+    try:
+        scheduler.run()
+    except KeyboardInterrupt:
+        print("rhubarbe docker : keyboard interrupt - exiting")
+        return [False for _ in jobs]
+    return [job.result() is True for job in jobs]
+
+
+@docker.command('load')
+@click.option('--host-image', default=None,
+              help="frisbee image to load on the nodes "
+                   "(default: [docker] host_image, i.e. 'docker'; "
+                   "use 'podman' for the fedora flavour)")
+@click.option('-k', '--keep-host', 'keep_host', is_flag=True, default=False,
+              help="keep the host image as it is: no reboot, no frisbee; "
+                   "the nodes must already run a docker-capable image "
+                   "(with the host sshd on the [docker] host_ssh_port)")
+@click.option('-i', '--image', 'container_image', default=None,
+              help="container image to run, passed as-is to 'docker pull' "
+                   "(e.g. ubuntu, quay.io/org/img, myregistry/img) "
+                   "(default: [docker] default_container_image)")
+@_timeout_option('docker_default_timeout')
+@click.option('-b', '--bandwidth', type=int, show_default=True,
+              default=Config().value('networking', 'bandwidth'),
+              help="Set bandwidth in Mibps for frisbee uploading")
+@click.option('--wait', 'wait_container', is_flag=True, default=False,
+              help="wait until the container's ssh (port 22) is reachable")
+@selector_options
+def docker_load(host_image, keep_host, container_image, timeout, bandwidth,
+                wait_container, all_nodes, ranges):
+    """Load the docker host image, then pull and run a container.
+
+    \b
+    This function requires a valid reservation
+    - or to be root or a privileged user.
+    """
+    from rhubarbe.dockercmd import deploy, qualify_image
+    config = Config()
+    config.check_binaries()
+    host_port, backoff, _ = _docker_ssh_settings()
+    host_image_given = host_image is not None
+    if host_image is None:
+        host_image = config.value('docker', 'host_image')
+    if container_image is None:
+        try:
+            container_image = config.value('docker', 'default_container_image')
+        except Exception:                               # pylint: disable=w0703
+            raise click.UsageError(
+                "no container image: use -i or set "
+                "default_container_image in the [docker] section") from None
+
+    selector = build_selector(ranges, all_nodes)
+    if selector.is_empty():
+        raise click.UsageError("no nodes selected")
+
+    if keep_host and host_image_given:
+        raise click.UsageError("--keep-host and --host-image are exclusive")
+    if not keep_host:
+        actual_image = ImagesRepo().locate_image(host_image, look_in_global=True)
+        if not actual_image:
+            print(f"Host image {host_image} not found - emergency exit")
+            sys.exit(1)
+
+        # phase 1 : frisbee load of the host image
+        message_bus = asyncio.Queue()
+        node_list = [Node(cmc_name, message_bus)
+                     for cmc_name in selector.cmc_names()]
+        _check_frisbee_stacks(node_list)
+        message_bus.put_nowait({'selected_nodes': selector})
+        message_bus.put_nowait({'loading_image': actual_image})
+        display = Display(node_list, message_bus)
+        loader = ImageLoader(node_list, image=actual_image, bandwidth=bandwidth,
+                             message_bus=message_bus, display=display)
+        retcod = loader.main(reset=True, timeout=timeout)
+        if retcod != 0:
+            print(f"host image load failed, not running {container_image}")
+            sys.exit(retcod)
+
+    # phase 2 : run the container through the host's sshd
+    print(f"running container image {container_image}")
+    message_bus = asyncio.Queue()
+    node_list = [Node(cmc_name, message_bus)
+                 for cmc_name in selector.cmc_names()]
+    jobs = [Job(deploy(node, container_image, host_port=host_port,
+                       backoff=backoff, wait_container=wait_container))
+            for node in node_list]
+    results = _run_docker_jobs(jobs, timeout)
+    for node, ok in zip(node_list, results):
+        if not ok:
+            print(f"{node.control_hostname()}: docker load KO")
+    sys.exit(0 if all(results) else 1)
+
+
+@docker.command('save')
+@click.option('-o', '--output', 'image', required=True,
+              help="container image reference to commit and push; "
+                   "the [docker] registry is prefixed unless one is given")
+@_timeout_option('docker_default_timeout')
+@click.argument('node')
+def docker_save(image, timeout, node):
+    """Commit the container on a node and push it to the registry."""
+    from rhubarbe.dockercmd import commit_and_push, qualify_image
+    host_port, _, registry = _docker_ssh_settings()
+    image = qualify_image(image, registry)
+
+    selector = Selector()
+    selector.add_range(node)
+    if len(selector) != 1:
+        raise click.UsageError(f"could not resolve node '{node}'")
+    node_obj = Node(next(selector.cmc_names()), asyncio.Queue())
+    results = _run_docker_jobs(
+        [Job(commit_and_push(node_obj, image, host_port=host_port))], timeout)
+    if not results[0]:
+        print(f"{node_obj.control_hostname()}: docker save KO")
+    sys.exit(0 if results[0] else 1)
+
+
+####################
 # entry point
 
 

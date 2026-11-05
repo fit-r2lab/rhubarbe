@@ -71,9 +71,10 @@ class SshProxy:
     """
     talk to a Node's control interface using ssh
     """
-    def __init__(self, node, username='root', verbose=False):
+    def __init__(self, node, username='root', verbose=False, port=22):
         self.node = node
         self.username = username
+        self.port = port
         self.verbose = verbose
         #
         self.hostname = self.node.control_hostname()
@@ -100,7 +101,8 @@ class SshProxy:
         retcod = False
         try:
             self.conn, self.client = await asyncssh.create_connection(
-                MySSHClient, self.hostname, username=self.username,
+                MySSHClient, self.hostname, port=self.port,
+                username=self.username,
                 known_hosts=None,
                 connect_timeout=timeout)
             retcod = True
@@ -122,9 +124,13 @@ class SshProxy:
             logger.debug(f"SSH connect {self.hostname} took {end-begin:.3f}s {retcod=}")
         return retcod
 
-    async def run(self, command):
+    async def run(self, command, *, with_status=False):
         """
         Run a command
+
+        returns the output (stdout and stderr mixed), or None on failure;
+        with with_status=True, returns a tuple (exit_status, output)
+        and exit_status is None if the command could not be run
         """
         class ClientsessionClosure(MySSHClientSession):
             def __init__(ssh_client_session,            # pylint: disable=e0213
@@ -140,13 +146,27 @@ class SshProxy:
                 ClientsessionClosure, command)
             await chan.wait_closed()
             output = session.data
+            status = chan.get_exit_status()
         except Exception as exc:
             logger.info(f"failed to SSH run {self.hostname} - {type(exc)=} {exc=}")
-            output = None
+            output, status = None, None
         finally:
             end = time.time()
             logger.info(f"SSH run {self.hostname} took {end-begin:.3f}s")
-        return output
+        return (status, output) if with_status else output
+
+    async def put(self, local, remote):
+        """
+        Copy a local file onto the node; returns True if it went well
+        """
+        try:
+            async with self.conn.start_sftp_client() as sftp:
+                await sftp.put(str(local), remote)
+            return True
+        except Exception as exc:
+            logger.info(f"failed to SSH put {self.hostname} {remote} "
+                        f"- {type(exc)=} {exc=}")
+            return False
 
     # >>> asyncio.iscoroutine(asyncssh.SSHClientConnection.close)
     # False
