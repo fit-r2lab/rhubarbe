@@ -1,5 +1,12 @@
 # Changelog
 
+## 11.0.0 - 2026 Nov 6
+
+- support for loading and saving docker images
+  see README.mdand DOCKER.md for details
+- global README.md reviewed and updated
+- try to improve suggest_archiving in rhubarbe share -n
+
 ## 10.1.2 - 2026 Nov 3
 
 - support for subfolders under /var/lib/rhubarbe-images
