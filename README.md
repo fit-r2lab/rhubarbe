@@ -1,31 +1,34 @@
 # Summary
 
-`rhubarbe` is an `asyncio`/`python` module for loading images on a bunch of nodes using `frisbee`. It can be installed from `pypi` (see also `INSTALLING.md` for more details):
+`rhubarbe` is an `asyncio`/`python` package that manages the [R2Lab testbed](https://r2lab.inria.fr) at Inria Sophia Antipolis: it controls the nodes through their CMC cards, loads and saves OS images on them with `frisbee`, runs user containers on them, and feeds the monitoring services. It can be installed from `pypi` (see also `INSTALLING.md` for more details):
 
     pip3 install rhubarbe
 
-This is connected to an authorization system; most of the functions are rather intrusive, and for this reason they require the user to have obtained a lease (reservation), applicable to the current time and day, before the tool can be used. Note that the `root` user is unconditionnally granted permission.
+It requires python 3.12 or later.
+
+Most of the functions are rather intrusive, and for this reason they are connected to an authorization system: they require the user to have obtained a lease (reservation), applicable to the current time and day, before the tool can be used. Note that the `root` user is unconditionally granted permission.
 
 # Purpose
 
-This is the software that runs the R2lab testbed in Inria Sophia Antipolis.
+This is the software that runs the R2lab testbed. It covers the following features:
 
-It is written in python3.5 on top of `asyncio`, and covers the following features :
-
-* `on`, `off`, and the like : managing nodes status through their CMC cards: status of the motherboard and of the USRP extension;
-* `load`, `save` , `images` : loading and saving images on nodes;
-* `leases` : displaying, and to some extent modifying, reservations on the testbed
-* `monitornodes` and `monitorphones`: feeding the sidecar server live info about the global testbed status (phones excluded)
-* `accountsmanager` : propagates the changes in the PLCAPI into actual Unix accounts and related authorized keys.
+* `on`, `off`, `reset`, `status`, and the like: managing nodes status through their CMC cards: status of the motherboard and of the USRP extension (`usrpon`, `usrpoff`, `usrpstatus`);
+* `load`, `save`, `images`, `resolve`, `share`: loading and saving images on nodes, and managing the repository of images; `rescue` leaves nodes on the frisbee image for investigation;
+* `docker`: running user containers on nodes, see below and `DOCKER.md`;
+* `wait`: waiting for nodes to be reachable through ssh;
+* `leases` and `book`: displaying and creating reservations on the testbed;
+* `pdu` and `relay`: managing power-distribution units and temperature relays;
+* `monitornodes`, `monitorphones`, `monitorpdus`: services that feed the sidecar server with live info about the testbed status;
+* `accountsmanager`: propagates the changes in the leases API into actual Unix accounts and related authorized keys.
 
 With these additional benefits:
 
 * single configuration file in `/etc/rhubarbe/rhubarbe.conf`, individual settings can be
   overridden at either
 
-  * system-level  in `/etc/rhubarbe/rhubarbe.conf.local`,
-  * user-level  in `~/.rhubarbe.conf`, or
-  * directory-level in  `./rhubarbe.conf`;
+  * system-level in `/etc/rhubarbe/rhubarbe.conf.local`,
+  * user-level in `~/.rhubarbe.conf`, or
+  * directory-level in `./rhubarbe.conf`;
 * all commands accept a timeout
 * all commands return a reliable code. When everything goes fine for all subject nodes they return 0, and 1 otherwise
 * `load` and `wait` come with a `curses` mode that lets you visualize every node individually; very helpful when something goes wrong with a large number of nodes, so you can pinpoint which node is not behaving as expected.
@@ -34,13 +37,15 @@ With these additional benefits:
 # Primer
 
 ## Image loading
-To load your `fedora-23` image on 18 nodes simultaneously:
+To load your `fedora-44` image on 18 nodes simultaneously:
 
-    rhubarbe load -i fedora-23 1-18 &
+    rhubarbe load -i fedora-44 1-18 &
 
 You can safely load another batch of nodes at the same time, maybe with a different bandwidth
 
-    rhubarbe load -i ubuntu-16.04 -b 200 19-36 &
+    rhubarbe load -i ubuntu-26 -b 200 19-36 &
+
+To see what images are available, `rhubarbe images`; to see which file a name resolves to, `rhubarbe resolve ubuntu-26`.
 
 ## Controlling nodes
 To turn nodes on, or off, or to reset (send `Ctrl-Alt-Del`) a set of nodes, use the following commands.
@@ -79,17 +84,31 @@ To save the image of node 10, just do this
 
      rhubarbe save 10 -o image-name -c 'this will end up in /etc/rhubarbe-image right in the image'
 
+## Running a container on nodes
+
+Instead of building a node image, one can run any docker image on top of a node that runs a docker-enabled host image:
+
+    # burn the docker host image, then pull and run a container on node 11
+    rhubarbe docker load -i ubuntu:latest 11
+    # the node already runs the host image: just replace the container
+    rhubarbe docker load -k -i fedora:latest 11
+    # save the container as an image in the registry
+    rhubarbe docker save 11 -o my-experiment
+
+`ssh fit11` then lands inside the container. What this requires from the host images, the registries and the container images is described in `DOCKER.md`; the image side is documented in the `r2lab-imaging` repository.
+
 
 # How to use
 
 ## List of subcommands
 
-The python entry point is named `rhubarbe` but it should be called with an additional subcommand.
+The python entry point is named `rhubarbe` but it should be called with an additional subcommand. Each subcommand is also available under a dashed name, e.g. `rhubarbe-load` is the same as `rhubarbe load`.
 
-    root@etourdi ~ # rhubarbe
-    Unknown subcommand help - use one among {nodes,status,on,off,reset,info,usrpstatus,usrpon,usrpoff,bothoff,load,save,wait,monitor,leases,images,share,inventory,config,version}
+    $ rhubarbe --help           # all the subcommands
+    $ rhubarbe load --help      # details on one of them
+    $ rhubarbe help docker load # same, for nested subcommands
 
-	root@etourdi ~ # rhubarbe load --help
+Subcommands can be abbreviated as long as that is unambiguous.
 
 ## Invoking : node scope
 
@@ -120,25 +139,21 @@ The arguments, known as a *node_spec* can be individual nodes, ranges, or even s
   * `$ rhubarbe load`
   * `$ rhubarbe wait`
 
-## The `leases` subcommand
+## Leases
 
-As of version 0.7.3:
-
-* `rhubarbe leases` is offered to all users to inspect the current leases in the system
-* `rhubarbe leases -i` is a utiliy offered to root only, unfortunately, that can create, update and delete leases in a simple terminal application.
+* `rhubarbe leases` is offered to all users to inspect the current leases in the system; by default it shows the leases from now until midnight. `-u` shows all upcoming leases, `-c` checks that you currently have one
+* `rhubarbe book START END -s SLICE` books a lease (or with `-q` just checks that the slot is free, or with `-d` deletes it)
 
 ## Logging
 
-At this point:
-
-* all logging goes into a file named `rhubarbe.log`,
-* except for the monitoring tool that logs into `/var/log/monitor.log`
+* all logging goes into a file named `rhubarbe.log` in the home directory of the user running the command,
+* except for the monitoring services (`monitornodes`, `monitorphones`, `monitorpdus`) that log on stdout, which is meant to be collected by `systemd`/`journald`.
 
 # Installation
 
 ## Core
 
-You need `python-3.4` or higher, and installation can be achieved simply with
+You need `python-3.12` or higher, and installation can be achieved simply with
 
     pip3 install rhubarbe
 
@@ -146,100 +161,95 @@ You need `python-3.4` or higher, and installation can be achieved simply with
 
     pip3 install --upgrade rhubarbe
 
+## Development and deployment
+
+For development, `pip install -e .`. The testbed hosts run it from a virtualenv created with `uv`, from the versions pinned in `uv.lock` (after changing dependencies, run `uv lock` and commit `uv.lock`); `make preplab` and `make r2lab` push the working tree to the preplab and to production respectively, see the `Makefile` and `CLAUDE.md`.
 
 ## Other libraries
 
-The following will be automatically installed by `pip3` if not yet installed:
+All the dependencies are listed in `pyproject.toml`, and will be installed automatically. The main ones:
 
+* `click` for the command line
 * `telnetlib3` for invoking `frisbee` on the nodes
 * `aiohttp` for talking to the CMC cards
-* `asyncssh` for talking to ssh (rhubarbe wait mostly for now);
-   * **ubuntu:** you may need to run `apt-get install libffi-dev` before `pip3 install asyncssh`
-* `progressbar33` is used in rendering progress bar in the regular monitor (i.e. without the -c option).
+* `asyncssh` for talking to ssh (`rhubarbe wait`, `rhubarbe docker`, and the monitors);
+* `asynciojobs` to orchestrate the asynchronous jobs
+* `progressbar33` is used in rendering progress bar in the regular display (i.e. without the `-c` option)
+* `fastapi`, `websockets`, `prometheus_client`, `dataclass_wizard` and `pandas` for the services and the PDUs and relays.
 
 # Setting up
 
 ## Inventory
 
-In short: see `/etc/rhubarbe/inventory.json`
+The tool needs a mapping between hostnames and MAC addresses - essentially for messing with pxelinux *nextboot* symlinks. It reads inventories in YAML files, whose locations are set in the configuration (`inventory_*_path`):
 
-Unfortunately the tool needs a mapping between hostnames and MAC addresses - essentially for messing with pxelinux *nextboot* symlinks. This is why the tool needs to find an inventory in a file named `/etc/rhubarbe/inventory.json`. See an extract below; note that the `'data'` entry is not needed by the tools, we have them in place over here at r2lab for convenience only. The CMC mac address is not needed either, strictly speaking, as of this writing.
+* `/etc/rhubarbe/inventory-nodes.yaml`: the nodes, top-level `nodes:` list
+* `/etc/rhubarbe/inventory-phones.yaml`: the phones
+* `/etc/rhubarbe/inventory-pdus.yaml`: the power-distribution units
+* `/etc/rhubarbe/inventory-relays.yaml`: the temperature relays
 
-**On R2LAB**: this is taken care of by `inventory/configure.py` and its `Makefile`. Note that like for the OMF JSON inventory file, `configure.py` creates 2 different files for faraday and bemol - to account for any replacement node on faraday, like when e.g. node 41 actually sits in slot 15.
+Templates for all of them are shipped in the package, in `rhubarbe/config/`. For nodes, it looks like this (only `cmc` and `control` are needed):
 
-FYI an inventory files just looks like below; the `data` field is not needed
+    # less /etc/rhubarbe/inventory-nodes.yaml
+    nodes:
+      - cmc:
+          hostname: reboot01
+          ip: 192.168.1.1
+          mac: "02:00:00:00:00:01"
+        control:
+          hostname: fit01
+          ip: 192.168.3.1
+          mac: "00:03:1d:0e:03:19"
+      # ... etc
 
-#
-    # less /etc/rhubarbe/inventory.json
-     [
-      {
-        "cmc": {
-          "hostname": "reboot01",
-          "ip": "192.168.1.1",
-          "mac": "02:00:00:00:00:01"
-        },
-        "control": {
-          "hostname": "fit01",
-          "ip": "192.168.3.1",
-          "mac": "00:03:1d:0e:03:19"
-        },
-        "data": {
-          "hostname": "data01",
-          "ip": "192.168.2.1",
-          "mac": "00:03:1d:0e:03:18"
-        }
-      },
-      ... etc
-      ]
+`rhubarbe inventory` displays what was found.
 
 ## Configuration
 
-In short: see `/etc/rhubarbe/rhubarbe.conf`
+In short: see `rhubarbe config`, and the file `/etc/rhubarbe/rhubarbe.conf`
 
 Configuration is done through a collection of files, which are loaded in this order if they exist:
 
- * `/etc/rhubarbe/rhubarbe.conf`
+ * `/etc/rhubarbe/rhubarbe.conf` (or rather the copy of it that ships with the package)
  * `/etc/rhubarbe/rhubarbe.conf.local`
  * `~/.rhubarbe.conf`
  * `./rhubarbe.conf`
+ * `./rhubarbe.conf.local`
 
 So in essence, there is
 
- * a (mandatory) system-wide config `/etc/rhubarbe/rhubarbe.conf`, that ships with the `pip3` package and that contains all variable definitions;
- * given that `/etc/rhubarbe/rhubarbe.conf` is likely to be overwritten at anytime by `pip3 install`, you can store your own system-wide changes in the (optional) file `/etc/rhubarbe.conf.local`;
+ * a (mandatory) system-wide config, that ships with the package and that contains all variable definitions;
+ * given that it is likely to be overwritten at anytime by an upgrade, you can store your own system-wide changes in the (optional) file `/etc/rhubarbe/rhubarbe.conf.local` - this is also the place for secrets like tokens;
  * then each user may override any value she likes,
  * and finally one can be even more specific and configure things at a directory level.
 
- The first file will come with all the settings defined, but any of the other 3 does not need to be complete and can just redefine one variable if needed.
+ The first file will come with all the settings defined, but any of the other ones does not need to be complete and can just redefine one variable if needed.
+
+Any variable can also be given a value specific to a host, e.g. `bandwidth.faraday = 500` overrides `bandwidth` only on the host named `faraday`.
 
 Format is known as a `.ini` file, should be straightforward. Just beware to **not mention quotes** around strings, as such quotes end up in the python string verbatim.
 
 ## Authorization system
 
-Among things to be configured are, in the `plcapi` section:
+Among things to be configured are, in the `r2labapi` section:
 
-* `plcapi_url` : the URL for a leases server, and
-* `leases_hostname` : the hostname of the PLCAPI node that is used to record leases on the testbed.
-
-In other words, all this for now assumes the following:
-
-* You run an instance of a PLCAPI service at that URL, and
-* this API knows about one node whose hostname is specified above.
+* `url`: the URL of the R2Lab REST API, which keeps track of the leases,
+* `resource_name`: the name of the resource under which leases are recorded on the testbed, and
+* `admin_token`: the token used by the services that need privileged access; it belongs in `rhubarbe.conf.local`.
 
 This is an admittedly specific policy for R2Lab, since we want the reservations to be made on the testbed as a whole (to ensure reproducibility).
 
-# A word on the `asyncio` module
+## Containers
 
-As of September 2016, we only use the syntax of 3.5's asyncio, based on `async def` and `await`.
+The `[docker]` section configures `rhubarbe docker`: the default host image, the registry that `docker save` pushes to, an optional pull-through mirror, the host's ssh port and the static sshd injected in containers. See `DOCKER.md`.
 
-We use python 3.5's `asyncio` library. python3.5 can be taken as granted on the ubuntus we use on both `faraday` and `bemol`. This is consistent with python-3.5 being part of both Fedora-24 and Ubuntu-16.04
+# Testing
+
+There are no automated tests. Features are checked by hand on the testbed, with the exception of `tests/docker_smoke.py`, a script that exercises `rhubarbe docker load` on real nodes.
 
 # TODO
 
-* add option `rshare --clean` that would clean up the other/older candidates for a name
-* some option in `rhubarbe leases` to skip the nightly leases
-
 * in terms of the cleanup regarding display.stop / forever jobs
   * issue was: how to properly terminate a loop that has a infinite task going on
-  * synciojobs provides a nice replacement with forever jobs
+  * asynciojobs provides a nice replacement with forever jobs
   * this has been deployed almost everywhere, except for monitor for now
