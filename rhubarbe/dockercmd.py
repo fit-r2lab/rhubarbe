@@ -18,34 +18,171 @@ import json
 import shlex
 import asyncio
 from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor
+
+import requests
 
 from .config import Config
 from .ssh import SshProxy
 from .logger import logger
 
 CONTAINER_NAME = 'container'
-
-
-def qualify_image(ref, registry):
-    """
-    used by 'docker save' only: prefix an image reference with the
-    private registry, unless it already designates one, i.e. its first
-    component contains a '.' or a ':' or is 'localhost'
-
-    'docker load' passes references untouched, so that docker resolves
-    them as usual (Docker Hub, through the mirror if there is one)
-    """
-    first, sep, _ = ref.partition('/')
-    if sep and ('.' in first or ':' in first or first == 'localhost'):
-        return ref
-    return f"{registry}/{ref}"
-
-
 # on the node, where the injected files live; mounted in the container
 HOST_INJECT_DIR = "/opt/rhubarbe/inject"
 CONTAINER_INJECT_DIR = "/.rhubarbe"
 # on the node, what is mounted as /var in the container
 PERSISTENT_VAR = "/home/container/container_fs"
+
+
+def prefix():
+    """the namespace in the registry that is ours, e.g. r2lab"""
+    return Config().value('docker', 'prefix').strip('/')
+
+
+def _looks_like_registry(first_component):
+    return ('.' in first_component or ':' in first_component
+            or first_component == 'localhost')
+
+
+def save_reference(ref):
+    """
+    the full reference under which 'docker save -o REF' pushes:
+    registry/prefix/name[:tag]; the registry and the prefix are added
+    unless they are already there; an explicit other registry is left alone
+
+    'docker load' passes references untouched, so that docker resolves
+    them as usual (Docker Hub, through the mirror if there is one)
+    """
+    first, sep, _ = ref.partition('/')
+    if sep and _looks_like_registry(first):
+        return ref
+    if not ref.startswith(f"{prefix()}/"):
+        ref = f"{prefix()}/{ref}"
+    return f"{Config().value('docker', 'registry')}/{ref}"
+
+
+def repository_and_tag(ref):
+    """
+    from a reference given to rmi (name, prefix/name, or a full
+    registry/prefix/name, with an optional :tag), returns (repository, tag)
+    where repository is the name in the registry, always under our prefix;
+    raises ValueError if the reference is not in our namespace
+    """
+    registry = Config().value('docker', 'registry')
+    first, sep, rest = ref.partition('/')
+    if sep and _looks_like_registry(first):
+        if first != registry:
+            raise ValueError(f"{first} is not the registry {registry}")
+        ref = rest
+    name, colon, tag = ref.rpartition(':')
+    if not colon or '/' in tag:
+        name, tag = ref, 'latest'
+    if not name.startswith(f"{prefix()}/"):
+        name = f"{prefix()}/{name}"
+    return name, tag
+
+
+def registry_api_url(path=""):
+    """
+    the URL of the registry API (v2) of the [docker] registry,
+    optionally followed by a path like _catalog
+    """
+    url = f"https://{Config().value('docker', 'registry')}/v2"
+    return f"{url}/{path.lstrip('/')}" if path else url
+
+
+def _registry_get_json(url):
+    """GET a registry URL; returns (json, next page url or None)"""
+    response = requests.get(url, timeout=10)
+    response.raise_for_status()
+    nxt = response.links.get('next', {}).get('url')
+    if nxt and nxt.startswith('/'):
+        nxt = f"https://{Config().value('docker', 'registry')}{nxt}"
+    return response.json(), nxt
+
+
+def list_images(patterns=(), show_all=False):
+    """
+    the images in the private registry, as a sorted list of references
+    registry/name:tag; only the names that contain one of the patterns
+    (all of them if there are none); only our own namespace (the prefix)
+    unless show_all
+    raises requests.RequestException if the registry cannot be probed
+    """
+    registry = Config().value('docker', 'registry')
+    names = []
+    url = registry_api_url("_catalog?n=500")
+    while url:
+        data, url = _registry_get_json(url)
+        names += data.get('repositories') or []
+    names = [name for name in names
+             if (show_all or name.startswith(f"{prefix()}/"))
+             and (not patterns or any(pat in name for pat in patterns))]
+
+    def tags(name):
+        data, _ = _registry_get_json(registry_api_url(f"{name}/tags/list"))
+        return [f"{registry}/{name}:{tag}" for tag in data.get('tags') or []]
+
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        return sorted(ref for refs in executor.map(tags, sorted(names))
+                      for ref in refs)
+
+
+MANIFEST_TYPES = ", ".join((
+    "application/vnd.oci.image.index.v1+json",
+    "application/vnd.oci.image.manifest.v1+json",
+    "application/vnd.docker.distribution.manifest.list.v2+json",
+    "application/vnd.docker.distribution.manifest.v2+json",
+))
+
+
+def registry_credentials():
+    """
+    (user, password) from [docker] registry_user / registry_password,
+    or None unless both are set; meant for the root-only ~/.rhubarbe.conf
+    """
+    user = _config_value('registry_user')
+    # raw: a '%' in a password is not an interpolation
+    try:
+        password = Config().parser['docker'].get(
+            'registry_password', None, raw=True)
+    except KeyError:
+        password = None
+    return (user, password) if user and password else None
+
+
+def manifest_digest(repository, tag):
+    """the digest of what a tag points to, None if there is no such tag"""
+    response = requests.head(
+        registry_api_url(f"{repository}/manifests/{tag}"),
+        headers={'Accept': MANIFEST_TYPES}, timeout=10)
+    if response.status_code == 404:
+        return None
+    response.raise_for_status()
+    return response.headers['Docker-Content-Digest']
+
+
+def delete_manifest(repository, digest):
+    """
+    delete by digest, which removes all the tags that point to it;
+    the blobs are only reclaimed by the registry's garbage collection
+    returns an error message, or None if all went well
+    """
+    response = requests.delete(
+        registry_api_url(f"{repository}/manifests/{digest}"),
+        auth=registry_credentials(), timeout=10)
+    if response.status_code == 202:
+        return None
+    if response.status_code in (400, 405):
+        return ("the registry does not allow deletion "
+                "(REGISTRY_STORAGE_DELETE_ENABLED)")
+    if response.status_code in (401, 403):
+        return ("deletion refused: authentication is required for it "
+                + ("(the credentials in [docker] were rejected)"
+                   if registry_credentials() else
+                   "(set registry_user and registry_password in [docker], "
+                   "see DOCKER.md)"))
+    return f"status {response.status_code}: {response.text.strip()[:200]}"
 
 
 def run_command(image, inject=False):
@@ -299,7 +436,20 @@ async def ensure_sshd(ssh, injected):
     return False
 
 
-async def deploy(node, image, *, host_port, backoff, wait_container):
+async def deploy(node, image, **kwargs):
+    """deploy_container, but any exception is shown, not swallowed"""
+    try:
+        return await _deploy(node, image, **kwargs)
+    except Exception as exc:                            # pylint: disable=w0703
+        import traceback
+        logger.error(f"{node.control_hostname()}: deploy failed\n"
+                     f"{traceback.format_exc()}")
+        print(f"{node.control_hostname()}: exception "
+              f"{type(exc).__name__}: {exc}\n{traceback.format_exc()}")
+        return False
+
+
+async def _deploy(node, image, *, host_port, backoff, wait_container):
     """
     on a node that has booted its docker host image:
     pull the container image and run it; returns True if all went well
@@ -336,6 +486,25 @@ async def deploy(node, image, *, host_port, backoff, wait_container):
     return True
 
 
+def push_command(image):
+    """
+    the push command; with credentials configured, it logs in first, in a
+    throw-away config directory removed right after, so that nothing
+    stays on the node (DOCKER_CONFIG for docker, REGISTRY_AUTH_FILE for podman)
+    """
+    push = f"docker push {shlex.quote(image)}"
+    credentials = registry_credentials()
+    if not credentials:
+        return push
+    user, password = credentials
+    registry = shlex.quote(Config().value('docker', 'registry'))
+    return (
+        'd=$(mktemp -d) && export DOCKER_CONFIG=$d REGISTRY_AUTH_FILE=$d/config.json && '
+        f'printf %s {shlex.quote(password)} | '
+        f'docker login -u {shlex.quote(user)} --password-stdin {registry} >/dev/null && '
+        f'{push}; st=$?; rm -rf "$d"; exit $st')
+
+
 async def commit_and_push(node, image, *, host_port):
     """
     commit the container of a node and push the resulting image
@@ -346,7 +515,7 @@ async def commit_and_push(node, image, *, host_port):
             return False
         for label, command in (
                 ("commit", f"docker commit {CONTAINER_NAME} {shlex.quote(image)}"),
-                ("push", f"docker push {shlex.quote(image)}")):
+                ("push", push_command(image))):
             if not await _step(ssh, command, label):
                 return False
     print(f"{node.control_hostname()}: pushed {image}")

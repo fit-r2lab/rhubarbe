@@ -1233,7 +1233,7 @@ def docker_load(host_image, keep_host, container_image, timeout, bandwidth,
     This function requires a valid reservation
     - or to be root or a privileged user.
     """
-    from rhubarbe.dockercmd import deploy, qualify_image
+    from rhubarbe.dockercmd import deploy
     config = Config()
     config.check_binaries()
     host_port, backoff, _ = _docker_ssh_settings()
@@ -1290,17 +1290,101 @@ def docker_load(host_image, keep_host, container_image, timeout, bandwidth,
     sys.exit(0 if all(results) else 1)
 
 
+@docker.command('images')
+@click.option('-a', '--all', 'show_all', is_flag=True, default=False,
+              help="also show the images outside our namespace "
+                   "(the [docker] prefix)")
+@click.argument('patterns', nargs=-1)
+def docker_images(show_all, patterns):
+    """List the images in the private registry.
+
+    Shows registry/name:tag, ready to be used with -i; only the names that
+    contain one of the PATTERNS, if any are given. By default only our own
+    namespace is shown, the [docker] prefix.
+    """
+    from rhubarbe.dockercmd import list_images
+    import requests
+    try:
+        images = list_images(patterns, show_all)
+    except requests.RequestException as exc:
+        print(f"cannot probe the registry: {exc}")
+        sys.exit(1)
+    for image in images:
+        print(image)
+    if not images:
+        print("no matching image", file=sys.stderr)
+
+
+@docker.command('rmi')
+@click.option('-y', '--yes', is_flag=True, default=False,
+              help="do not ask for confirmation")
+@click.argument('images', nargs=-1, required=True)
+def docker_rmi(yes, images):
+    """Delete images from the private registry; reserved to root.
+
+    Only our own namespace (the [docker] prefix) is accepted; it is added
+    if missing, as is :latest. Deleting a tag deletes all the tags that
+    point to the same image. This does not free any disk space: that takes
+    the garbage collection of the registry.
+    """
+    from rhubarbe.dockercmd import (
+        repository_and_tag, manifest_digest, delete_manifest)
+    import requests
+    if os.geteuid() != 0:
+        raise click.UsageError("rmi is reserved to root")
+    status = 0
+    for image in images:
+        try:
+            repository, tag = repository_and_tag(image)
+            digest = manifest_digest(repository, tag)
+        except (ValueError, requests.RequestException) as exc:
+            print(f"{image}: {exc}")
+            status = 1
+            continue
+        if digest is None:
+            print(f"{repository}:{tag}: no such image")
+            status = 1
+            continue
+        if not yes and not click.confirm(
+                f"delete {repository}:{tag} ({digest[:19]}...)?"):
+            continue
+        try:
+            error = delete_manifest(repository, digest)
+        except requests.RequestException as exc:
+            error = str(exc)
+        if error:
+            print(f"{repository}:{tag}: {error}")
+            status = 1
+        else:
+            print(f"{repository}:{tag}: deleted")
+    sys.exit(status)
+
+
+@docker.command('url')
+@click.argument('path', default="")
+def docker_url(path):
+    """Print the URL of the registry API, for crafting requests.
+
+    \b
+    Examples:
+      curl $(rhubarbe docker url)/_catalog
+      curl $(rhubarbe docker url python-nodejs/tags/list)
+    """
+    from rhubarbe.dockercmd import registry_api_url
+    print(registry_api_url(path))
+
+
 @docker.command('save')
 @click.option('-o', '--output', 'image', required=True,
-              help="container image reference to commit and push; "
-                   "the [docker] registry is prefixed unless one is given")
+              help="container image reference to commit and push; the [docker] "
+                   "registry and prefix are added unless a registry is given")
 @_timeout_option('docker_default_timeout')
 @click.argument('node')
 def docker_save(image, timeout, node):
     """Commit the container on a node and push it to the registry."""
-    from rhubarbe.dockercmd import commit_and_push, qualify_image
-    host_port, _, registry = _docker_ssh_settings()
-    image = qualify_image(image, registry)
+    from rhubarbe.dockercmd import commit_and_push, save_reference
+    host_port, _, _ = _docker_ssh_settings()
+    image = save_reference(image)
 
     selector = Selector()
     selector.add_range(node)
