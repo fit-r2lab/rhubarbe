@@ -13,3 +13,4 @@ rhubarbe/scripts/*.pdf
 rhubarbe/scripts/*.zip
 
 .venv
+crash
