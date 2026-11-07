@@ -364,11 +364,23 @@ def bye(do_nodes, do_phones, do_pdus, timeout, all_nodes, ranges):
 ####################
 
 
+def _check_known(nodes):
+    """
+    exit with a message if some of these nodes are not in the inventory
+    (e.g. a slot with no node), as we cannot do anything with them
+    """
+    unknown = [node.cmc_name for node in nodes if not node.is_known()]
+    if unknown:
+        print("not in the inventory: " + " ".join(unknown))
+        sys.exit(1)
+
+
 def _check_frisbee_stacks(nodes):
     """
-    exit if the frisbee stack of any of these nodes is missing
-    from the pxelinux config directory
+    exit if some of these nodes are unknown, or if their frisbee stack
+    is missing from the pxelinux config directory
     """
+    _check_known(nodes)
     errors = [error for error in (node.check_frisbee_stack()
                                   for node in nodes) if error]
     if errors:
@@ -438,8 +450,10 @@ def rescue(do_reset, do_list, timeout, all_nodes, ranges):
     message_bus = asyncio.Queue()
 
     if do_reset:
-        for cmc_name in selector.cmc_names():
-            node = Node(cmc_name, message_bus)
+        nodes = [Node(cmc_name, message_bus)
+                 for cmc_name in selector.cmc_names()]
+        _check_known(nodes)
+        for node in nodes:
             node.manage_nextboot_symlink('harddrive')
             print(f"{node.control_hostname()}: will boot off hard drive")
         return
@@ -558,6 +572,7 @@ def save(radical, timeout, comment, no_reset, node):
         raise click.UsageError(f"could not resolve node '{node}'")
     cmc_name = next(selector.cmc_names())
     node_obj = Node(cmc_name, message_bus)
+    _check_known([node_obj])
     nodename = node_obj.control_hostname()
 
     imagesrepo = ImagesRepo()
@@ -1391,6 +1406,7 @@ def docker_save(image, timeout, node):
     if len(selector) != 1:
         raise click.UsageError(f"could not resolve node '{node}'")
     node_obj = Node(next(selector.cmc_names()), asyncio.Queue())
+    _check_known([node_obj])
     results = _run_docker_jobs(
         [Job(commit_and_push(node_obj, image, host_port=host_port))], timeout)
     if not results[0]:
