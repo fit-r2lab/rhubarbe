@@ -1,5 +1,12 @@
 # Changelog
 
+## 11.1.1 - 2026 Nov 7
+
+- docker load: a failed pull is explained in plain words (unknown short name,
+  no such image, rate limit, network) before the engine's own message;
+  on podman, short names now resolve against docker.io like with docker
+- docker images -m/--mirror lists what the docker mirror (pull-through cache) holds
+
 ## 11.1.0 - 2026 Nov 7
 
 - monitornodes: on nodes that run a container, docker_version, container_running,
