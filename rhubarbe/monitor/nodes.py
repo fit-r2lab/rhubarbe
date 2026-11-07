@@ -115,10 +115,76 @@ class MonitorNode:
     rhubarbe_image_matcher = re.compile(
         r"\A/etc/rhubarbe-image:.* - image (?P<image_radical>[^ ]+) - by")
     docker_matcher = re.compile(
-        r"\ADOCKER:Docker version (?P<docker_version>[0-9\.]+),")
+        r"\ADOCKER:(?:Docker|podman) version (?P<docker_version>[0-9\.]+)")
     container_matcher = re.compile(
         r"\ACONTAINER:(?P<running>(true|false)) (?P<image>.*)")
+    # from /etc/os-release, see remote_commands
+    osr_matcher = re.compile(
+        r"\AOSR:(?P<key>ID|VERSION_ID)=[\"']?(?P<value>[^\"']*)[\"']?\Z")
+    # ISO timestamp, as in 2026-11-07T09:12:01.123456789Z
+    started_matcher = re.compile(r"\ASTARTED:(?P<started>\d{4}-.*Z)\Z")
 
+
+    def parse_docker_output(self, stdout):
+        """
+        the docker-related fields found in the output of the DOCKER: and
+        CONTAINER: commands; empty strings for what is missing
+        """
+        info = {'docker_version': "", 'container_running': "",
+                'container_image': "", 'container_started': ""}
+        for line in stdout.split("\n"):
+            if match := self.docker_matcher.match(line):
+                info['docker_version'] = match.group('docker_version')
+            elif match := self.container_matcher.match(line):
+                info['container_running'] = match.group('running')
+                info['container_image'] = match.group('image')
+            elif match := self.started_matcher.match(line):
+                info['container_started'] = match.group('started')
+        return info
+
+    docker_commands = [
+        "echo -n DOCKER: ; docker --version",
+        "echo -n CONTAINER: ; docker inspect "
+        "--format='{{.State.Running}} {{.Config.Image}}' container",
+        "echo -n STARTED: ; docker inspect "
+        "--format='{{.State.StartedAt}}' container",
+        # the name of the host image, that is in the host and not in the
+        # container; the filename on each line is what the matcher expects
+        "grep . /etc/rhubarbe-image /dev/null",
+    ]
+
+    async def probe_docker_host(self, ssh_timeout):
+        """
+        On a node that runs a container, port 22 leads into the container,
+        where there is no docker; the host has its own sshd on another port
+        ([docker] host_ssh_port), that we use to learn about docker and
+        the container. Does nothing if the host does not answer there.
+        """
+        try:
+            port = int(Config().value('docker', 'host_ssh_port'))
+        except Exception:                               # pylint: disable=w0703
+            port = 2222
+        name = self.node.control_hostname()
+        async with SshProxy(self.node, port=port) as ssh:
+            try:
+                if not await asyncio.wait_for(
+                        ssh.connect(), timeout=ssh_timeout):
+                    return
+                output = await asyncio.wait_for(
+                    ssh.run(";".join(self.docker_commands)),
+                    timeout=ssh_timeout)
+                if output:
+                    self.set_info(self.parse_docker_output(output))
+                    for line in output.split("\n"):
+                        if match := self.rhubarbe_image_matcher.match(line):
+                            self.set_info({'image_radical':
+                                           match.group('image_radical')})
+                    logger.info(f"{name}: docker host probe on port {port} "
+                                f"-> {self.info['docker_version']!r}")
+            except asyncio.TimeoutError:
+                logger.info(f"{name}: docker host probe timeout")
+            except Exception:                           # pylint: disable=w0703
+                logger.exception(f"{name}: docker host probe failed")
 
     def parse_ssh_probe_output(self,      # pylint: disable=r0912, r0914, r0915
                                stdout, padding_dict):
@@ -126,10 +192,12 @@ class MonitorNode:
         gnuradio_release = "none"
         uname = ""
         image_radical = ""
-        docker_version = ""
-        container_running = ""
-        container_image = ""
+        osr = {}
         for line in stdout.split("\n"):
+            match = self.osr_matcher.match(line.strip())
+            if match:
+                osr[match.group('key')] = match.group('value')
+                continue
             match = self.ubuntu_matcher.match(line)
             if match:
                 version = match.group('ubuntu_version')
@@ -157,14 +225,14 @@ class MonitorNode:
             if match:
                 image_radical = match.group('image_radical')
                 continue
-            if match := self.docker_matcher.match(line):
-                docker_version = match.group('docker_version')
-                continue
-            if match := self.container_matcher.match(line):
-                container_running = match.group('running')
-                container_image = match.group('image')
-                continue
 
+        # os-release knows about all the distributions; it gives
+        # the same names as above for ubuntu, fedora and centos,
+        # e.g. alpine-3.22.0, debian-12, arch (rolling, no version)
+        if osr.get('ID'):
+            os_release = osr['ID'] + (
+                f"-{osr['VERSION_ID']}" if osr.get('VERSION_ID') else "")
+        docker_info = self.parse_docker_output(stdout)
         # xxx would make sense to clean up history for measurements that
         # we were not able to collect at this cycle
         self.set_info({
@@ -172,10 +240,7 @@ class MonitorNode:
             'gnuradio_release': gnuradio_release,
             'uname': uname,
             'image_radical': image_radical,
-            'docker_version': docker_version,
-            'container_running': container_running,
-            'container_image': container_image,
-            }, padding_dict)
+            }, docker_info, padding_dict)
 
     async def probe(self,                 # pylint: disable=r0912, r0914, r0915
                     ping_timeout, ssh_timeout):
@@ -215,6 +280,8 @@ class MonitorNode:
         remote_commands = [
             "cat /etc/lsb-release /etc/redhat-release /etc/gnuradio-release "
             "2> /dev/null | grep -i release",
+            "grep -E '^(ID|VERSION_ID)=' /etc/os-release 2> /dev/null "
+            "| sed 's/^/OSR:/'",
             "echo -n GNURADIO: ; gnuradio-config-info --version "
             "2> /dev/null || echo none",
             # this trick allows to have the filename on each output line
@@ -225,7 +292,9 @@ class MonitorNode:
                 "--format='{{.State.Running}} {{.Config.Image}}' container",
             ]
         # reconnect each time
-        self.set_info({'control_ssh': 'off'})
+        # docker info is only valid if collected during this cycle
+        self.set_info({'control_ssh': 'off'},
+                      self.parse_docker_output(""))
         async with SshProxy(self.node) as ssh:
             logger.info(f"trying to ssh-connect to {self.node.control_hostname()} "
                         f"(timeout={ssh_timeout})")
@@ -259,6 +328,9 @@ class MonitorNode:
                     self.set_info({'control_ssh': 'off'})
                 except Exception:                                   # pylint: disable=broad-except
                     logger.exception("monitornodes remote_command failed")
+        # in a container, docker can only be seen from the host
+        if not self.info.get('docker_version'):
+            await self.probe_docker_host(ssh_timeout)
         logger.info(f"{self.node.control_hostname()} ssh-based logic done "
                     f"ssh is deemed {self.info['control_ssh']}")
 
