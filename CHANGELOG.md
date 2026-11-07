@@ -1,5 +1,18 @@
 # Changelog
 
+## 11.1.0 - 2026 Nov 7
+
+- monitornodes: on nodes that run a container, docker_version, container_running,
+  container_image and container_started, as well as image_radical, are
+  collected through the host's sshd (port 2222),
+  since port 22 leads into the container
+- monitornodes: os_release now comes from /etc/os-release and so covers all
+  distributions, as ID-VERSION_ID (alpine-3.22.0, debian-12, or just arch);
+  names are unchanged for ubuntu, fedora and centos
+- a node that is not in the inventory (e.g. an empty slot in a range) is now
+  reported with a message by load, rescue, save and docker load/save, instead
+  of a stack dump (`not in the inventory: reboot04`)
+
 ## 11.0.0 - 2026 Nov 6
 
 - support for loading and saving docker images
