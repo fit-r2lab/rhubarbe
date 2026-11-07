@@ -21,6 +21,7 @@ from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 
 import requests
+from urllib.parse import urljoin
 
 from .config import Config
 from .ssh import SshProxy
@@ -96,9 +97,29 @@ def _registry_get_json(url):
     response = requests.get(url, timeout=10)
     response.raise_for_status()
     nxt = response.links.get('next', {}).get('url')
-    if nxt and nxt.startswith('/'):
-        nxt = f"https://{Config().value('docker', 'registry')}{nxt}"
-    return response.json(), nxt
+    return response.json(), urljoin(url, nxt) if nxt else None
+
+
+def _list_references(api_url, label, keep):
+    """
+    all the label/name:tag of a registry whose v2 API is at api_url,
+    for the names for which keep(name) is true;
+    raises requests.RequestException if the registry cannot be probed
+    """
+    names = []
+    url = f"{api_url}/_catalog?n=500"
+    while url:
+        data, url = _registry_get_json(url)
+        names += data.get('repositories') or []
+    names = [name for name in names if keep(name)]
+
+    def tags(name):
+        data, _ = _registry_get_json(f"{api_url}/{name}/tags/list")
+        return [f"{label(name)}:{tag}" for tag in data.get('tags') or []]
+
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        return sorted(ref for refs in executor.map(tags, sorted(names))
+                      for ref in refs)
 
 
 def list_images(patterns=(), show_all=False):
@@ -110,22 +131,32 @@ def list_images(patterns=(), show_all=False):
     raises requests.RequestException if the registry cannot be probed
     """
     registry = Config().value('docker', 'registry')
-    names = []
-    url = registry_api_url("_catalog?n=500")
-    while url:
-        data, url = _registry_get_json(url)
-        names += data.get('repositories') or []
-    names = [name for name in names
-             if (show_all or name.startswith(f"{prefix()}/"))
-             and (not patterns or any(pat in name for pat in patterns))]
+    return _list_references(
+        registry_api_url(), lambda name: f"{registry}/{name}",
+        lambda name: (show_all or name.startswith(f"{prefix()}/"))
+        and (not patterns or any(pat in name for pat in patterns)))
 
-    def tags(name):
-        data, _ = _registry_get_json(registry_api_url(f"{name}/tags/list"))
-        return [f"{registry}/{name}:{tag}" for tag in data.get('tags') or []]
 
-    with ThreadPoolExecutor(max_workers=8) as executor:
-        return sorted(ref for refs in executor.map(tags, sorted(names))
-                      for ref in refs)
+def list_mirror_images(patterns=()):
+    """
+    what the pull-through cache of Docker Hub holds, as references that
+    can be given to docker load -i (ubuntu:latest rather than
+    library/ubuntu:latest); None if there is no mirror configured
+    raises requests.RequestException if the mirror cannot be probed
+    """
+    settings = mirror_settings()
+    if settings is None:
+        return None
+    url, _, _ = settings
+    if '://' not in url:
+        url = f"https://{url}"
+
+    def label(name):
+        return name[len("library/"):] if name.startswith("library/") else name
+
+    return _list_references(
+        f"{url.rstrip('/')}/v2", label,
+        lambda name: not patterns or any(pat in name for pat in patterns))
 
 
 MANIFEST_TYPES = ", ".join((
@@ -250,16 +281,27 @@ def merged_daemon_json(current_text, url, host, insecure):
     return json.dumps(daemon, indent=2) + "\n"
 
 
-def podman_registries_conf(host, insecure):
-    """the registries.conf.d drop-in to mirror docker.io"""
-    return (
-        '[[registry]]\n'
-        'prefix = "docker.io"\n'
-        'location = "docker.io"\n'
-        '\n'
-        '[[registry.mirror]]\n'
-        f'location = "{host}"\n'
-        f'insecure = {"true" if insecure else "false"}\n')
+def podman_registries_conf(host=None, insecure=False):
+    """
+    the registries.conf.d drop-in for podman: short names go to docker.io
+    like docker does (podman otherwise refuses names that are not in its
+    alias list, without a tty to ask), and docker.io is mirrored if
+    there is a mirror
+    """
+    conf = (
+        'unqualified-search-registries = ["docker.io"]\n'
+        'short-name-mode = "permissive"\n')
+    if host:
+        conf += (
+            '\n'
+            '[[registry]]\n'
+            'prefix = "docker.io"\n'
+            'location = "docker.io"\n'
+            '\n'
+            '[[registry.mirror]]\n'
+            f'location = "{host}"\n'
+            f'insecure = {"true" if insecure else "false"}\n')
+    return conf
 
 
 async def configure_mirror(ssh):
@@ -269,11 +311,13 @@ async def configure_mirror(ssh):
     returns True if all went well (or if there was nothing to do)
     """
     settings = mirror_settings()
-    if settings is None:
-        return True
-    url, host, insecure = settings
     version = await ssh.run("docker --version 2>&1") or ""
-    if 'podman' in version.lower():
+    is_podman = 'podman' in version.lower()
+    if settings is None and not is_podman:
+        return True
+    url, host, insecure = settings or (None, None, False)
+    if is_podman:
+        # written even without a mirror, for the short names
         conf = podman_registries_conf(host, insecure)
         path = "/etc/containers/registries.conf.d/rhubarbe.conf"
         # nodocker silences the banner that podman-docker prints on stderr
@@ -310,6 +354,49 @@ async def _step(ssh, command, label):
               f"(status={status}) {(output or '').strip()}")
     logger.info(f"{ssh.node.control_hostname()}: {label} -> {status}")
     return ok
+
+
+PULL_DIAGNOSES = (
+    (("short-name resolution",),
+     "that is not a known short name; give a full reference, "
+     "e.g. docker.io/library/NAME, quay.io/ORG/NAME or "
+     "registry.example/NAME"),
+    (("manifest unknown", "not found", "name unknown", "pull access denied",
+      "requested access to the resource is denied", "repository does not exist",
+      "denied"),
+     "no such image, or not accessible; check the name and the tag"),
+    (("toomanyrequests", "rate limit"),
+     "the registry refuses more pulls for now (rate limit)"),
+    (("no such host", "i/o timeout", "timeout", "connection refused",
+      "network is unreachable", "temporary failure in name resolution"),
+     "cannot reach the registry from the node"),
+)
+
+
+def pull_diagnosis(output):
+    """a human-friendly reason for a failed pull, None if we have no idea"""
+    lowered = (output or "").lower()
+    for patterns, message in PULL_DIAGNOSES:
+        if any(pattern in lowered for pattern in patterns):
+            return message
+    return None
+
+
+async def _pull(ssh, image):
+    """docker pull; says in plain words why it failed"""
+    name = ssh.node.control_hostname()
+    status, output = await ssh.run(
+        f"docker pull {shlex.quote(image)}", with_status=True)
+    logger.info(f"{name}: pull -> {status}")
+    if status == 0:
+        return True
+    lines = (output or "").strip().splitlines()
+    why = pull_diagnosis(output)
+    print(f"{name}: cannot pull {image}"
+          + (f": {why}" if why else f" (status={status})"))
+    if lines:
+        print(f"{name}: engine said: {lines[-1]}")
+    return False
 
 
 async def remove_previous(ssh):
@@ -467,7 +554,7 @@ async def _deploy(node, image, *, host_port, backoff, wait_container):
             return False
         if not await configure_mirror(ssh):
             return False
-        if not await _step(ssh, f"docker pull {shlex.quote(image)}", "pull"):
+        if not await _pull(ssh, image):
             return False
         injected = await prepare_injection(ssh)
         if injected is False:

@@ -1309,20 +1309,33 @@ def docker_load(host_image, keep_host, container_image, timeout, bandwidth,
 @click.option('-a', '--all', 'show_all', is_flag=True, default=False,
               help="also show the images outside our namespace "
                    "(the [docker] prefix)")
+@click.option('-m', '--mirror', 'mirror', is_flag=True, default=False,
+              help="list what the [docker] mirror (the pull-through cache of "
+                   "Docker Hub) holds instead: the images that are already "
+                   "cached and so fast to pull")
 @click.argument('patterns', nargs=-1)
-def docker_images(show_all, patterns):
+def docker_images(show_all, mirror, patterns):
     """List the images in the private registry.
 
     Shows registry/name:tag, ready to be used with -i; only the names that
     contain one of the PATTERNS, if any are given. By default only our own
     namespace is shown, the [docker] prefix.
+
+    With --mirror, shows the images held by the mirror instead, as
+    name:tag (ubuntu:latest, jupyter/base-notebook:latest).
     """
-    from rhubarbe.dockercmd import list_images
+    from rhubarbe.dockercmd import list_images, list_mirror_images
     import requests
     try:
-        images = list_images(patterns, show_all)
+        if mirror:
+            images = list_mirror_images(patterns)
+            if images is None:
+                print("no [docker] mirror is configured", file=sys.stderr)
+                sys.exit(1)
+        else:
+            images = list_images(patterns, show_all)
     except requests.RequestException as exc:
-        print(f"cannot probe the registry: {exc}")
+        print(f"cannot probe the {'mirror' if mirror else 'registry'}: {exc}")
         sys.exit(1)
     for image in images:
         print(image)

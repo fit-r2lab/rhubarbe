@@ -3,7 +3,7 @@
 ```
 rhubarbe docker load [--host-image NAME | -k] [-i CONTAINER_REF] [--wait] NODES...
 rhubarbe docker save NODE -o CONTAINER_REF
-rhubarbe docker images [-a] [PATTERN...]
+rhubarbe docker images [-a | -m] [PATTERN...]
 rhubarbe docker rmi [-y] IMAGE...
 rhubarbe docker url [PATH]
 ```
@@ -15,7 +15,9 @@ rhubarbe docker url [PATH]
 - `save` commits the container of a node and pushes the result
 - `images` lists what our namespace in the private registry holds (`-a`
   for the whole registry), as `registry/name:tag` references that can be
-  pasted in `-i`; the patterns are substrings of the image name
+  pasted in `-i`; the patterns are substrings of the image name. With
+  `-m/--mirror`, lists what the pull-through cache holds instead (what is
+  already cached, so quick to pull), as `ubuntu:latest`
 - `rmi` deletes images from our namespace; reserved to root (see below)
 - `url` prints the URL of the registry API, to craft requests by hand:
   `curl $(rhubarbe docker url)/_catalog`
@@ -78,6 +80,9 @@ the host has booted, rhubarbe configures the node's engine:
   then `systemctl restart docker`
 - podman (detected from `docker --version`): writes
   `/etc/containers/registries.conf.d/rhubarbe.conf`, mirroring `docker.io`
+  if there is a mirror. This is done even without a mirror: it also makes
+  short names (`-i mint`) search docker.io like docker does, whereas podman
+  alone refuses the ones that are not in its alias list
 
 If the mirror moves, change `[docker] mirror` - no image to rebuild. No
 `mirror` key means no configuration and docker's defaults.
