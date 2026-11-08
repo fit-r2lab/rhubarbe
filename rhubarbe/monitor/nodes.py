@@ -85,7 +85,7 @@ class MonitorNode:
         self.last_probe_end = time.time()
         # what the last port-22 probe found, None if it failed
         self._probe22 = None
-        # see probe_docker_info
+        # see probe_setup
         self._regular_cycles = 0
 
     def set_info(self, *overrides):
@@ -124,7 +124,8 @@ class MonitorNode:
         r"\ACONTAINER:(?P<running>(true|false)) (?P<image>.*)")
     # from /etc/os-release, see remote_commands
     osr_matcher = re.compile(
-        r"\AOSR:(?P<key>ID|VERSION_ID)=[\"']?(?P<value>[^\"']*)[\"']?\Z")
+        r"\AOSR:(?P<key>ID|VERSION_ID|PRETTY_NAME)="
+        r"[\"']?(?P<value>.*?)[\"']?\Z")
     # ISO timestamp, as in 2026-11-07T09:12:01.123456789Z
     started_matcher = re.compile(r"\ASTARTED:(?P<started>\d{4}-.*Z)\Z")
 
@@ -146,27 +147,38 @@ class MonitorNode:
                 info['container_started'] = match.group('started')
         return info
 
+    # what we ask a host about itself, on port 22 or on the docker host port
+    os_commands = [
+        "cat /etc/lsb-release /etc/redhat-release /etc/gnuradio-release "
+        "2> /dev/null | grep -i release",
+        "grep -E '^(ID|VERSION_ID|PRETTY_NAME)=' /etc/os-release 2> /dev/null "
+        "| sed 's/^/OSR:/'",
+        "echo -n GNURADIO: ; gnuradio-config-info --version "
+        "2> /dev/null || echo none",
+        # this trick allows to have the filename on each output line
+        "grep . /etc/rhubarbe-image /dev/null",
+        "echo -n UNAME: ; uname -r",
+    ]
     docker_commands = [
         "echo -n DOCKER: ; docker --version",
         "echo -n CONTAINER: ; docker inspect "
         "--format='{{.State.Running}} {{.Config.Image}}' container",
         "echo -n STARTED: ; docker inspect "
         "--format='{{.State.StartedAt}}' container",
-        # the name of the host image, that is in the host and not in the
-        # container; the filename on each line is what the matcher expects
-        "grep . /etc/rhubarbe-image /dev/null",
     ]
 
     async def probe_docker_host(self, ssh_timeout):
         """
         On a node that runs a container, port 22 leads into the container,
         where there is no docker; the host has its own sshd on another port
-        ([docker] host_ssh_port), that we use to learn about docker and
-        the container.
-        returns what happened:
-        . 'docker': the host answered and has docker; the info is set
+        ([docker] host_ssh_port), that we use to learn about the metal, docker
+        and the container.
+        returns (outcome, result) where outcome is
+        . 'docker': the host answered and has docker; result is
+          {'port', 'os', 'docker'}, as parse_probe_output
         . 'refused': nothing listens there, so this is not a docker host
         . 'unknown': we could not tell (timeout, no docker, any failure)
+        and result is None unless the outcome is 'docker'
         """
         try:
             port = int(Config().value('docker', 'host_ssh_port'))
@@ -180,65 +192,142 @@ class MonitorNode:
                 timeout=ssh_timeout)
             writer.close()
         except ConnectionRefusedError:
-            return 'refused'
+            return 'refused', None
         except Exception:                               # pylint: disable=w0703
-            return 'unknown'
+            return 'unknown', None
         async with SshProxy(self.node, port=port) as ssh:
             try:
                 if not await asyncio.wait_for(
                         ssh.connect(), timeout=ssh_timeout):
-                    return 'unknown'
+                    return 'unknown', None
                 output = await asyncio.wait_for(
-                    ssh.run(";".join(self.docker_commands)),
+                    ssh.run(";".join(self.os_commands
+                                     + self.docker_commands)),
                     timeout=ssh_timeout)
-                docker_info = self.parse_docker_output(output or "")
-                if not docker_info['docker_version']:
-                    return 'unknown'
-                self.set_info(docker_info)
-                for line in output.split("\n"):
-                    if match := self.rhubarbe_image_matcher.match(line):
-                        self.set_info({'image_radical':
-                                       match.group('image_radical')})
-                logger.info(f"{name}: docker host probe on port {port} "
-                            f"-> {docker_info['docker_version']!r}")
-                return 'docker'
+                result = self.parse_probe_output(output or "", port)
+                if not result['docker']['docker_version']:
+                    return 'unknown', None
+                logger.info(
+                    f"{name}: docker host probe on port {port} -> "
+                    f"{result['docker']['docker_version']!r}")
+                return 'docker', result
             except asyncio.TimeoutError:
                 logger.info(f"{name}: docker host probe timeout")
             except Exception:                           # pylint: disable=w0703
                 logger.exception(f"{name}: docker host probe failed")
-        return 'unknown'
+        return 'unknown', None
 
     # how many cycles in a row a node must look like a regular one (nothing
     # on the docker host port) before we forget its docker info; shields from
     # the transitional probes when a docker node reboots
     REGULAR_CYCLES = 2
 
-    async def probe_docker_info(self, ssh_timeout):
+    # the sidecar broadcasts and stores a node whenever something changes, so
+    # 'seen' must not change at every cycle: it is refreshed only when the
+    # record changes, or after this many seconds
+    SEEN_REFRESH = 300
+
+    def with_seen(self, key, record):
         """
-        sets the docker-related fields and image_radical, but only when what
-        we saw is conclusive: whatever a partial probe could not see keeps
-        its last value, which is what is shown for a node that is off
+        sets record['seen'], keeping the previous value if the rest of
+        the record did not change and is recent enough
+        """
+        if record is None:
+            return None
+        previous = self.info.get(key)
+        if (previous and previous.get('seen')
+                and time.time() - previous['seen'] < self.SEEN_REFRESH
+                and {k: v for k, v in previous.items() if k != 'seen'}
+                == {k: v for k, v in record.items() if k != 'seen'}):
+            record['seen'] = previous['seen']
+        return record
+
+    def metal_record(self, result):
+        """the 'metal' sub-record, from a parsed probe of the bare machine"""
+        os_info, docker = result['os'], result['docker']
+        return self.with_seen('metal', {
+            'ssh_port': result['port'],
+            'os_release': os_info['os_release'],
+            'pretty_name': os_info['pretty_name'],
+            'image_radical': os_info['image_radical'],
+            'uname': os_info['uname'],
+            'gnuradio_release': os_info['gnuradio_release'],
+            'docker_version': docker['docker_version'],
+            'seen': int(time.time()),
+        })
+
+    def container_record(self, docker, probe22):
+        """
+        the 'container' sub-record, or None if the metal has no container;
+        the os_release is only visible from inside, through port 22; when
+        that is not available we keep the one we knew, if for the same image
+        """
+        image = docker['container_image']
+        if not image:
+            return None
+        if probe22:
+            os_release = probe22['os']['os_release']
+            pretty_name = probe22['os']['pretty_name']
+        else:
+            previous = self.info.get('container') or {}
+            same = previous.get('image') == image
+            os_release = previous.get('os_release') if same else None
+            pretty_name = previous.get('pretty_name') if same else None
+        return self.with_seen('container', {
+            'image': image,
+            'running': docker['container_running'] == 'true',
+            'started': docker['container_started'],
+            'os_release': os_release,
+            'pretty_name': pretty_name,
+            'seen': int(time.time()),
+        })
+
+    async def probe_setup(self, ssh_timeout):
+        """
+        what runs on the node: the 'metal' and 'container' sub-records and,
+        for the clients that do not know about them yet, the legacy flat keys
+        (os_release, image_radical, docker_version, container_*).
+
+        These are only written when what we saw is conclusive: whatever a
+        partial probe could not see keeps its last value, which is what is
+        shown for a node that is off
         """
         probe22 = self._probe22
         if probe22 and probe22['docker']['docker_version']:
-            # a docker image whose own sshd is on port 22
-            self.set_info(probe22['docker'],
-                          {'image_radical': probe22['image_radical']})
+            # a docker image whose own sshd is on port 22: no container side
+            docker = probe22['docker']
+            self.set_info(
+                {'metal': self.metal_record(probe22),
+                 'container': self.container_record(docker, None)},
+                docker, {'image_radical': probe22['os']['image_radical']})
             self._regular_cycles = 0
             return
-        outcome = await self.probe_docker_host(ssh_timeout)
-        if outcome == 'refused' and probe22:
+        outcome, host = await self.probe_docker_host(ssh_timeout)
+        if outcome == 'docker':
+            self.set_info(
+                {'metal': self.metal_record(host),
+                 'container': self.container_record(host['docker'], probe22)},
+                host['docker'],
+                {'image_radical': host['os']['image_radical']})
+            self._regular_cycles = 0
+        elif outcome == 'refused' and probe22:
             self._regular_cycles += 1
             # first data we have for this node: no need to wait
             if (self._regular_cycles >= self.REGULAR_CYCLES
                     or 'docker_version' not in self.info):
-                self.set_info(probe22['docker'],
-                              {'image_radical': probe22['image_radical']})
+                self.set_info(
+                    {'metal': self.metal_record(probe22), 'container': None},
+                    probe22['docker'],
+                    {'image_radical': probe22['os']['image_radical']})
         else:
             self._regular_cycles = 0
 
-    def parse_ssh_probe_output(self,      # pylint: disable=r0912, r0914, r0915
-                               stdout, padding_dict):
+    def parse_probe_output(self,          # pylint: disable=r0912, r0914, r0915
+                           stdout, port):
+        """
+        parses the output of os_commands + docker_commands, as run on
+        some port; returns {'port', 'os': {...}, 'docker': {...}}
+        """
         os_release = "other"
         gnuradio_release = "none"
         uname = ""
@@ -283,17 +372,30 @@ class MonitorNode:
         if osr.get('ID'):
             os_release = osr['ID'] + (
                 f"-{osr['VERSION_ID']}" if osr.get('VERSION_ID') else "")
-        # port 22 may well be in a container, where docker is not visible:
-        # what is learned about docker and the image is decided in
-        # probe_docker_info, once we know where we are
-        self._probe22 = {'docker': self.parse_docker_output(stdout),
-                         'image_radical': image_radical}
+        return {
+            'port': port,
+            'os': {'os_release': os_release,
+                   'pretty_name': osr.get('PRETTY_NAME', ""),
+                   'gnuradio_release': gnuradio_release,
+                   'uname': uname,
+                   'image_radical': image_radical},
+            'docker': self.parse_docker_output(stdout),
+        }
+
+    def parse_ssh_probe_output(self, stdout, padding_dict):
+        """
+        the port 22 probe: this may well be in a container, where docker is
+        not visible; what is learned about the metal, docker and the image
+        is decided in probe_setup, once we know where we are
+        """
+        self._probe22 = self.parse_probe_output(stdout, 22)
         # xxx would make sense to clean up history for measurements that
         # we were not able to collect at this cycle
+        os_info = self._probe22['os']
         self.set_info({
-            'os_release': os_release,
-            'gnuradio_release': gnuradio_release,
-            'uname': uname,
+            'os_release': os_info['os_release'],
+            'gnuradio_release': os_info['gnuradio_release'],
+            'uname': os_info['uname'],
             }, padding_dict)
 
     async def probe(self,                 # pylint: disable=r0912, r0914, r0915
@@ -331,20 +433,7 @@ class MonitorNode:
             'control_ssh': 'on',
         }
 
-        remote_commands = [
-            "cat /etc/lsb-release /etc/redhat-release /etc/gnuradio-release "
-            "2> /dev/null | grep -i release",
-            "grep -E '^(ID|VERSION_ID)=' /etc/os-release 2> /dev/null "
-            "| sed 's/^/OSR:/'",
-            "echo -n GNURADIO: ; gnuradio-config-info --version "
-            "2> /dev/null || echo none",
-            # this trick allows to have the filename on each output line
-            "grep . /etc/rhubarbe-image /dev/null",
-            "echo -n UNAME: ; uname -r",
-            "echo -n DOCKER: ; docker --version",
-            "echo -n CONTAINER: ; docker inspect "
-                "--format='{{.State.Running}} {{.Config.Image}}' container",
-            ]
+        remote_commands = self.os_commands + self.docker_commands
         # reconnect each time
         self.set_info({'control_ssh': 'off'})
         self._probe22 = None
@@ -382,7 +471,7 @@ class MonitorNode:
                 except Exception:                                   # pylint: disable=broad-except
                     logger.exception("monitornodes remote_command failed")
         # in a container, docker can only be seen from the host
-        await self.probe_docker_info(ssh_timeout)
+        await self.probe_setup(ssh_timeout)
         logger.info(f"{self.node.control_hostname()} ssh-based logic done "
                     f"ssh is deemed {self.info['control_ssh']}")
 
