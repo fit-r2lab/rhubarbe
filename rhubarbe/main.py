@@ -1248,7 +1248,8 @@ def docker_load(host_image, keep_host, container_image, timeout, bandwidth,
     This function requires a valid reservation
     - or to be root or a privileged user.
     """
-    from rhubarbe.dockercmd import deploy
+    from rhubarbe.dockercmd import deploy, say, start_clock
+    start_clock()
     config = Config()
     config.check_binaries()
     host_port, backoff, _ = _docker_ssh_settings()
@@ -1291,7 +1292,7 @@ def docker_load(host_image, keep_host, container_image, timeout, bandwidth,
             sys.exit(retcod)
 
     # phase 2 : run the container through the host's sshd
-    print(f"running container image {container_image}")
+    say(f"running container image {container_image}")
     message_bus = asyncio.Queue()
     node_list = [Node(cmc_name, message_bus)
                  for cmc_name in selector.cmc_names()]
@@ -1301,7 +1302,7 @@ def docker_load(host_image, keep_host, container_image, timeout, bandwidth,
     results = _run_docker_jobs(jobs, timeout)
     for node, ok in zip(node_list, results):
         if not ok:
-            print(f"{node.control_hostname()}: docker load KO")
+            say(f"{node.control_hostname()}: docker load KO")
     sys.exit(0 if all(results) else 1)
 
 

@@ -166,4 +166,4 @@ class Config(metaclass=Singleton):
                 logger.critical(message)
                 raise Exception(message)
             else:
-                print(f"Found binary {binary} as {checked}")
+                logger.info(f"Found binary {binary} as {checked}")

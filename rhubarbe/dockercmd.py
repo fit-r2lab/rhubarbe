@@ -14,6 +14,7 @@ Conventions (see the [docker] section in rhubarbe.conf)
 # pylint: disable=logging-fstring-interpolation
 
 import os
+import time
 import json
 import shlex
 import asyncio
@@ -33,6 +34,26 @@ HOST_INJECT_DIR = "/opt/rhubarbe/inject"
 CONTAINER_INJECT_DIR = "/.rhubarbe"
 # on the node, what is mounted as /var in the container
 PERSISTENT_VAR = "/home/container/container_fs"
+
+
+_start_time = None
+
+
+def start_clock(start=None):
+    """
+    origin of the +NNNs counters in the messages; called at the beginning of
+    the command, so that the counters carry on from the frisbee phase
+    """
+    global _start_time                                  # pylint: disable=w0603
+    _start_time = start or time.time()
+
+
+def say(text):
+    """print on the terminal, with the same prefix as the loading phase"""
+    if _start_time is None:
+        start_clock()
+    print(f"{time.strftime('%H:%M:%S')} - "
+          f"+{int(time.time() - _start_time):03}s: {text}", flush=True)
 
 
 def prefix():
@@ -316,6 +337,8 @@ async def configure_mirror(ssh):
     if settings is None and not is_podman:
         return True
     url, host, insecure = settings or (None, None, False)
+    say(f"{ssh.node.control_hostname()}: configuring the registry "
+        f"mirror ({'podman' if is_podman else 'docker'})")
     if is_podman:
         # written even without a mirror, for the short names
         conf = podman_registries_conf(host, insecure)
@@ -350,7 +373,7 @@ async def _step(ssh, command, label):
     status, output = await ssh.run(command, with_status=True)
     ok = status == 0
     if not ok:
-        print(f"{ssh.node.control_hostname()}: {label} FAILED "
+        say(f"{ssh.node.control_hostname()}: {label} FAILED "
               f"(status={status}) {(output or '').strip()}")
     logger.info(f"{ssh.node.control_hostname()}: {label} -> {status}")
     return ok
@@ -385,17 +408,20 @@ def pull_diagnosis(output):
 async def _pull(ssh, image):
     """docker pull; says in plain words why it failed"""
     name = ssh.node.control_hostname()
+    say(f"{name}: pulling {image}")
+    begin = time.time()
     status, output = await ssh.run(
         f"docker pull {shlex.quote(image)}", with_status=True)
     logger.info(f"{name}: pull -> {status}")
     if status == 0:
+        say(f"{name}: pulled {image} in {time.time() - begin:.0f}s")
         return True
     lines = (output or "").strip().splitlines()
     why = pull_diagnosis(output)
-    print(f"{name}: cannot pull {image}"
+    say(f"{name}: cannot pull {image}"
           + (f": {why}" if why else f" (status={status})"))
     if lines:
-        print(f"{name}: engine said: {lines[-1]}")
+        say(f"{name}: engine said: {lines[-1]}")
     return False
 
 
@@ -411,12 +437,12 @@ async def remove_previous(ssh):
         with_status=True)
     previous = (output or '').strip()
     if status != 0:
-        print(f"{name}: could not look for a previous container: {previous}")
+        say(f"{name}: could not look for a previous container: {previous}")
         return False
     if not previous:
-        print(f"{name}: no previous container")
+        say(f"{name}: no previous container")
         return True
-    print(f"{name}: removing previous container {previous}")
+    say(f"{name}: removing previous container {previous}")
     return await _step(ssh, f"docker rm -fv {CONTAINER_NAME}", "remove")
 
 
@@ -426,6 +452,7 @@ async def _still_running(ssh):
     (e.g. a plain ubuntu image runs bash, which finds no tty and quits);
     so give it a moment and check it is still there
     """
+    say(f"{ssh.node.control_hostname()}: checking that the container stays up")
     status, output = await ssh.run(
         f"sleep 2; docker inspect -f '{{{{.State.Running}}}}' {CONTAINER_NAME}"
         f" || true", with_status=True)
@@ -435,7 +462,7 @@ async def _still_running(ssh):
         f"docker inspect -f 'exit code {{{{.State.ExitCode}}}}, "
         f"command: {{{{.Path}}}} {{{{.Args}}}}' {CONTAINER_NAME}; "
         f"docker logs --tail 5 {CONTAINER_NAME} 2>&1", with_status=True)
-    print(f"{ssh.node.control_hostname()}: container exited right after "
+    say(f"{ssh.node.control_hostname()}: container exited right after "
           f"start - its image must run a long-lived command "
           f"(init/systemd or sshd -D)\n{(logs or '').strip()}")
     return False
@@ -457,13 +484,14 @@ async def prepare_injection(ssh):
         return None
     name = ssh.node.control_hostname()
     if not dropbear.exists():
-        print(f"{name}: [docker] dropbear = {dropbear} not found; "
+        say(f"{name}: [docker] dropbear = {dropbear} not found; "
               f"see r2lab-imaging/docker/dropbear")
         return False
+    say(f"{name}: uploading the injected sshd")
     if not await _step(ssh, f"mkdir -p {HOST_INJECT_DIR}", "inject dir"):
         return False
     if not await ssh.put(dropbear, f"{HOST_INJECT_DIR}/dropbear"):
-        print(f"{name}: could not upload {dropbear}")
+        say(f"{name}: could not upload {dropbear}")
         return False
     return await _step(ssh, f"chmod 755 {HOST_INJECT_DIR}/dropbear",
                        "inject dropbear")
@@ -481,19 +509,23 @@ async def ensure_sshd(ssh, injected):
     otherwise, if injection is set up, start the injected dropbear
     """
     grace = int(_config_value('sshd_grace') or 10)
+    name = ssh.node.control_hostname()
+    say(f"{name}: looking for an sshd in the container")
     for _ in range(grace):
         if await _port22_listening(ssh):
+            say(f"{name}: sshd found in the container")
             return True
         await asyncio.sleep(1)
     if not injected:
         # not an error as such: the image may not offer ssh at all
-        print(f"{ssh.node.control_hostname()}: nothing listens on port 22 "
+        say(f"{ssh.node.control_hostname()}: nothing listens on port 22 "
               f"in the container (no sshd in the image, and "
               f"[docker] dropbear is not set)")
         return True
     # no access control on the testbed (access is controlled upstream, at
     # the gateway): root gets an empty password, and dropbear accepts it
     d = CONTAINER_INJECT_DIR
+    say(f"{name}: none found, injecting a static sshd")
     if not await _step(
             ssh,
             f"docker exec -u 0 {CONTAINER_NAME} "
@@ -518,7 +550,7 @@ async def ensure_sshd(ssh, injected):
         await asyncio.sleep(1)
         if await _port22_listening(ssh):
             return True
-    print(f"{ssh.node.control_hostname()}: injected sshd does not listen "
+    say(f"{ssh.node.control_hostname()}: injected sshd does not listen "
           f"on port 22")
     return False
 
@@ -531,7 +563,7 @@ async def deploy(node, image, **kwargs):
         import traceback
         logger.error(f"{node.control_hostname()}: deploy failed\n"
                      f"{traceback.format_exc()}")
-        print(f"{node.control_hostname()}: exception "
+        say(f"{node.control_hostname()}: exception "
               f"{type(exc).__name__}: {exc}\n{traceback.format_exc()}")
         return False
 
@@ -542,11 +574,13 @@ async def _deploy(node, image, *, host_port, backoff, wait_container):
     pull the container image and run it; returns True if all went well
     """
     name = node.control_hostname()
+    say(f"{name}: waiting for the host to boot (ssh on port {host_port})")
     if not await SshProxy(node, port=host_port).wait_for(backoff):
         return False
+    say(f"{name}: host ssh is up")
     async with SshProxy(node, port=host_port) as ssh:
         if not await ssh.connect(timeout=10.):
-            print(f"{name}: host ssh on port {host_port} KO")
+            say(f"{name}: host ssh on port {host_port} KO")
             return False
         # the previous container goes first: configuring the engine may
         # restart it, and the pull must happen once the mirror is set up
@@ -559,6 +593,7 @@ async def _deploy(node, image, *, host_port, backoff, wait_container):
         injected = await prepare_injection(ssh)
         if injected is False:
             return False
+        say(f"{name}: starting the container")
         if not await _step(ssh, run_command(image, bool(injected)), "run"):
             return False
         if not await _still_running(ssh):
@@ -567,9 +602,10 @@ async def _deploy(node, image, *, host_port, backoff, wait_container):
             return False
     if wait_container:
         # container's sshd, on the standard port
+        say(f"{name}: waiting for the container's ssh on port 22")
         if not await SshProxy(node).wait_for(backoff):
             return False
-    print(f"{name}: container running {image}")
+    say(f"{name}: container running {image}")
     return True
 
 
@@ -598,12 +634,12 @@ async def commit_and_push(node, image, *, host_port):
     """
     async with SshProxy(node, port=host_port) as ssh:
         if not await ssh.connect(timeout=10.):
-            print(f"{node.control_hostname()}: host ssh on port {host_port} KO")
+            say(f"{node.control_hostname()}: host ssh on port {host_port} KO")
             return False
         for label, command in (
                 ("commit", f"docker commit {CONTAINER_NAME} {shlex.quote(image)}"),
                 ("push", push_command(image))):
             if not await _step(ssh, command, label):
                 return False
-    print(f"{node.control_hostname()}: pushed {image}")
+    say(f"{node.control_hostname()}: pushed {image}")
     return True
