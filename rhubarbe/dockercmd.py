@@ -14,6 +14,7 @@ Conventions (see the [docker] section in rhubarbe.conf)
 # pylint: disable=logging-fstring-interpolation
 
 import os
+import re
 import time
 import json
 import shlex
@@ -104,6 +105,109 @@ def repository_and_tag(ref):
     if not name.startswith(f"{prefix()}/"):
         name = f"{prefix()}/{name}"
     return name, tag
+
+
+HUB_NAMES = ('docker.io', 'index.docker.io', 'registry-1.docker.io')
+
+
+def parse_reference(ref):
+    """
+    splits a reference into (registry, repository, tag or digest);
+    registry is None for Docker Hub, whose bare names live under library/
+    """
+    name, _, digest = ref.partition('@')
+    first, sep, rest = name.partition('/')
+    registry = None
+    if sep and _looks_like_registry(first):
+        registry, name = first, rest
+        if registry in HUB_NAMES:
+            registry = None
+    last = name.rpartition('/')[2]
+    if not digest and ':' in last:
+        name, _, reference = name.rpartition(':')
+    else:
+        reference = digest or 'latest'
+    if registry is None and '/' not in name:
+        name = f"library/{name}"
+    return registry, name, reference
+
+
+def _bearer_token(challenge, repository):
+    """
+    the anonymous pull token for a 'WWW-Authenticate: Bearer ...' challenge,
+    None if there is none to be had
+    """
+    if not challenge.lower().startswith('bearer '):
+        return None
+    fields = dict(re.findall(r'(\w+)="([^"]*)"', challenge))
+    realm = fields.get('realm')
+    if not realm:
+        return None
+    params = {'service': fields.get('service', ''),
+              'scope': fields.get('scope') or f"repository:{repository}:pull"}
+    response = requests.get(realm, params=params, timeout=10)
+    if response.status_code != 200:
+        return None
+    data = response.json()
+    return data.get('token') or data.get('access_token')
+
+
+def image_status(ref):
+    """
+    is that image there ? 'exists', 'missing' (the registry says no, or
+    refuses an anonymous pull, which would make the pull fail as well), or
+    'unknown' when we cannot tell (network, odd answer): nodes may have a
+    connectivity that we do not have
+    """
+    registry, repository, reference = parse_reference(ref)
+    host = registry or 'registry-1.docker.io'
+    url = f"https://{host}/v2/{repository}/manifests/{reference}"
+    headers = {'Accept': MANIFEST_TYPES}
+    try:
+        response = requests.head(url, headers=headers, timeout=10)
+        if response.status_code == 401:
+            token = _bearer_token(
+                response.headers.get('WWW-Authenticate', ''), repository)
+            if token is None:
+                return 'unknown'
+            headers['Authorization'] = f"Bearer {token}"
+            response = requests.head(url, headers=headers, timeout=10)
+            if response.status_code in (401, 403):
+                return 'missing'
+    except (requests.RequestException, ValueError):
+        return 'unknown'
+    if response.status_code == 200:
+        return 'exists'
+    return 'missing' if response.status_code == 404 else 'unknown'
+
+
+def load_reference(ref):
+    """
+    what 'docker load -i REF' should pull, and whether it is there:
+    returns (reference, status), status as in image_status
+
+    * a reference with a registry is taken as is
+    * 'prefix/name' goes to our registry
+    * anything else is looked for in our namespace first, so that what
+      'docker save -o foo' pushed can be loaded with '-i foo'; if it is not
+      there, the reference is left alone (Docker Hub, through the mirror)
+    """
+    registry = Config().value('docker', 'registry')
+    first, sep, _ = ref.partition('/')
+    if sep and _looks_like_registry(first):
+        return ref, image_status(ref)
+    if ref.startswith(f"{prefix()}/"):
+        full = f"{registry}/{ref}"
+        return full, image_status(full)
+    candidate = f"{registry}/{prefix()}/{ref}"
+    if image_status(candidate) == 'exists':
+        say(f"{ref} -> {candidate}")
+        if image_status(ref) == 'exists':
+            say(f"warning: {ref} also exists on Docker Hub, which this "
+                f"saved image hides; use docker.io/{parse_reference(ref)[1]} "
+                f"to get that one instead")
+        return candidate, 'exists'
+    return ref, image_status(ref)
 
 
 def registry_api_url(path=""):

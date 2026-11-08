@@ -89,11 +89,22 @@ If the mirror moves, change `[docker] mirror` - no image to rebuild. No
 
 ### Image names
 
-- `docker load -i REF`: **REF is passed untouched** to `docker pull`.
-  So `ubuntu`, `jupyter/base-notebook` go to Docker Hub (through the mirror),
-  `quay.io/org/img` goes to quay.io (not cached), and one's own images are
-  named in full: `registry.example/foo`
-- `docker save -o REF`: pushes to our namespace in the private registry:
+- `docker load -i REF`: before anything is done to the nodes, the image is
+  looked for (a HEAD on its manifest, with the anonymous token that Docker
+  Hub, quay.io... give); if it is missing the command stops at once,
+  and if we cannot tell (no network from here...) it goes on, the pull on the
+  node being the authority. Then REF is resolved:
+  - a reference that names a registry is passed untouched:
+    `quay.io/org/img` goes to quay.io (not cached), `registry.example/foo`
+    to that registry
+  - `r2lab/foo` (our prefix) goes to our registry
+  - otherwise, our namespace is tried first, so that what `save -o foo`
+    pushed loads with `-i foo`, and the resolution is printed; if it is
+    not there, REF goes to Docker Hub (through the mirror) as before:
+    `ubuntu`, `jupyter/base-notebook`. When a saved image hides a Docker Hub
+    one, a warning says so; `-i docker.io/library/NAME` forces the Hub
+- `docker save -o REF` asks for confirmation if the image already exists
+  (`-y` to skip), then pushes to our namespace in the private registry:
   `save -o my-arch` pushes `registry/r2lab/my-arch`, where `registry` and
   `r2lab` (the prefix) are `[docker] registry` and `[docker] prefix`. They
   are added unless already there; a reference with another registry is left

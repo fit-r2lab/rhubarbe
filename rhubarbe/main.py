@@ -1268,6 +1268,17 @@ def docker_load(host_image, keep_host, container_image, timeout, bandwidth,
     if selector.is_empty():
         raise click.UsageError("no nodes selected")
 
+    # find out what is going to be pulled, and that it exists, before
+    # spending minutes on the host image
+    from rhubarbe.dockercmd import load_reference
+    container_image, status = load_reference(container_image)
+    if status == 'missing':
+        say(f"{container_image}: no such image, or not accessible - "
+            f"nothing was done")
+        sys.exit(1)
+    if status == 'unknown':
+        say(f"{container_image}: could not check that it exists, going on")
+
     if keep_host and host_image_given:
         raise click.UsageError("--keep-host and --host-image are exclusive")
     if not keep_host:
@@ -1408,15 +1419,33 @@ def docker_url(path):
 @click.option('-o', '--output', 'image', required=True,
               help="container image reference to commit and push; the [docker] "
                    "registry and prefix are added unless a registry is given")
+@click.option('-y', '--yes', is_flag=True, default=False,
+              help="overwrite an existing image without asking")
 @_timeout_option('docker_default_timeout')
 @click.argument('node')
-def docker_save(image, timeout, node):
-    """Commit the container on a node and push it to the registry."""
+def docker_save(image, yes, timeout, node):
+    """Commit the container on a node and push it to the registry.
+
+    Asks for confirmation if that image already exists, unless -y.
+    """
+    import requests
     from rhubarbe.dockercmd import commit_and_push, save_reference, \
-        say, start_clock
-    start_clock()
+        say, start_clock, repository_and_tag, manifest_digest
     host_port, _, _ = _docker_ssh_settings()
     image = save_reference(image)
+    try:
+        existing = manifest_digest(*repository_and_tag(image))
+    except ValueError:
+        existing = None             # another registry: not ours to check
+    except requests.RequestException as exc:
+        existing = None
+        print(f"could not check whether {image} exists ({exc}), going on")
+    if existing and not yes:
+        if not click.confirm(f"{image} already exists ({existing[:19]}...), "
+                             f"overwrite it?"):
+            print("nothing was done")
+            sys.exit(1)
+    start_clock()
 
     selector = Selector()
     selector.add_range(node)
