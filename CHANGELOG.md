@@ -1,5 +1,20 @@
 # Changelog
 
+## 11.2.0 - 2026 Nov 8
+
+- monitornodes: what runs on a node is now reported as two records, `metal`
+  (ssh_port, os_release, pretty_name, image_radical, uname, gnuradio_release,
+  docker_version, seen) for the bare machine, and `container` (image, running,
+  started, os_release, pretty_name, seen) for the container of a docker node,
+  null on a regular node; they are only replaced as a whole by a probe that
+  succeeded, and `seen` is refreshed only when the record changes or every 5
+  minutes, so that the sidecar does not rebroadcast every node at every cycle
+- monitornodes no longer reports the flat keys that these records replace:
+  os_release, gnuradio_release, uname, image_radical, docker_version,
+  container_running, container_image and container_started; clients must use
+  `metal` and `container`; a sidecar database that still holds them can be
+  cleaned with `deploy/clean-nodes.py` in r2lab-sidecar
+
 ## 11.1.2 - 2026 Nov 8
 
 - docker load: checks that the image exists before burning anything, and
