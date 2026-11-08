@@ -1412,7 +1412,9 @@ def docker_url(path):
 @click.argument('node')
 def docker_save(image, timeout, node):
     """Commit the container on a node and push it to the registry."""
-    from rhubarbe.dockercmd import commit_and_push, save_reference
+    from rhubarbe.dockercmd import commit_and_push, save_reference, \
+        say, start_clock
+    start_clock()
     host_port, _, _ = _docker_ssh_settings()
     image = save_reference(image)
 
@@ -1425,7 +1427,7 @@ def docker_save(image, timeout, node):
     results = _run_docker_jobs(
         [Job(commit_and_push(node_obj, image, host_port=host_port))], timeout)
     if not results[0]:
-        print(f"{node_obj.control_hostname()}: docker save KO")
+        say(f"{node_obj.control_hostname()}: docker save KO")
     sys.exit(0 if results[0] else 1)
 
 

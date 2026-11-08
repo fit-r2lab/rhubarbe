@@ -638,10 +638,17 @@ async def commit_and_push(node, image, *, host_port):
         if not await ssh.connect(timeout=10.):
             say(f"{node.control_hostname()}: host ssh on port {host_port} KO")
             return False
-        for label, command in (
-                ("commit", f"docker commit {CONTAINER_NAME} {shlex.quote(image)}"),
-                ("push", push_command(image))):
+        name = node.control_hostname()
+        for label, doing, done, command in (
+                ("commit", f"committing the container as {image}",
+                 "committed",
+                 f"docker commit {CONTAINER_NAME} {shlex.quote(image)}"),
+                ("push", f"pushing {image}", "pushed",
+                 push_command(image))):
+            say(f"{name}: {doing}")
+            begin = time.time()
             if not await _step(ssh, command, label):
                 return False
-    say(f"{node.control_hostname()}: pushed {image}")
+            say(f"{name}: {done} in {time.time() - begin:.0f}s")
+    say(f"{name}: saved {image}")
     return True
