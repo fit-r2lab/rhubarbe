@@ -32,9 +32,12 @@ def one_char_summary(info):
         return 'o'
     if 'control_ssh' in info and info['control_ssh'] != 'on':
         return '0'
-    if 'os_release' in info and 'fedora' in info['os_release']:
+    # what the user runs on: the container if any, otherwise the metal
+    os_release = ((info.get('container') or {}).get('os_release')
+                  or (info.get('metal') or {}).get('os_release') or '')
+    if 'fedora' in os_release:
         return 'F'
-    if 'os_release' in info and 'ubuntu' in info['os_release']:
+    if 'ubuntu' in os_release:
         return 'U'
     return '^'
 
@@ -284,9 +287,7 @@ class MonitorNode:
 
     async def probe_setup(self, ssh_timeout):
         """
-        what runs on the node: the 'metal' and 'container' sub-records and,
-        for the clients that do not know about them yet, the legacy flat keys
-        (os_release, image_radical, docker_version, container_*).
+        what runs on the node: the 'metal' and 'container' sub-records
 
         These are only written when what we saw is conclusive: whatever a
         partial probe could not see keeps its last value, which is what is
@@ -295,30 +296,24 @@ class MonitorNode:
         probe22 = self._probe22
         if probe22 and probe22['docker']['docker_version']:
             # a docker image whose own sshd is on port 22: no container side
-            docker = probe22['docker']
             self.set_info(
                 {'metal': self.metal_record(probe22),
-                 'container': self.container_record(docker, None)},
-                docker, {'image_radical': probe22['os']['image_radical']})
+                 'container': self.container_record(probe22['docker'], None)})
             self._regular_cycles = 0
             return
         outcome, host = await self.probe_docker_host(ssh_timeout)
         if outcome == 'docker':
             self.set_info(
                 {'metal': self.metal_record(host),
-                 'container': self.container_record(host['docker'], probe22)},
-                host['docker'],
-                {'image_radical': host['os']['image_radical']})
+                 'container': self.container_record(host['docker'], probe22)})
             self._regular_cycles = 0
         elif outcome == 'refused' and probe22:
             self._regular_cycles += 1
             # first data we have for this node: no need to wait
             if (self._regular_cycles >= self.REGULAR_CYCLES
-                    or 'docker_version' not in self.info):
+                    or 'metal' not in self.info):
                 self.set_info(
-                    {'metal': self.metal_record(probe22), 'container': None},
-                    probe22['docker'],
-                    {'image_radical': probe22['os']['image_radical']})
+                    {'metal': self.metal_record(probe22), 'container': None})
         else:
             self._regular_cycles = 0
 
@@ -389,14 +384,8 @@ class MonitorNode:
         is decided in probe_setup, once we know where we are
         """
         self._probe22 = self.parse_probe_output(stdout, 22)
-        # xxx would make sense to clean up history for measurements that
-        # we were not able to collect at this cycle
-        os_info = self._probe22['os']
-        self.set_info({
-            'os_release': os_info['os_release'],
-            'gnuradio_release': os_info['gnuradio_release'],
-            'uname': os_info['uname'],
-            }, padding_dict)
+        # padding_dict is control_ssh and control_ping on
+        self.set_info(padding_dict)
 
     async def probe(self,                 # pylint: disable=r0912, r0914, r0915
                     ping_timeout, ssh_timeout):
@@ -409,7 +398,7 @@ class MonitorNode:
         padding_dict = {
             'control_ping': 'off',
             'control_ssh': 'off',
-            # don't overwrite os_release though
+            # don't overwrite metal and container though
         }
         # get USRP status no matter what - use "" if we receive None
         # to limit noise when the node is physically removed
