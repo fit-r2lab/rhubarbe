@@ -1,5 +1,16 @@
 # Changelog
 
+## 11.1.2 - 2026 Nov 8
+
+- docker load: checks that the image exists before burning anything, and
+  finds the images saved with docker save: `-i foo` or `-i r2lab/foo` come from
+  our registry (Docker Hub otherwise, with a warning if a saved image hides one)
+- docker save asks before overwriting an existing image (-y to skip)
+- monitornodes: a partial probe (e.g. while a docker node shuts down) no longer
+  erases the last known docker_version, container_* and image_radical, so that
+  a node that is off keeps showing its last setup; a node is deemed to have
+  become a regular one only after 2 consecutive cycles without a docker host
+
 ## 11.1.1 - 2026 Nov 7
 
 - docker load: a failed pull is explained in plain words (unknown short name,
