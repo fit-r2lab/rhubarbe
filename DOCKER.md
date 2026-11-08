@@ -231,3 +231,19 @@ Not covered yet:
    (nothing should be injected)
 3. what the node got from the mirror setting:
    `ssh -p 2222 root@fit11 cat /etc/docker/daemon.json`
+
+## appendix: docker names for the main linux distros
+
+| tag | comment |
+|-|-|
+| `ubuntu:26.04` | |
+| `fedora:45` | or `:latest` |
+| `debian:trixie` | |
+| `rockylinux:9` | |
+| `almalinux:9` | |
+| `opensuse/leap:15.6` | |
+| `opensuse/tumbleweed` | |
+| `archlinux:latest` | |
+| `alpine:3.24` | or `:latest` |
+| `quay.io/centos/centos:stream9` | |
+| `linuxmintd/mint22-amd64` | third party|
