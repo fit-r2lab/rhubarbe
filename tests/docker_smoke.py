@@ -323,6 +323,15 @@ def phase_save_rmi(args, targets):
     found, out = listed(args, SAVE_NAME)
     results.append(("rmi-image-gone",
                     ko("still listed") if found else ok()))
+    # last, as a failure here would replace the container with nothing
+    begin = time.time()
+    code, out = run([args.rhubarbe, "docker", "load", "-k",
+                     "-i", "smoke-does-not-exist:none", node], 120)
+    results.append(("load-missing-image-fails-fast", ok()
+                    if code != 0 and "no such image" in out
+                    and time.time() - begin < 60
+                    else ko(f"status {code} after "
+                            f"{time.time() - begin:.0f}s: {tail(out)}")))
     if args.gc_command:
         code, out = run(shlex.split(args.gc_command), 600)
         results.append(("registry-gc", ok() if code == 0
