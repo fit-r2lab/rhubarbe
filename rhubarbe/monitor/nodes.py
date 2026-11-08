@@ -83,6 +83,10 @@ class MonitorNode:
         self.id = node.id
         # for the watchdog
         self.last_probe_end = time.time()
+        # what the last port-22 probe found, None if it failed
+        self._probe22 = None
+        # see probe_docker_info
+        self._regular_cycles = 0
 
     def set_info(self, *overrides):
         """
@@ -158,33 +162,80 @@ class MonitorNode:
         On a node that runs a container, port 22 leads into the container,
         where there is no docker; the host has its own sshd on another port
         ([docker] host_ssh_port), that we use to learn about docker and
-        the container. Does nothing if the host does not answer there.
+        the container.
+        returns what happened:
+        . 'docker': the host answered and has docker; the info is set
+        . 'refused': nothing listens there, so this is not a docker host
+        . 'unknown': we could not tell (timeout, no docker, any failure)
         """
         try:
             port = int(Config().value('docker', 'host_ssh_port'))
         except Exception:                               # pylint: disable=w0703
             port = 2222
         name = self.node.control_hostname()
+        # a plain tcp connection tells 'refused' from the rest
+        try:
+            _, writer = await asyncio.wait_for(
+                asyncio.open_connection(self.node.control_hostname(), port),
+                timeout=ssh_timeout)
+            writer.close()
+        except ConnectionRefusedError:
+            return 'refused'
+        except Exception:                               # pylint: disable=w0703
+            return 'unknown'
         async with SshProxy(self.node, port=port) as ssh:
             try:
                 if not await asyncio.wait_for(
                         ssh.connect(), timeout=ssh_timeout):
-                    return
+                    return 'unknown'
                 output = await asyncio.wait_for(
                     ssh.run(";".join(self.docker_commands)),
                     timeout=ssh_timeout)
-                if output:
-                    self.set_info(self.parse_docker_output(output))
-                    for line in output.split("\n"):
-                        if match := self.rhubarbe_image_matcher.match(line):
-                            self.set_info({'image_radical':
-                                           match.group('image_radical')})
-                    logger.info(f"{name}: docker host probe on port {port} "
-                                f"-> {self.info['docker_version']!r}")
+                docker_info = self.parse_docker_output(output or "")
+                if not docker_info['docker_version']:
+                    return 'unknown'
+                self.set_info(docker_info)
+                for line in output.split("\n"):
+                    if match := self.rhubarbe_image_matcher.match(line):
+                        self.set_info({'image_radical':
+                                       match.group('image_radical')})
+                logger.info(f"{name}: docker host probe on port {port} "
+                            f"-> {docker_info['docker_version']!r}")
+                return 'docker'
             except asyncio.TimeoutError:
                 logger.info(f"{name}: docker host probe timeout")
             except Exception:                           # pylint: disable=w0703
                 logger.exception(f"{name}: docker host probe failed")
+        return 'unknown'
+
+    # how many cycles in a row a node must look like a regular one (nothing
+    # on the docker host port) before we forget its docker info; shields from
+    # the transitional probes when a docker node reboots
+    REGULAR_CYCLES = 2
+
+    async def probe_docker_info(self, ssh_timeout):
+        """
+        sets the docker-related fields and image_radical, but only when what
+        we saw is conclusive: whatever a partial probe could not see keeps
+        its last value, which is what is shown for a node that is off
+        """
+        probe22 = self._probe22
+        if probe22 and probe22['docker']['docker_version']:
+            # a docker image whose own sshd is on port 22
+            self.set_info(probe22['docker'],
+                          {'image_radical': probe22['image_radical']})
+            self._regular_cycles = 0
+            return
+        outcome = await self.probe_docker_host(ssh_timeout)
+        if outcome == 'refused' and probe22:
+            self._regular_cycles += 1
+            # first data we have for this node: no need to wait
+            if (self._regular_cycles >= self.REGULAR_CYCLES
+                    or 'docker_version' not in self.info):
+                self.set_info(probe22['docker'],
+                              {'image_radical': probe22['image_radical']})
+        else:
+            self._regular_cycles = 0
 
     def parse_ssh_probe_output(self,      # pylint: disable=r0912, r0914, r0915
                                stdout, padding_dict):
@@ -232,15 +283,18 @@ class MonitorNode:
         if osr.get('ID'):
             os_release = osr['ID'] + (
                 f"-{osr['VERSION_ID']}" if osr.get('VERSION_ID') else "")
-        docker_info = self.parse_docker_output(stdout)
+        # port 22 may well be in a container, where docker is not visible:
+        # what is learned about docker and the image is decided in
+        # probe_docker_info, once we know where we are
+        self._probe22 = {'docker': self.parse_docker_output(stdout),
+                         'image_radical': image_radical}
         # xxx would make sense to clean up history for measurements that
         # we were not able to collect at this cycle
         self.set_info({
             'os_release': os_release,
             'gnuradio_release': gnuradio_release,
             'uname': uname,
-            'image_radical': image_radical,
-            }, docker_info, padding_dict)
+            }, padding_dict)
 
     async def probe(self,                 # pylint: disable=r0912, r0914, r0915
                     ping_timeout, ssh_timeout):
@@ -292,9 +346,8 @@ class MonitorNode:
                 "--format='{{.State.Running}} {{.Config.Image}}' container",
             ]
         # reconnect each time
-        # docker info is only valid if collected during this cycle
-        self.set_info({'control_ssh': 'off'},
-                      self.parse_docker_output(""))
+        self.set_info({'control_ssh': 'off'})
+        self._probe22 = None
         async with SshProxy(self.node) as ssh:
             logger.info(f"trying to ssh-connect to {self.node.control_hostname()} "
                         f"(timeout={ssh_timeout})")
@@ -329,8 +382,7 @@ class MonitorNode:
                 except Exception:                                   # pylint: disable=broad-except
                     logger.exception("monitornodes remote_command failed")
         # in a container, docker can only be seen from the host
-        if not self.info.get('docker_version'):
-            await self.probe_docker_host(ssh_timeout)
+        await self.probe_docker_info(ssh_timeout)
         logger.info(f"{self.node.control_hostname()} ssh-based logic done "
                     f"ssh is deemed {self.info['control_ssh']}")
 
