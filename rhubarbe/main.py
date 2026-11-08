@@ -1249,7 +1249,7 @@ def docker_load(host_image, keep_host, container_image, timeout, bandwidth,
     - or to be root or a privileged user.
     """
     from rhubarbe.dockercmd import deploy, say, start_clock
-    start_clock()
+    start_time = start_clock()
     config = Config()
     config.check_binaries()
     host_port, backoff, _ = _docker_ssh_settings()
@@ -1283,7 +1283,8 @@ def docker_load(host_image, keep_host, container_image, timeout, bandwidth,
         _check_frisbee_stacks(node_list)
         message_bus.put_nowait({'selected_nodes': selector})
         message_bus.put_nowait({'loading_image': actual_image})
-        display = Display(node_list, message_bus)
+        # same origin for the +NNNs counters as in phase 2
+        display = Display(node_list, message_bus, start_time=start_time)
         loader = ImageLoader(node_list, image=actual_image, bandwidth=bandwidth,
                              message_bus=message_bus, display=display)
         retcod = loader.main(reset=True, timeout=timeout)

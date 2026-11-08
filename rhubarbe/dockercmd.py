@@ -42,10 +42,12 @@ _start_time = None
 def start_clock(start=None):
     """
     origin of the +NNNs counters in the messages; called at the beginning of
-    the command, so that the counters carry on from the frisbee phase
+    the command, so that the counters carry on from the frisbee phase;
+    returns it, to be given to Display(start_time=...)
     """
     global _start_time                                  # pylint: disable=w0603
     _start_time = start or time.time()
+    return _start_time
 
 
 def say(text):

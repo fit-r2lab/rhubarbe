@@ -36,11 +36,14 @@ class DisplayNode:                                      # pylint: disable=r0903
 
 
 class Display:                                          # pylint: disable=r0902
-    def __init__(self, nodes, message_bus):
+    def __init__(self, nodes, message_bus, start_time=None):
         self.message_bus = message_bus
         self.nodes = nodes
         #
         self._alive = True
+        # origin of the +NNNs counters; set when run() starts unless
+        # given, which lets a command carry on the counters across phases
+        self._given_start_time = start_time
         self._start_time = None
         # this will go from 0 to 100*len(self.nodes)
         self.total_percent = 0
@@ -69,7 +72,7 @@ class Display:                                          # pylint: disable=r0902
 
     async def run(self):
         self.start_hook()
-        self._start_time = time.time()
+        self._start_time = self._given_start_time or time.time()
 
         while self._alive:
             message = await self.message_bus.get()
