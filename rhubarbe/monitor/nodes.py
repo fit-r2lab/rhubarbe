@@ -10,6 +10,7 @@ and reports it to the sidecar service
 
 # pylint: disable=fixme,logging-fstring-interpolation,missing-function-docstring
 
+import errno
 import re
 import time
 import asyncio
@@ -205,7 +206,8 @@ class MonitorNode:
         returns (outcome, result) where outcome is
         . 'docker': the host answered and has docker; result is
           {'port', 'os', 'docker'}, as parse_probe_output
-        . 'refused': nothing listens there, so this is not a docker host
+        . 'refused': nothing listens there (or a firewall rejects us),
+          so this is not a docker host
         . 'unknown': we could not tell (timeout, no docker, any failure)
         and result is None unless the outcome is 'docker'
         """
@@ -222,6 +224,13 @@ class MonitorNode:
             writer.close()
         except ConnectionRefusedError:
             return 'refused', None
+        except OSError as exc:
+            # a firewall that rejects with 'host prohibited', as fedora does,
+            # shows up as 'no route to host': same thing as refused, as we
+            # only get there when port 22 has just answered
+            if exc.errno == errno.EHOSTUNREACH:
+                return 'refused', None
+            return 'unknown', None
         except Exception:                               # pylint: disable=w0703
             return 'unknown', None
         async with SshProxy(self.node, port=port) as ssh:
@@ -332,6 +341,9 @@ class MonitorNode:
             self.set_info(
                 {'metal': self.metal_record(host),
                  'container': self.container_record(host['docker'], probe22)})
+            # we have just ssh-ed the node, if only on the host port: this is
+            # all there is to see on a docker node that has no container
+            self.set_info({'control_ssh': 'on', 'control_ping': 'on'})
             self._regular_cycles = 0
         elif outcome == 'refused' and probe22:
             self._regular_cycles += 1
