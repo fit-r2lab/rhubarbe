@@ -15,7 +15,9 @@ import time
 import asyncio
 
 from rhubarbe.config import Config
+from rhubarbe.inventorynodes import InventoryNodes
 from rhubarbe.node import Node
+from rhubarbe.r2labapiproxy import R2labApiProxy
 from rhubarbe.ssh import SshProxy
 # use a dedicated logger for monitors
 from rhubarbe.logger import monitor_logger as logger
@@ -84,12 +86,36 @@ class MonitorNode:
         # current info - will be reported to sidecar
         self.info = {'id': node.id}
         self.id = node.id
+        self.refresh_static()
         # for the watchdog
         self.last_probe_end = time.time()
         # what the last port-22 probe found, None if it failed
         self._probe22 = None
         # see probe_setup
         self._regular_cycles = 0
+
+    def refresh_static(self):
+        """
+        the 'static' record comes from the inventory, and is exposed as-is;
+        if it vanishes from the inventory we report None so that
+        the sidecar forgets it
+        """
+        static = InventoryNodes().static_info(self.node.cmc_name)
+        if static:
+            self.info['static'] = static
+        elif self.info.get('static'):
+            self.info['static'] = None
+
+    def set_availability(self, record):
+        """
+        record is what we got from r2labapi for this node, or None if it
+        has none, in which case the node is available; we expose the status,
+        and the reason and since when known, but not who set it
+        """
+        record = record or {}
+        self.info['availability'] = {
+            key: record[key] for key in ('status', 'reason', 'since')
+            if record.get(key)} or {'status': 'ok'}
 
     def set_info(self, *overrides):
         """
@@ -392,6 +418,9 @@ class MonitorNode:
         """
         The logic for getting one node's info and send it to sidecar
         """
+        # pick up a newly published inventory
+        InventoryNodes().reload_if_changed()
+        self.refresh_static()
         if self.verbose:
             logger.info(f"entering pass1, info={self.info}")
         # pass1 : check for status
@@ -505,6 +534,11 @@ class MonitorNodes:
         self.ssh_timeout = float(Config().value('networking', 'ssh_timeout'))
         self.log_period = float(Config().value('monitor', 'log_period'))
 
+        self.cycle_availability = float(
+            Config().value('monitor', 'cycle_availability'))
+        # reading availability needs no token, so we do not use one
+        self.api_url = Config().value('r2labapi', 'url')
+
         # websockets
         self.reconnectable = \
             ReconnectableSidecar(sidecar_url, 'nodes')
@@ -519,6 +553,34 @@ class MonitorNodes:
                                  self.monitor_nodes,
                                  stall_timeout=stall_timeout,
                                  check_period=stall_check_period)
+
+    def apply_availabilities(self, records):
+        """
+        records: what r2labapi returns, i.e. the nodes that have a record;
+        the others are available
+        """
+        by_id = {record['node_id']: record for record in records}
+        for monitor_node in self.monitor_nodes:
+            monitor_node.set_availability(by_id.get(monitor_node.id))
+
+    async def poll_availability(self):
+        """
+        keep the availability of the nodes in sync with r2labapi
+        if it cannot be reached we do nothing, so that every node keeps
+        the last availability we knew
+        """
+        proxy = R2labApiProxy(self.api_url)
+        while True:
+            try:
+                records = await asyncio.to_thread(
+                    proxy.get_node_availabilities)
+                self.apply_availabilities(records)
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:                    # pylint: disable=w0703
+                logger.info(f"r2labapi unreachable ({exc})"
+                            f" - keeping availabilities as they were")
+            await asyncio.sleep(self.cycle_availability)
 
     async def log(self):
         previous = 0
@@ -546,6 +608,7 @@ class MonitorNodes:
         await asyncio.gather(
             *probes,
             self.reconnectable.keep_connected(),
+            self.poll_availability(),
             self.log(),
             self.watchdog.run(),
         )

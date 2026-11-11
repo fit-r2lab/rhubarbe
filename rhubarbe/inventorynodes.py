@@ -9,6 +9,8 @@ Parse inventory yaml about nodes
 # r1705 else after return
 # pylint: disable=c0111, r1705
 
+from pathlib import Path
+
 import yaml
 
 from rhubarbe.singleton import Singleton
@@ -19,8 +21,46 @@ class InventoryNodes(metaclass=Singleton):
 
     def __init__(self):
         the_config = Config()
-        with open(the_config.value('testbed', 'inventory_nodes_path')) as feed:
+        self._path = Path(the_config.value('testbed', 'inventory_nodes_path'))
+        self._mtime = None
+        self._nodes = []
+        self._load()
+
+    def _load(self):
+        mtime = self._path.stat().st_mtime
+        with self._path.open() as feed:
             self._nodes = yaml.safe_load(feed)['nodes']
+        self._mtime = mtime
+
+    def reload_if_changed(self):
+        """
+        re-read the file if it changed since we read it,
+        e.g. because the inventory was published again
+        returns True if it was reloaded; on any error, keeps the previous
+        contents and returns False
+        """
+        try:
+            if self._path.stat().st_mtime == self._mtime:
+                return False
+            self._load()
+            return True
+        except Exception:                       # pylint: disable=w0703
+            return False
+
+    # an entry has one sub-record per interface (cmc, control, data),
+    # plus possibly this one, that is free-form and exposed as-is
+    STATIC_KEY = 'static'
+
+    def static_info(self, cmc_hostname):
+        """
+        the free-form 'static' record of the node with that cmc hostname,
+        e.g. 'reboot12', or None if there is none; we make no assumption
+        on its contents
+        """
+        for host in self._nodes:
+            if host['cmc']['hostname'] == cmc_hostname:
+                return host.get(self.STATIC_KEY)
+        return None
 
     def _locate_entry_from_key(self, key, value):
         """
@@ -32,6 +72,8 @@ class InventoryNodes(metaclass=Singleton):
          """
         for host in self._nodes:
             for k, v in host.items():                   # pylint: disable=c0103
+                if k == self.STATIC_KEY:
+                    continue
                 if v[key] == value:
                     return host, k
         return None, None
@@ -75,7 +117,8 @@ class InventoryNodes(metaclass=Singleton):
         print(20*'-', "INVENTORY CONTENTS")
         for node in self._nodes:
             print(" ".join([cell_repr(k, v, verbose)
-                            for k, v in node.items()]))
+                            for k, v in node.items()
+                            if k != self.STATIC_KEY]))
         print(20*'-', "INVENTORY END")
 
     def one_control_interface(self):

@@ -44,6 +44,7 @@ from .monitor.accountsmanager import AccountsManager
 from .ssh import SshProxy
 from .leases import Leases
 from .book import Book
+from .availability import Availability
 from .inventorynodes import InventoryNodes
 from .inventoryphones import InventoryPhones
 from .inventorypdus import InventoryPdus
@@ -780,6 +781,89 @@ def share(aliases, dry_run, force, clean, subdir, image):
     """
     imagesrepo = ImagesRepo()
     sys.exit(imagesrepo.share(image, aliases, dry_run, force, clean, subdir))
+
+
+####################
+# availability of nodes, kept in r2labapi
+
+
+def availability_auth_options(f):
+    f = click.option('-e', '--email',
+                     help="Email for authentication.")(f)
+    f = click.option('-p', '--password',
+                     help="Password for authentication.")(f)
+    return f
+
+
+def _selected_ids(ranges, all_nodes):
+    return sorted(build_selector(ranges, all_nodes).set)
+
+
+@cli.group(cls=AliasedGroup, invoke_without_command=True)
+@click.pass_context
+def available(ctx):
+    """Availability of nodes, as kept in r2labapi.
+
+    \b
+    Examples:
+      rhubarbe available                 # status of all nodes, like list -a
+      rhubarbe available list 1-5        # status of these nodes
+      rhubarbe available no -r "dead fan" 12
+      rhubarbe available yes 12
+      rhubarbe available history -l 5 12
+
+    Changing the availability requires a login/password for r2labapi
+    (or use -e / -p, or the environment variables R2LABAPI_EMAIL
+    and R2LABAPI_PASSWORD).
+    """
+    if ctx.invoked_subcommand is None:
+        ctx.invoke(available_list, all_nodes=True, ranges=())
+
+
+@available.command('yes')
+@availability_auth_options
+@selector_options
+def available_yes(all_nodes, ranges, email, password):
+    """Mark nodes as available."""
+    ids = _selected_ids(ranges, all_nodes)
+    sys.exit(Availability(email, password).set(ids, 'ok'))
+
+
+@available.command('no')
+@click.option('-r', '--reason', help="Why the nodes are not available; "
+              "shown in the web interface, and kept in the history.")
+@availability_auth_options
+@selector_options
+def available_no(all_nodes, ranges, reason, email, password):
+    """Mark nodes as not available."""
+    ids = _selected_ids(ranges, all_nodes)
+    sys.exit(Availability(email, password).set(ids, 'ko', reason))
+
+
+@available.command('list')
+@selector_options
+def available_list(all_nodes, ranges):
+    """Show the status of nodes, and why when they are not available.
+
+    Without nodes, shows all the nodes, like -a.
+    """
+    ids = sorted(build_selector(ranges, all_nodes,
+                                defaults_to_all=True).set)
+    sys.exit(Availability().show(ids))
+
+
+@available.command('history')
+@click.option('-l', '--limit', default=10, show_default=True,
+              help="How many changes per node.")
+@selector_options
+def available_history(all_nodes, ranges, limit):
+    """Show the latest changes of availability of nodes.
+
+    Without nodes, shows all the nodes, like -a.
+    """
+    ids = sorted(build_selector(ranges, all_nodes,
+                                defaults_to_all=True).set)
+    sys.exit(Availability().history(ids, limit))
 
 
 ####################

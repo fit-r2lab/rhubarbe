@@ -40,8 +40,11 @@ class R2labApiProxy:
       R2LABAPI_PASSWORD env vars)
     """
 
-    def __init__(self, url, admin_token=None):
+    def __init__(self, url, admin_token=None, timeout=30):
         self.url = url.rstrip('/')
+        # in seconds; requests has none by default, and we do not want
+        # a monitor to hang forever on an unresponsive api
+        self.timeout = timeout
         self.session = requests.Session()
         self.session.headers['Accept'] = 'application/json'
         if admin_token:
@@ -76,14 +79,15 @@ class R2labApiProxy:
 
     def _get(self, path, params=None):
         url = f'{self.url}{path}'
-        response = self.session.get(url, params=params)
+        response = self.session.get(url, params=params,
+                                    timeout=self.timeout)
         response.raise_for_status()
         return response.json()
 
     def _post(self, path, json=None):
         self.ensure_authenticated()
         url = f'{self.url}{path}'
-        response = self.session.post(url, json=json)
+        response = self.session.post(url, json=json, timeout=self.timeout)
         response.raise_for_status()
         if response.status_code == 204:
             return None
@@ -92,15 +96,23 @@ class R2labApiProxy:
     def _patch(self, path, json=None):
         self.ensure_authenticated()
         url = f'{self.url}{path}'
-        response = self.session.patch(url, json=json)
+        response = self.session.patch(url, json=json,
+                                      timeout=self.timeout)
         response.raise_for_status()
         return response.json()
 
     def _delete(self, path):
         self.ensure_authenticated()
         url = f'{self.url}{path}'
-        response = self.session.delete(url)
+        response = self.session.delete(url, timeout=self.timeout)
         response.raise_for_status()
+
+    def _put(self, path, json=None):
+        self.ensure_authenticated()
+        url = f'{self.url}{path}'
+        response = self.session.put(url, json=json, timeout=self.timeout)
+        response.raise_for_status()
+        return response.json()
 
     # ---- slices ----
 
@@ -166,6 +178,48 @@ class R2labApiProxy:
         Returns ResourceRead: {id, name, granularity}
         """
         return self._get(f'/resources/by-name/{name}')
+
+    # ---- nodes availability ----
+
+    def get_node_availabilities(self):
+        """
+        GET /nodes/availability - open, no token needed
+        Returns the list of NodeAvailabilityRead that have a record:
+          {node_id, status ('ok' | 'ko'), reason, since, set_by}
+        a node that is not in the list is available
+        """
+        return self._get('/nodes/availability')
+
+    def get_node_availability(self, node_id):
+        """
+        GET /nodes/{node_id}/availability - open, no token needed
+        Returns a NodeAvailabilityRead; 'ok' if the node has no record
+        """
+        return self._get(f'/nodes/{node_id}/availability')
+
+    def set_node_availability(self, node_id, status, reason=None):
+        """
+        PUT /nodes/{node_id}/availability - needs an admin token
+        status is 'ok' or 'ko'; the reason is only kept for 'ko'
+        Returns the NodeAvailabilityRead
+        """
+        body = {'status': status}
+        if reason:
+            body['reason'] = reason
+        return self._put(f'/nodes/{node_id}/availability', json=body)
+
+    def forget_node_availability(self, node_id):
+        """DELETE /nodes/{node_id}/availability - needs an admin token"""
+        self._delete(f'/nodes/{node_id}/availability')
+
+    def get_node_availability_history(self, node_id, limit=50):
+        """
+        GET /nodes/{node_id}/availability/history - open
+        Returns the latest changes, most recent first:
+          [{node_id, status, reason, at, set_by}]
+        """
+        return self._get(f'/nodes/{node_id}/availability/history',
+                         params={'limit': limit})
 
     def __str__(self):
         return f"R2labApiProxy@{self.url}"
