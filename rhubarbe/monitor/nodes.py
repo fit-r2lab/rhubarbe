@@ -28,21 +28,43 @@ from rhubarbe.monitor.reconnectable import ReconnectableSidecar
 from rhubarbe.monitor.watchdog import Watchdog, count_open_files
 
 # translate info into a single char for logging
+# a symbol means the node is not there yet, a letter means that we can ssh it
+# and know its os: upper case on a regular node, lower case in a container
+STATE_CHARS = {
+    'off': '·',             # cmc off
+    'bios': '○',            # on, no ping
+    'booting': '◔',         # ping, nothing else yet
+    'telnet': '◑',          # an image is being loaded or saved
+    'docker-only': '⌂',     # docker host, no container
+    'zombie': '⊘',          # booting for far too long
+    'unknown': '?',         # cmc does not answer properly
+}
+OS_LETTERS = {
+    'fedora': 'f', 'ubuntu': 'u', 'debian': 'd', 'centos': 'c', 'rocky': 'r',
+}
+
+
+def os_letter(os_release, upper):
+    "os_release is like fedora-44; one letter, upper case if upper"
+    name = (os_release or '').split('-')[0]
+    letter = OS_LETTERS.get(name)
+    if letter is None:
+        return '^' if upper else '*'
+    return letter.upper() if upper else letter
+
+
 def one_char_summary(info):
-    if 'cmc_on_off' in info and info['cmc_on_off'] != 'on':
-        return '.'
-    if 'control_ping' in info and info['control_ping'] != 'on':
-        return 'o'
-    if 'control_ssh' in info and info['control_ssh'] != 'on':
-        return '0'
-    # what the user runs on: the container if any, otherwise the metal
-    os_release = ((info.get('container') or {}).get('os_release')
-                  or (info.get('metal') or {}).get('os_release') or '')
-    if 'fedora' in os_release:
-        return 'F'
-    if 'ubuntu' in os_release:
-        return 'U'
-    return '^'
+    state = info.get('state')
+    if state in STATE_CHARS:
+        return STATE_CHARS[state]
+    if state == 'container':
+        # what the user runs on is the container
+        return os_letter((info.get('container') or {}).get('os_release'),
+                         False)
+    if state == 'regular':
+        return os_letter((info.get('metal') or {}).get('os_release'), True)
+    # no state yet
+    return '?'
 
 
 async def ping(hostname, timeout):
@@ -69,6 +91,35 @@ async def ping(hostname, timeout):
             await process.wait()
 
 
+async def tcp_state(hostname, port, timeout):
+    """
+    what a plain tcp connection tells about a port, no data exchanged
+    . 'open': someone listens
+    . 'closed': refused, or rejected by a firewall (fedora does this with
+      'no route to host'), either way the node is up and nobody is there
+    . 'filtered': no answer in time, or any other failure
+    """
+    try:
+        _, writer = await asyncio.wait_for(
+            asyncio.open_connection(hostname, port), timeout=timeout)
+    except ConnectionRefusedError:
+        return 'closed'
+    except asyncio.TimeoutError:
+        return 'filtered'
+    except OSError as exc:
+        return 'closed' if exc.errno == errno.EHOSTUNREACH else 'filtered'
+    writer.close()
+    try:
+        await writer.wait_closed()
+    except OSError:
+        pass
+    return 'open'
+
+
+# a node that is booting for longer than this is a zombie
+ZOMBIE_AFTER = 180
+
+
 class MonitorNode:
     """
     the logic for probing a node as part of monitoring
@@ -92,6 +143,23 @@ class MonitorNode:
         self.last_probe_end = time.time()
         # what the last port-22 probe found, None if it failed
         self._probe22 = None
+        # the ports where ssh answered during this cycle
+        self._ssh_ports = []
+        # since when the node has been booting, for the zombie state
+        self._booting_since = None
+        the_config = Config()
+        try:
+            self.tcp_timeout = float(the_config.value('networking',
+                                                      'tcp_timeout'))
+        except Exception:                               # pylint: disable=w0703
+            self.tcp_timeout = 2.
+        # looking for telnet can be turned off in the config
+        try:
+            self.probe_telnet = the_config.value(
+                'monitor', 'probe_telnet').strip().lower() in (
+                    '1', 'true', 'yes', 'on')
+        except Exception:                               # pylint: disable=w0703
+            self.probe_telnet = True
 
     def refresh_static(self):
         """
@@ -222,21 +290,11 @@ class MonitorNode:
             port = 2222
         name = self.node.control_hostname()
         # a plain tcp connection tells 'refused' from the rest
-        try:
-            _, writer = await asyncio.wait_for(
-                asyncio.open_connection(self.node.control_hostname(), port),
-                timeout=ssh_timeout)
-            writer.close()
-        except ConnectionRefusedError:
+        state = await tcp_state(self.node.control_hostname(), port,
+                                self.tcp_timeout)
+        if state == 'closed':
             return 'refused', None
-        except OSError as exc:
-            # a firewall that rejects with 'host prohibited', as fedora does,
-            # shows up as 'no route to host': same thing as refused, as we
-            # only get there when port 22 has just answered
-            if exc.errno == errno.EHOSTUNREACH:
-                return 'refused', None
-            return 'unknown', None
-        except Exception:                               # pylint: disable=w0703
+        if state != 'open':
             return 'unknown', None
         async with SshProxy(self.node, port=port) as ssh:
             try:
@@ -320,7 +378,7 @@ class MonitorNode:
             'seen': int(time.time()),
         })
 
-    async def probe_setup(self, ssh_timeout):
+    async def probe_setup(self, ssh_timeout, host_port_closed=False):
         """
         what runs on the node: the 'metal' and 'container' sub-records
 
@@ -346,6 +404,8 @@ class MonitorNode:
             return
         # either port 22 leads into a container (or we could not tell), or
         # it does not answer: the metal can only be learned from the host
+        if host_port_closed:
+            return
         outcome, host = await self.probe_docker_host(ssh_timeout)
         if outcome == 'docker':
             self.set_info(
@@ -354,6 +414,7 @@ class MonitorNode:
             # we have just ssh-ed the node, if only on the host port: this is
             # all there is to see on a docker node that has no container
             self.set_info({'control_ssh': 'on', 'control_ping': 'on'})
+            self._ssh_ports.append(host['port'])
 
     def parse_probe_output(self,          # pylint: disable=r0912, r0914, r0915
                            stdout, port):
@@ -431,6 +492,48 @@ class MonitorNode:
         # padding_dict is control_ssh and control_ping on
         self.set_info(padding_dict)
 
+    def update_state(self):
+        """
+        the 'state' of the node, one label computed from what we know:
+        off | bios | booting | telnet | docker-only | container | regular
+        | zombie, or unknown if the cmc does not answer properly
+        """
+        info = self.info
+        ports = info.get('ssh_ports') or []
+        cmc = info.get('cmc_on_off')
+        booting = False
+        if cmc == 'off':
+            state = 'off'
+        elif cmc != 'on':
+            state = 'unknown'
+        elif info.get('control_ping') != 'on':
+            state = 'bios'
+        elif info.get('control_telnet') == 'on' and not ports:
+            state = 'telnet'
+        elif 22 in ports:
+            in_container = ((self._probe22 or {}).get('os') or {}).get(
+                'in_container')
+            state = ('container' if in_container or len(ports) > 1
+                     else 'regular')
+        elif ports:
+            state = 'docker-only'
+        else:
+            booting = True
+            if self._booting_since is None:
+                self._booting_since = time.time()
+            state = ('zombie'
+                     if time.time() - self._booting_since > ZOMBIE_AFTER
+                     else 'booting')
+        if not booting:
+            self._booting_since = None
+        info['state'] = state
+
+    async def report_state(self, *overrides):
+        "set info, compute the state, and report"
+        self.set_info(*overrides)
+        self.update_state()
+        await self.report_info()
+
     async def probe(self,                 # pylint: disable=r0912, r0914, r0915
                     ping_timeout, ssh_timeout):
         """
@@ -445,8 +548,12 @@ class MonitorNode:
         padding_dict = {
             'control_ping': 'off',
             'control_ssh': 'off',
+            'ssh_ports': [],
             # don't overwrite metal and container though
         }
+        if self.probe_telnet:
+            padding_dict['control_telnet'] = 'off'
+        self._ssh_ports = []
         # get USRP status no matter what - use "" if we receive None
         # to limit noise when the node is physically removed
         usrp_status = await self.node.get_usrpstatus() or 'fail'
@@ -455,73 +562,108 @@ class MonitorNode:
         # get CMC status
         status = await self.node.get_status()
         if status == "off":
-            await self.set_info_and_report({'cmc_on_off': 'off'}, padding_dict)
+            await self.report_state({'cmc_on_off': 'off'}, padding_dict)
             return
         elif status != "on":
-            await self.set_info_and_report({'cmc_on_off': 'fail'}, padding_dict)
+            await self.report_state({'cmc_on_off': 'fail'}, padding_dict)
             return
         if self.verbose:
             logger.info(f"entering pass2, info={self.info}")
-        # pass2 : CMC status is ON - let's try to ssh it
+        # pass2 : CMC status is ON - which services answer ?
         self.set_info({'cmc_on_off': 'on'})
+        control = self.node.control_hostname()
+        ports = [22, int(Config().value('docker', 'host_ssh_port'))]
+        if self.probe_telnet:
+            ports.append(23)
+        answers = await asyncio.gather(
+            *(tcp_state(control, port, self.tcp_timeout) for port in ports))
+        scan = dict(zip(ports, answers))
+        if self.verbose:
+            logger.info(f"{control}: tcp scan {scan}")
+        # a node in telnet mode (frisbee, imagezip) has no ssh; we do not
+        # try, and keep metal and container as they were
+        if (scan.get(23) == 'open' and scan[22] != 'open'
+                and scan[ports[1]] != 'open'):
+            self._probe22 = None
+            await self.report_state(
+                {'control_ping': 'on', 'control_ssh': 'off',
+                 'control_telnet': 'on', 'ssh_ports': []})
+            return
         padding_dict = {
             'control_ping': 'on',
             'control_ssh': 'on',
         }
+        # telnet and ssh are not exclusive; if both answer, ssh wins
+        if self.probe_telnet:
+            self.set_info({'control_telnet':
+                           'on' if scan.get(23) == 'open' else 'off'})
 
         remote_commands = self.os_commands + self.docker_commands
         # reconnect each time
         self.set_info({'control_ssh': 'off'})
         self._probe22 = None
-        async with SshProxy(self.node) as ssh:
-            logger.info(f"trying to ssh-connect to {self.node.control_hostname()} "
-                        f"(timeout={ssh_timeout})")
-            try:
-                connected = await asyncio.wait_for(
-                    ssh.connect(), timeout=ssh_timeout)
-            except asyncio.TimeoutError:
-                connected = False
-                self.set_info({'control_ssh': 'off'})
-            logger.info(f"{self.node.control_hostname()} ssh-connected={connected}")
-            if connected:
-                self.set_info({'control_ssh': 'on'})
+        # no need to wait for a timeout if nobody listens on 22
+        if scan[22] == 'open':
+            async with SshProxy(self.node) as ssh:
+                logger.info(f"trying to ssh-connect to {control} "
+                            f"(timeout={ssh_timeout})")
                 try:
-                    command = ";".join(remote_commands)
-                    output = await asyncio.wait_for(
-                        ssh.run(command), timeout=ssh_timeout)
-                    logger.debug(f"{output=:20s}...")
-                    if output is None:
-                        # ssh.run() has already logged the reason
-                        self.set_info({'control_ssh': 'off'})
-                    else:
-                        # padding dict here sets control_ssh and control_ping to on
-                        self.parse_ssh_probe_output(output, padding_dict)
-                    # required as otherwise we leak openfiles
-                    try:
-                        await ssh.close()
-                    except Exception:                           # pylint: disable=broad-except
-                        logger.exception("monitornodes oops 1")
+                    connected = await asyncio.wait_for(
+                        ssh.connect(), timeout=ssh_timeout)
                 except asyncio.TimeoutError:
-                    logger.info(f"received ssh timeout with {self.node.control_hostname()}")
+                    connected = False
                     self.set_info({'control_ssh': 'off'})
-                except Exception:                                   # pylint: disable=broad-except
-                    logger.exception("monitornodes remote_command failed")
+                logger.info(f"{control} ssh-connected={connected}")
+                if connected:
+                    self.set_info({'control_ssh': 'on'})
+                    try:
+                        command = ";".join(remote_commands)
+                        output = await asyncio.wait_for(
+                            ssh.run(command), timeout=ssh_timeout)
+                        logger.debug(f"{output=:20s}...")
+                        if output is None:
+                            # ssh.run() has already logged the reason
+                            self.set_info({'control_ssh': 'off'})
+                        else:
+                            # padding dict here sets control_ssh and
+                            # control_ping to on
+                            self.parse_ssh_probe_output(output, padding_dict)
+                        # required as otherwise we leak openfiles
+                        try:
+                            await ssh.close()
+                        except Exception:               # pylint: disable=broad-except
+                            logger.exception("monitornodes oops 1")
+                    except asyncio.TimeoutError:
+                        logger.info(f"received ssh timeout with {control}")
+                        self.set_info({'control_ssh': 'off'})
+                    except Exception:                   # pylint: disable=broad-except
+                        logger.exception("monitornodes remote_command failed")
+        if self.info['control_ssh'] == 'on':
+            self._ssh_ports.append(22)
         # in a container, docker can only be seen from the host
-        await self.probe_setup(ssh_timeout)
-        logger.info(f"{self.node.control_hostname()} ssh-based logic done "
+        if scan[ports[1]] != 'closed':
+            await self.probe_setup(ssh_timeout)
+        else:
+            # nothing on the host port: only a regular node can tell
+            await self.probe_setup(ssh_timeout, host_port_closed=True)
+        logger.info(f"{control} ssh-based logic done "
                     f"ssh is deemed {self.info['control_ssh']}")
+        self.set_info({'ssh_ports': sorted(self._ssh_ports)})
 
         # if we could ssh then we're done
         if self.info['control_ssh'] == 'on':
+            self.update_state()
             await self.report_info()
             return
 
         logger.info(f"entering pass3, info={self.info}")
         # pass3 : node is ON but could not ssh
-        # check for ping
-        control = self.node.control_hostname()
-        control_ping = 'on' if await ping(control, ping_timeout) else 'off'
-        await self.set_info_and_report({'control_ping': control_ping})
+        # check for ping, unless some port has just answered
+        if 'open' in scan.values():
+            control_ping = 'on'
+        else:
+            control_ping = 'on' if await ping(control, ping_timeout) else 'off'
+        await self.report_state({'control_ping': control_ping})
 
     async def probe_forever(self, cycle, ping_timeout, ssh_timeout):
         """
