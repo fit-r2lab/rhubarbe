@@ -1,5 +1,32 @@
 # Changelog
 
+## 13.0.0 - 2026 Nov 12
+
+- monitornodes: new node state model; each node now reports
+  - `state`, one label computed from what answers: `off`, `bios` (on, no
+    ping), `booting`, `telnet` (an image is being loaded or saved),
+    `docker-only` (docker host, no container), `container`, `regular`,
+    `zombie` (booting for more than 3 minutes) or `unknown`
+  - `ssh_ports`, where ssh answers (22 and/or the docker host port), and
+    `control_telnet`; `control_ssh` and `control_ping` are unchanged
+  - new `probe_telnet` in `[monitor]` (on by default) to look at port 23, and
+    `tcp_timeout` in `[networking]`
+  - a new one-character summary in the log: a symbol for nodes that cannot be
+    ssh-ed yet (`·` off, `○` bios, `◔` booting, `◑` telnet, `⌂` docker-only,
+    `⊘` zombie, `?` unknown), or the OS letter, upper case for a regular node
+    and lower case for a container (`F`/`f` fedora, `U`/`u` ubuntu, `D`/`d`
+    debian, `C`/`c` centos, `R`/`r` rocky, `^`/`*` other)
+- monitornodes: hardened probing
+  - starts with a parallel tcp scan of ports 22, the docker host port and 23;
+    ssh is only tried where something listens
+  - port 22 tells by itself whether it reached a container, so `metal` is
+    refreshed at once instead of after 2 cycles; nodes up for a few seconds
+    only, like in the nightly, no longer keep the `metal` of a previous boot
+  - 'no route to host' on the docker host port (fedora firewall) is treated
+    like 'connection refused'
+  - a docker node with no container yet gets `control_ssh` on if its host
+    port answers
+
 ## 12.0.0 - 2026 Nov 11
 
 - new source of truths and data models
