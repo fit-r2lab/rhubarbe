@@ -92,8 +92,6 @@ class MonitorNode:
         self.last_probe_end = time.time()
         # what the last port-22 probe found, None if it failed
         self._probe22 = None
-        # see probe_setup
-        self._regular_cycles = 0
 
     def refresh_static(self):
         """
@@ -152,6 +150,8 @@ class MonitorNode:
         r"\ADOCKER:(?:Docker|podman) version (?P<docker_version>[0-9\.]+)")
     container_matcher = re.compile(
         r"\ACONTAINER:(?P<running>(true|false)) (?P<image>.*)")
+    # does the sshd we reached run inside a container, see os_commands
+    in_container_matcher = re.compile(r"\AIN_CONTAINER:(?P<answer>yes|no)\Z")
     # from /etc/os-release, see remote_commands
     osr_matcher = re.compile(
         r"\AOSR:(?P<key>ID|VERSION_ID|PRETTY_NAME)="
@@ -188,6 +188,11 @@ class MonitorNode:
         # this trick allows to have the filename on each output line
         "grep . /etc/rhubarbe-image /dev/null",
         "echo -n UNAME: ; uname -r",
+        # on a docker node, port 22 leads into the container: this is how
+        # we tell the bare machine from a container, whatever the host port
+        # (/.dockerenv for docker, /run/.containerenv for podman)
+        "if [ -e /.dockerenv ] || [ -e /run/.containerenv ];"
+        " then echo IN_CONTAINER:yes; else echo IN_CONTAINER:no; fi",
     ]
     docker_commands = [
         "echo -n DOCKER: ; docker --version",
@@ -254,11 +259,6 @@ class MonitorNode:
             except Exception:                           # pylint: disable=w0703
                 logger.exception(f"{name}: docker host probe failed")
         return 'unknown', None
-
-    # how many cycles in a row a node must look like a regular one (nothing
-    # on the docker host port) before we forget its docker info; shields from
-    # the transitional probes when a docker node reboots
-    REGULAR_CYCLES = 2
 
     # the sidecar broadcasts and stores a node whenever something changes, so
     # 'seen' must not change at every cycle: it is refreshed only when the
@@ -327,6 +327,10 @@ class MonitorNode:
         These are only written when what we saw is conclusive: whatever a
         partial probe could not see keeps its last value, which is what is
         shown for a node that is off
+
+        The port-22 probe says by itself whether it reached a container;
+        if not, we are on the bare machine and it is conclusive at once, even
+        for a node that stays up for a single cycle
         """
         probe22 = self._probe22
         if probe22 and probe22['docker']['docker_version']:
@@ -334,8 +338,14 @@ class MonitorNode:
             self.set_info(
                 {'metal': self.metal_record(probe22),
                  'container': self.container_record(probe22['docker'], None)})
-            self._regular_cycles = 0
             return
+        if probe22 and probe22['os']['in_container'] is False:
+            # a regular node
+            self.set_info(
+                {'metal': self.metal_record(probe22), 'container': None})
+            return
+        # either port 22 leads into a container (or we could not tell), or
+        # it does not answer: the metal can only be learned from the host
         outcome, host = await self.probe_docker_host(ssh_timeout)
         if outcome == 'docker':
             self.set_info(
@@ -344,16 +354,6 @@ class MonitorNode:
             # we have just ssh-ed the node, if only on the host port: this is
             # all there is to see on a docker node that has no container
             self.set_info({'control_ssh': 'on', 'control_ping': 'on'})
-            self._regular_cycles = 0
-        elif outcome == 'refused' and probe22:
-            self._regular_cycles += 1
-            # first data we have for this node: no need to wait
-            if (self._regular_cycles >= self.REGULAR_CYCLES
-                    or 'metal' not in self.info):
-                self.set_info(
-                    {'metal': self.metal_record(probe22), 'container': None})
-        else:
-            self._regular_cycles = 0
 
     def parse_probe_output(self,          # pylint: disable=r0912, r0914, r0915
                            stdout, port):
@@ -365,11 +365,16 @@ class MonitorNode:
         gnuradio_release = "none"
         uname = ""
         image_radical = ""
+        in_container = None
         osr = {}
         for line in stdout.split("\n"):
             match = self.osr_matcher.match(line.strip())
             if match:
                 osr[match.group('key')] = match.group('value')
+                continue
+            match = self.in_container_matcher.match(line)
+            if match:
+                in_container = match.group('answer') == 'yes'
                 continue
             match = self.ubuntu_matcher.match(line)
             if match:
@@ -411,7 +416,8 @@ class MonitorNode:
                    'pretty_name': osr.get('PRETTY_NAME', ""),
                    'gnuradio_release': gnuradio_release,
                    'uname': uname,
-                   'image_radical': image_radical},
+                   'image_radical': image_radical,
+                   'in_container': in_container},
             'docker': self.parse_docker_output(stdout),
         }
 
