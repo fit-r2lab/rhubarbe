@@ -54,7 +54,7 @@ some notes taken when rebuilding `distrait.pl.sophia.inria.fr`
 - [ ] install diana bash
 - [ ] get-gitprompt
 - [ ] pip install rhubarbe
-- [ ] apply r2lab-misc/inventory to create config
+- [ ] apply r2lab-inventory to create config
 - [ ] symlink /etc/profile.d/ faraday.sh and r2labutils.sh
 - [ ] installed frisbee binaries from r2lab-misc/ (manually)
 - [ ] dnf install syslinux syslinux-nonlinux syslinux-tftpboot
